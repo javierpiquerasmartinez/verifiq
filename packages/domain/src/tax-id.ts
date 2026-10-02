@@ -53,13 +53,8 @@ export function normalizeTaxId(input: string): string {
 export function parseTaxId(input: string): TaxIdCheck {
   const value = normalizeTaxId(input);
 
-  const nif = NIF.exec(value);
+  const nif = NIF.exec(value) ?? SPECIAL_NIF.exec(value);
   if (nif) return nif[2] === dniLetter(nif[1]!) ? { valid: true, kind: 'NIF', value } : { valid: false };
-
-  const special = SPECIAL_NIF.exec(value);
-  if (special) {
-    return special[2] === dniLetter(special[1]!) ? { valid: true, kind: 'NIF', value } : { valid: false };
-  }
 
   const nie = NIE.exec(value);
   if (nie) {

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { breakdownInputSchema, computeBreakdown, type BreakdownInput, type BreakdownLine } from './amounts.js';
 
 const exempt = { kind: 'exempt', supuesto: 'odontologia' } as const;
+const mention =
+  'Operación exenta de IVA en virtud del artículo 20.Uno.5º de la Ley 37/1992, del Impuesto sobre el Valor Añadido.';
 const taxed = (rate: 21 | 10 | 4 | 0) => ({ kind: 'taxed', rate }) as const;
 const line = (quantity: string, unitPrice: string, iva: BreakdownLine['iva'], discountPercent?: string) => ({
   quantity,
@@ -15,7 +17,7 @@ describe('computeBreakdown', () => {
     expect(computeBreakdown({ lines: [line('1', '2500', exempt)], retencionIrpf: 15 })).toEqual({
       lines: [{ base: '2500.00' }],
       taxed: [],
-      exempt: [{ supuesto: 'odontologia', base: '2500.00' }],
+      exempt: [{ supuesto: 'odontologia', base: '2500.00', mention }],
       baseImponible: '2500.00',
       importeTotal: '2500.00',
       retencionIrpf: { rate: 15, amount: '375.00' },
@@ -43,7 +45,7 @@ describe('computeBreakdown', () => {
       { rate: 4, base: '15.00', cuota: '0.60' },
       { rate: 0, base: '50.00', cuota: '0.00' },
     ]);
-    expect(breakdown.exempt).toEqual([{ supuesto: 'odontologia', base: '1200.00' }]);
+    expect(breakdown.exempt).toEqual([{ supuesto: 'odontologia', base: '1200.00', mention }]);
     expect(breakdown.baseImponible).toBe('1406.00');
     expect(breakdown.importeTotal).toBe('1433.90');
     expect(breakdown.retencionIrpf).toEqual({ rate: 7, amount: '98.42' });

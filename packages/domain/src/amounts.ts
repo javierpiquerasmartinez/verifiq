@@ -1,7 +1,13 @@
 import Big from 'big.js';
 import { z } from 'zod';
-import { SUPUESTO_EXENCION_IDS, supuestoExencionSchema, type SupuestoExencionId } from './exemptions.js';
+import {
+  SUPUESTO_EXENCION_IDS,
+  supuestoExencion,
+  supuestoExencionSchema,
+  type SupuestoExencionId,
+} from './exemptions.js';
 
+/** 0 % is a taxed rate (e.g. some resold goods), not an exemption: exempt lines carry a Supuesto de exención. */
 export const IVA_RATES = [21, 10, 4, 0] as const;
 export type IvaRate = (typeof IVA_RATES)[number];
 
@@ -44,8 +50,8 @@ export interface Breakdown {
   lines: { base: string }[];
   /** Highest rate first. */
   taxed: { rate: IvaRate; base: string; cuota: string }[];
-  /** In catalogue order. */
-  exempt: { supuesto: SupuestoExencionId; base: string }[];
+  /** In catalogue order, with the legal mention to print. */
+  exempt: { supuesto: SupuestoExencionId; base: string; mention: string }[];
   /** Sum of every line base, taxed and exempt. */
   baseImponible: string;
   /** Base imponible plus cuotas: what is declared to the AEAT. */
@@ -62,12 +68,16 @@ function toCents(value: Big): Big {
   return value.round(2, Big.roundHalfUp);
 }
 
-function format(value: Big): string {
+function formatCents(value: Big): string {
   return value.eq(0) ? '0.00' : value.toFixed(2);
 }
 
 function percentOf(base: Big, rate: number): Big {
   return toCents(base.times(rate).div(HUNDRED));
+}
+
+function addTo<K>(sums: Map<K, Big>, key: K, amount: Big): void {
+  sums.set(key, (sums.get(key) ?? new Big(0)).plus(amount));
 }
 
 function lineBase(line: BreakdownLine): Big {
@@ -87,11 +97,8 @@ export function computeBreakdown(input: BreakdownInput): Breakdown {
   const exemptBases = new Map<SupuestoExencionId, Big>();
   input.lines.forEach((line, i) => {
     const base = bases[i]!;
-    if (line.iva.kind === 'taxed') {
-      taxedBases.set(line.iva.rate, (taxedBases.get(line.iva.rate) ?? new Big(0)).plus(base));
-    } else {
-      exemptBases.set(line.iva.supuesto, (exemptBases.get(line.iva.supuesto) ?? new Big(0)).plus(base));
-    }
+    if (line.iva.kind === 'taxed') addTo(taxedBases, line.iva.rate, base);
+    else addTo(exemptBases, line.iva.supuesto, base);
   });
 
   const taxed = IVA_RATES.filter((rate) => taxedBases.has(rate)).map((rate) => {
@@ -104,15 +111,16 @@ export function computeBreakdown(input: BreakdownInput): Breakdown {
   const retencion = percentOf(baseImponible, input.retencionIrpf);
 
   return {
-    lines: bases.map((base) => ({ base: format(base) })),
-    taxed: taxed.map(({ rate, base, cuota }) => ({ rate, base: format(base), cuota: format(cuota) })),
+    lines: bases.map((base) => ({ base: formatCents(base) })),
+    taxed: taxed.map(({ rate, base, cuota }) => ({ rate, base: formatCents(base), cuota: formatCents(cuota) })),
     exempt: SUPUESTO_EXENCION_IDS.filter((id) => exemptBases.has(id)).map((supuesto) => ({
       supuesto,
-      base: format(exemptBases.get(supuesto)!),
+      base: formatCents(exemptBases.get(supuesto)!),
+      mention: supuestoExencion(supuesto).mention,
     })),
-    baseImponible: format(baseImponible),
-    importeTotal: format(importeTotal),
-    retencionIrpf: { rate: input.retencionIrpf, amount: format(retencion) },
-    totalAPagar: format(importeTotal.minus(retencion)),
+    baseImponible: formatCents(baseImponible),
+    importeTotal: formatCents(importeTotal),
+    retencionIrpf: { rate: input.retencionIrpf, amount: formatCents(retencion) },
+    totalAPagar: formatCents(importeTotal.minus(retencion)),
   };
 }
