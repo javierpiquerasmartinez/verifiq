@@ -1,44 +1,52 @@
 # Verifiq
 
-Monorepo pnpm + Turborepo (ADR 0003):
+pnpm + Turborepo monorepo (ADR 0003):
 
 - `apps/web`: React + Vite (Vercel).
-- `apps/api`: NestJS + Drizzle. Dos procesos del mismo código: API (`dist/main.js`) y worker (`dist/worker.js`), ambos en Render.
-- `packages/domain`: lógica pura y schemas zod compartidos.
+- `apps/api`: NestJS + Drizzle. Two processes from the same code: the API (`dist/main.js`) and the worker (`dist/worker.js`), both on Render.
+- `packages/domain`: pure logic and shared zod schemas.
 
-## Desarrollo
+## Development
 
 ```bash
 pnpm install
-cp apps/api/.env.example apps/api/.env   # ajustar DATABASE_URL
+cp apps/api/.env.example apps/api/.env   # set DATABASE_URL
 pnpm --filter @verifiq/api build && pnpm --filter @verifiq/api db:migrate
 pnpm dev
 ```
 
-Comandos: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
+Commands: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
 
-Los tests de integración de la API arrancan la app Nest completa contra una Postgres real. Necesitan `TEST_DATABASE_URL` apuntando a una conexión con permiso para `CREATE DATABASE` (Postgres local o una rama de Neon); cada ejecución crea una base de datos desechable, aplica las migraciones y la borra al terminar.
+The API integration tests boot the full Nest app against a real Postgres. They need `TEST_DATABASE_URL` pointing to a connection allowed to `CREATE DATABASE` (a local Postgres or a Neon branch); each run creates a throwaway database, applies the migrations and drops it at the end.
 
-## Migraciones
+## Migrations
 
-Esquema en `apps/api/src/database/schema.ts`; migraciones SQL versionadas en `apps/api/drizzle/`. Generar con `pnpm --filter @verifiq/api db:generate`. Solo migraciones compatibles hacia atrás (expand/contract). En Render se aplican como `preDeployCommand`; si fallan, el despliegue se aborta.
+Schema in `apps/api/src/database/schema.ts`; versioned SQL migrations in `apps/api/drizzle/`. Generate them with `pnpm --filter @verifiq/api db:generate`. Backward-compatible migrations only (expand/contract). They are applied when the API starts (`pnpm start:api`); see Deployment.
 
-## Versión
+## Version
 
-`scripts/version.js` compone `<version de package.json>+<commit>` en el build: la web la recibe como `__APP_VERSION__` y la API la escribe en `dist/version.json` y la sirve en `GET /health`.
+`scripts/version.js` builds `<package.json version>+<commit>` at build time: the web receives it as `__APP_VERSION__`, and the API writes it to `dist/version.json` and serves it on `GET /health`.
 
-## Despliegue
+## Deployment
 
-El código no depende del proveedor: cualquier hosting de Node 24 sirve con estos scripts de `package.json`, ejecutados desde la raíz del repo.
+The code is hosting-agnostic: any Node 24 host works with these `package.json` scripts, run from the repo root.
 
-| Proceso | Build | Arranque | Variables |
+| Process | Build | Start | Variables |
 |---|---|---|---|
-| API | `pnpm install --frozen-lockfile && pnpm build:api` | `pnpm start:api` (migra y arranca) | `DATABASE_URL`, `WEB_ORIGIN`, `PORT` (la pone el hosting) |
-| Worker | igual que la API | `pnpm start:worker` | `DATABASE_URL` |
-| Web (estática) | `pnpm build:web` → `apps/web/dist` | — | `VITE_API_URL` (en build) |
+| API | `pnpm install --frozen-lockfile && pnpm build:api` | `pnpm start:api` (migrates, then starts) | `DATABASE_URL`, `WEB_ORIGIN`, `PORT` (set by the host) |
+| Worker | same as the API | `pnpm start:worker` | `DATABASE_URL` |
+| Web (static) | `pnpm build:web` → `apps/web/dist` | — | `VITE_API_URL` (at build time) |
 
-- Las migraciones se aplican al arrancar la API: si fallan, la versión nueva no arranca, no pasa el health check (`/health`) y el hosting mantiene la anterior. Válido con una sola instancia; con varias (producción) mover la migración a un paso único previo al despliegue.
-- Staging: rama `stage`. API en Render (Frankfurt, plan free, health check `/health`) definida en el Blueprint `render.yaml`; el worker no se despliega hasta que tenga trabajo. Web en Vercel con raíz `apps/web` (`vercel.json`) y `ENABLE_EXPERIMENTAL_COREPACK=1`.
-- `WEB_ORIGIN` en la API: orígenes de la web separados por comas; `*` sustituye un fragmento del nombre de host (letras, números y guiones). Staging: `https://verifiq-phi.vercel.app,https://verifiq-*-javier-piqueras-martinezs-projects.vercel.app` (incluye los previews de Vercel de este equipo).
-- Secretos solo por variables de entorno (`DATABASE_URL`, `WEB_ORIGIN`, `VITE_API_URL`); nunca en el repo.
-- CI (`.github/workflows/ci.yml`): jobs `lint`, `typecheck`, `test` y `build` en paralelo en cada PR a `stage` y `main`; los cuatro son checks obligatorios en el ruleset de ambas ramas.
+- Migrations run when the API starts: if they fail, the new version never starts, fails the health check (`/health`) and the host keeps the previous one. Fine with a single instance; with several (production), move migrations to a single step before the deploy.
+- Staging: branch `stage`. API on Render (Frankfurt, free plan, health check `/health`), defined in the `render.yaml` Blueprint; the worker is not deployed until it has work to do. Web on Vercel with root `apps/web` (`vercel.json`) and `ENABLE_EXPERIMENTAL_COREPACK=1`.
+- `WEB_ORIGIN` on the API: comma-separated web origins; `*` stands for one fragment of a host name (letters, digits and hyphens). Staging: `https://verifiq-phi.vercel.app,https://verifiq-*-javier-piqueras-martinezs-projects.vercel.app` (includes this team's Vercel previews).
+- Secrets only via environment variables (`DATABASE_URL`, `WEB_ORIGIN`, `VITE_API_URL`); never in the repo.
+
+## Branches and CI
+
+- Feature PRs go to `stage` (deploys staging); releases are a PR from `stage` to `main` (production). Both branches are protected by a ruleset: PR required, no force push or deletion.
+- CI (`.github/workflows/ci.yml`) runs the `lint`, `typecheck`, `test` and `build` jobs in parallel on every PR to `stage` and `main`; all four are required checks.
+
+## Language
+
+Code, comments, commits, PRs and this README are in English. Exceptions: user-facing copy is in Spanish (the product is for Spanish freelancers), and domain terms keep their Spanish names from `GLOSSARY.md` (Emisor, Destinatario, Borrador…). Specs, ADRs and issues stay in Spanish.
