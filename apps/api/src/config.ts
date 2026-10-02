@@ -4,6 +4,7 @@ const envSchema = z.object({
   DATABASE_URL: z.url(),
   PORT: z.coerce.number().int().positive().default(3000),
   // Comma-separated origins allowed to call the API from a browser (the web app).
+  // `*` matches one fragment of a host name, e.g. https://verifiq-*-team.vercel.app.
   WEB_ORIGIN: z
     .string()
     .default('http://localhost:5173')
