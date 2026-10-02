@@ -14,4 +14,4 @@ Single-context: un `GLOSSARY.md` y `docs/adr/` en la raíz. See `docs/agents/dom
 
 ### Language
 
-Code, comments, commit messages, branch names, PR titles and descriptions, and the README are in English. User-facing copy stays in Spanish, and domain terms keep the Spanish names from `GLOSSARY.md` (e.g. `Emisor`, `Destinatario`, `Borrador`) in code too. Specs, ADRs and issues stay in Spanish.
+Everything in the code is in English: identifiers, comments, test names, routes (API and web), database tables and columns, commit messages, branch names, PR titles and descriptions, and the README. Domain terms use the English code name that `GLOSSARY.md` gives each one (e.g. Emisor → `Issuer`, Destinatario → `Recipient`, Borrador → `Draft`); never a Spanish name or another synonym. Only user-facing copy (UI text, emails, validation messages shown to users) stays in Spanish. Specs, ADRs, issues and `GLOSSARY.md` stay in Spanish.

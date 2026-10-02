@@ -32,7 +32,7 @@ export const CurrentSession = createParamDecorator(
   },
 );
 
-/** Global guard: a Usuario without 2FA set up reaches nothing but its set-up (served by Better Auth). */
+/** Global guard: a user without 2FA set up reaches nothing but its set-up (served by Better Auth). */
 @Injectable()
 export class SessionGuard implements CanActivate {
   constructor(

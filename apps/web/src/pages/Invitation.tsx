@@ -25,7 +25,7 @@ function problemOf(error: unknown) {
 }
 
 export function InvitationPage() {
-  const { token } = useParams({ from: '/invitacion/$token' });
+  const { token } = useParams({ from: '/invitation/$token' });
   const navigate = useNavigate();
   const invitation = useQuery({
     queryKey: ['invitation', token],
@@ -48,7 +48,7 @@ export function InvitationPage() {
     setError(undefined);
     try {
       await acceptInvitation(token, { name, password });
-      await navigate({ to: '/configurar-2fa' });
+      await navigate({ to: '/set-up-2fa' });
     } catch (caught) {
       setPending(false);
       setError(

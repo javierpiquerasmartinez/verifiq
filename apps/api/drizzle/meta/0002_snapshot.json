@@ -1,5 +1,5 @@
 {
-  "id": "867c17cc-cfed-4127-b7b0-21ce34fc2fa5",
+  "id": "4534f7e9-2ae6-46c5-a0c4-b3a2e77fc77a",
   "prevId": "1156cd5b-a57c-4ddd-bafa-d61a9d5af7cc",
   "version": "7",
   "dialect": "postgresql",
@@ -127,242 +127,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.emisor_memberships": {
-      "name": "emisor_memberships",
-      "schema": "",
-      "columns": {
-        "emisor_id": {
-          "name": "emisor_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "emisor_memberships_user_id_idx": {
-          "name": "emisor_memberships_user_id_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "emisor_memberships_emisor_id_emisores_id_fk": {
-          "name": "emisor_memberships_emisor_id_emisores_id_fk",
-          "tableFrom": "emisor_memberships",
-          "tableTo": "emisores",
-          "columnsFrom": [
-            "emisor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "emisor_memberships_user_id_users_id_fk": {
-          "name": "emisor_memberships_user_id_users_id_fk",
-          "tableFrom": "emisor_memberships",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "emisor_memberships_emisor_id_user_id_pk": {
-          "name": "emisor_memberships_emisor_id_user_id_pk",
-          "columns": [
-            "emisor_id",
-            "user_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.emisores": {
-      "name": "emisores",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nif": {
-          "name": "nif",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "address": {
-          "name": "address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "postal_code": {
-          "name": "postal_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "municipality": {
-          "name": "municipality",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "province": {
-          "name": "province",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "iban": {
-          "name": "iban",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "logo_key": {
-          "name": "logo_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "default_retencion_irpf": {
-          "name": "default_retencion_irpf",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "default_iva_rate": {
-          "name": "default_iva_rate",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "default_supuesto_exencion": {
-          "name": "default_supuesto_exencion",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "serie_prefix": {
-          "name": "serie_prefix",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rectificativa_prefix": {
-          "name": "rectificativa_prefix",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "serie_confirmed_at": {
-          "name": "serie_confirmed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "onboarding_completed_at": {
-          "name": "onboarding_completed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "emisores_nif_unique": {
-          "name": "emisores_nif_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "nif"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "emisores_default_iva_check": {
-          "name": "emisores_default_iva_check",
-          "value": "\"emisores\".\"default_iva_rate\" IS NULL OR \"emisores\".\"default_supuesto_exencion\" IS NULL"
-        },
-        "emisores_serie_check": {
-          "name": "emisores_serie_check",
-          "value": "(\"emisores\".\"serie_prefix\" IS NULL) = (\"emisores\".\"serie_confirmed_at\" IS NULL) AND (\"emisores\".\"rectificativa_prefix\" IS NULL) = (\"emisores\".\"serie_confirmed_at\" IS NULL)"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.invitations": {
       "name": "invitations",
       "schema": "",
@@ -442,6 +206,242 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.issuer_memberships": {
+      "name": "issuer_memberships",
+      "schema": "",
+      "columns": {
+        "issuer_id": {
+          "name": "issuer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "issuer_memberships_user_id_idx": {
+          "name": "issuer_memberships_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "issuer_memberships_issuer_id_issuers_id_fk": {
+          "name": "issuer_memberships_issuer_id_issuers_id_fk",
+          "tableFrom": "issuer_memberships",
+          "tableTo": "issuers",
+          "columnsFrom": [
+            "issuer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "issuer_memberships_user_id_users_id_fk": {
+          "name": "issuer_memberships_user_id_users_id_fk",
+          "tableFrom": "issuer_memberships",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "issuer_memberships_issuer_id_user_id_pk": {
+          "name": "issuer_memberships_issuer_id_user_id_pk",
+          "columns": [
+            "issuer_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.issuers": {
+      "name": "issuers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tax_id": {
+          "name": "tax_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "postal_code": {
+          "name": "postal_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "municipality": {
+          "name": "municipality",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "province": {
+          "name": "province",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "iban": {
+          "name": "iban",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "logo_key": {
+          "name": "logo_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_withholding": {
+          "name": "default_withholding",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_vat_rate": {
+          "name": "default_vat_rate",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_exemption_ground": {
+          "name": "default_exemption_ground",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "series_prefix": {
+          "name": "series_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "corrective_prefix": {
+          "name": "corrective_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "series_confirmed_at": {
+          "name": "series_confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "onboarding_completed_at": {
+          "name": "onboarding_completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "issuers_tax_id_unique": {
+          "name": "issuers_tax_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tax_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "issuers_default_vat_check": {
+          "name": "issuers_default_vat_check",
+          "value": "\"issuers\".\"default_vat_rate\" IS NULL OR \"issuers\".\"default_exemption_ground\" IS NULL"
+        },
+        "issuers_series_check": {
+          "name": "issuers_series_check",
+          "value": "(\"issuers\".\"series_prefix\" IS NULL) = (\"issuers\".\"series_confirmed_at\" IS NULL) AND (\"issuers\".\"corrective_prefix\" IS NULL) = (\"issuers\".\"series_confirmed_at\" IS NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.legal_acceptances": {
       "name": "legal_acceptances",
       "schema": "",
@@ -453,8 +453,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "emisor_id": {
-          "name": "emisor_id",
+        "issuer_id": {
+          "name": "issuer_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -486,11 +486,11 @@
         }
       },
       "indexes": {
-        "legal_acceptances_emisor_id_idx": {
-          "name": "legal_acceptances_emisor_id_idx",
+        "legal_acceptances_issuer_id_idx": {
+          "name": "legal_acceptances_issuer_id_idx",
           "columns": [
             {
-              "expression": "emisor_id",
+              "expression": "issuer_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -503,12 +503,12 @@
         }
       },
       "foreignKeys": {
-        "legal_acceptances_emisor_id_emisores_id_fk": {
-          "name": "legal_acceptances_emisor_id_emisores_id_fk",
+        "legal_acceptances_issuer_id_issuers_id_fk": {
+          "name": "legal_acceptances_issuer_id_issuers_id_fk",
           "tableFrom": "legal_acceptances",
-          "tableTo": "emisores",
+          "tableTo": "issuers",
           "columnsFrom": [
-            "emisor_id"
+            "issuer_id"
           ],
           "columnsTo": [
             "id"

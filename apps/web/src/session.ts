@@ -7,7 +7,7 @@ export function useSessionExpiry(error: unknown): void {
   const navigate = useNavigate();
   useEffect(() => {
     if (error instanceof ApiError && error.status === 401) {
-      void navigate({ to: '/entrar', search: { motivo: 'caducada' } });
+      void navigate({ to: '/sign-in', search: { reason: 'expired' } });
     }
   }, [error, navigate]);
 }

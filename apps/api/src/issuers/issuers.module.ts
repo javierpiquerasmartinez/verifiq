@@ -1,21 +1,21 @@
 import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { OBJECT_STORAGE, type ObjectStorage } from '../storage/object-storage.js';
-import { EmisorController } from './emisor.controller.js';
+import { IssuerController } from './issuer.controller.js';
 import { OnboardingController } from './onboarding.controller.js';
-import { EmisorContextInterceptor } from './tenancy.js';
+import { IssuerContextInterceptor } from './issuer-context.js';
 
-/** The Emisor, its alta, and the isolation layer every business module relies on. */
+/** The issuer, its onboarding, and the isolation layer every business module relies on. */
 @Module({})
-export class EmisoresModule {
+export class IssuersModule {
   static forRoot(storage: ObjectStorage): DynamicModule {
     return {
-      module: EmisoresModule,
+      module: IssuersModule,
       global: true,
-      controllers: [OnboardingController, EmisorController],
+      controllers: [OnboardingController, IssuerController],
       providers: [
         { provide: OBJECT_STORAGE, useValue: storage },
-        { provide: APP_INTERCEPTOR, useClass: EmisorContextInterceptor },
+        { provide: APP_INTERCEPTOR, useClass: IssuerContextInterceptor },
       ],
       exports: [OBJECT_STORAGE],
     };

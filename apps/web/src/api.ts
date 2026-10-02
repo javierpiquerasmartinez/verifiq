@@ -1,12 +1,12 @@
 import {
-  emisorSummarySchema,
+  issuerSummarySchema,
   healthResponseSchema,
   invitationSchema,
   onboardingSchema,
   type AcceptInvitation,
   type AcceptTerms,
-  type EmisorDefaults,
-  type EmisorSummary,
+  type IssuerDefaults,
+  type IssuerSummary,
   type FiscalDataInput,
   type HealthResponse,
   type Invitation,
@@ -66,29 +66,29 @@ export async function saveFiscalData(body: FiscalDataInput): Promise<Onboarding>
   return onboardingSchema.parse(await request('/onboarding/fiscal-data', sendJson('PUT', body)));
 }
 
-export async function saveDefaults(body: EmisorDefaults): Promise<Onboarding> {
+export async function saveDefaults(body: IssuerDefaults): Promise<Onboarding> {
   return onboardingSchema.parse(await request('/onboarding/defaults', sendJson('PUT', body)));
 }
 
 export async function confirmSeries(body: Series): Promise<Onboarding> {
-  return onboardingSchema.parse(await request('/onboarding/serie', sendJson('POST', body)));
+  return onboardingSchema.parse(await request('/onboarding/series', sendJson('POST', body)));
 }
 
 export async function acceptTerms(body: AcceptTerms): Promise<Onboarding> {
   return onboardingSchema.parse(await request('/onboarding/terms', sendJson('POST', body)));
 }
 
-export async function fetchEmisor(): Promise<EmisorSummary> {
-  return emisorSummarySchema.parse(await request('/emisor'));
+export async function fetchIssuer(): Promise<IssuerSummary> {
+  return issuerSummarySchema.parse(await request('/issuer'));
 }
 
-/** Served to the signed-in Usuario only; `version` busts the browser cache after a change. */
-export const logoUrl = (version: number) => `${apiUrl}/emisor/logo?v=${version}`;
+/** Served to the signed-in user only; `version` busts the browser cache after a change. */
+export const logoUrl = (version: number) => `${apiUrl}/issuer/logo?v=${version}`;
 
 export async function uploadLogo(file: File): Promise<void> {
-  await request('/emisor/logo', { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+  await request('/issuer/logo', { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
 }
 
 export async function removeLogo(): Promise<void> {
-  await request('/emisor/logo', { method: 'DELETE' });
+  await request('/issuer/logo', { method: 'DELETE' });
 }

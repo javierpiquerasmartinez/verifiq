@@ -19,8 +19,8 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1790955095486,
-      "tag": "0002_emisores",
+      "when": 1790964840627,
+      "tag": "0002_issuers",
       "breakpoints": true
     }
   ]

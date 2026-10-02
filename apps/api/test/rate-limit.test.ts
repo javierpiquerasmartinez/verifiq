@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { activeUsuario, browser, PASSWORD } from './access.js';
+import { activeUser, browser, PASSWORD } from './access.js';
 import { createTestApp } from './test-app.js';
 
 describe('Rate limiting', () => {
@@ -15,7 +15,7 @@ describe('Rate limiting', () => {
   });
 
   it('blocks repeated sign-in attempts from the same IP', async () => {
-    const { email } = await activeUsuario(app);
+    const { email } = await activeUser(app);
     const attacker = browser(app);
     const attempt = () =>
       attacker.post('/auth/sign-in/email').send({ email, password: 'guess-guess-guess' });
@@ -29,7 +29,7 @@ describe('Rate limiting', () => {
   });
 
   it('blocks repeated second-factor guesses', async () => {
-    const { email } = await activeUsuario(app);
+    const { email } = await activeUser(app);
     const attacker = browser(app);
     await attacker.post('/auth/sign-in/email').send({ email, password: PASSWORD }).expect(200);
 
@@ -43,7 +43,7 @@ describe('Rate limiting', () => {
   });
 
   it('blocks repeated password recovery requests', async () => {
-    const { email } = await activeUsuario(app);
+    const { email } = await activeUser(app);
     const client = browser(app);
     const request = () => client.post('/auth/request-password-reset').send({ email });
 
@@ -52,7 +52,7 @@ describe('Rate limiting', () => {
   });
 
   it('counts each IP separately', async () => {
-    const { email } = await activeUsuario(app);
+    const { email } = await activeUser(app);
     const attacker = browser(app);
     for (let i = 0; i < 6; i++) {
       await attacker.post('/auth/sign-in/email').send({ email, password: 'guess-guess-guess' });

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { emisorDefaultsSchema, fiscalDataSchema } from './emisor.js';
+import { issuerDefaultsSchema, fiscalDataSchema } from './issuer.js';
 
 const valid = {
   name: 'Lucía Ferrer Albiol',
-  nif: '24387612E',
+  taxId: '24387612E',
   address: 'Carrer de Colón 12, 3º 2ª',
   postalCode: '46004',
   municipality: 'València',
@@ -24,7 +24,7 @@ describe('fiscalDataSchema', () => {
     const parsed = fiscalDataSchema.parse({
       ...valid,
       name: '  Lucía Ferrer Albiol ',
-      nif: '24.387.612-e',
+      taxId: '24.387.612-e',
       email: ' lucia@example.com ',
       phone: '+34 600 123 456',
       iban: 'es91 2100 0418 4502 0005 1332',
@@ -32,7 +32,7 @@ describe('fiscalDataSchema', () => {
 
     expect(parsed).toMatchObject({
       name: 'Lucía Ferrer Albiol',
-      nif: '24387612E',
+      taxId: '24387612E',
       email: 'lucia@example.com',
       phone: '+34 600 123 456',
       iban: 'ES9121000418450200051332',
@@ -46,7 +46,7 @@ describe('fiscalDataSchema', () => {
   });
 
   it.each([
-    ['a NIF with the wrong letter', { nif: '24387612A' }],
+    ['a NIF with the wrong letter', { taxId: '24387612A' }],
     ['a blank name', { name: ' ' }],
     ['a name longer than VeriFactu allows', { name: 'x'.repeat(121) }],
     ['no fiscal address', { address: '' }],
@@ -63,21 +63,21 @@ describe('fiscalDataSchema', () => {
   });
 });
 
-describe('emisorDefaultsSchema', () => {
+describe('issuerDefaultsSchema', () => {
   it.each([
-    { retencionIrpf: 15, iva: { kind: 'taxed', rate: 21 } },
-    { retencionIrpf: 7, iva: { kind: 'taxed', rate: 0 } },
-    { retencionIrpf: 0, iva: { kind: 'exempt', supuesto: 'odontologia' } },
+    { withholding: 15, vat: { kind: 'taxed', rate: 21 } },
+    { withholding: 7, vat: { kind: 'taxed', rate: 0 } },
+    { withholding: 0, vat: { kind: 'exempt', ground: 'dentistry' } },
   ])('accepts %j', (defaults) => {
-    expect(emisorDefaultsSchema.parse(defaults)).toEqual(defaults);
+    expect(issuerDefaultsSchema.parse(defaults)).toEqual(defaults);
   });
 
   it.each([
-    ['a Retención de IRPF outside 15/7/0', { retencionIrpf: 19, iva: { kind: 'taxed', rate: 21 } }],
-    ['an IVA rate outside 21/10/4/0', { retencionIrpf: 15, iva: { kind: 'taxed', rate: 16 } }],
-    ['Exenta without a Supuesto de exención', { retencionIrpf: 15, iva: { kind: 'exempt' } }],
-    ['no IVA', { retencionIrpf: 15 }],
+    ['a withholding outside 15/7/0', { withholding: 19, vat: { kind: 'taxed', rate: 21 } }],
+    ['a VAT rate outside 21/10/4/0', { withholding: 15, vat: { kind: 'taxed', rate: 16 } }],
+    ['exempt without an exemption ground', { withholding: 15, vat: { kind: 'exempt' } }],
+    ['no VAT', { withholding: 15 }],
   ])('rejects %s', (_, defaults) => {
-    expect(emisorDefaultsSchema.safeParse(defaults).success).toBe(false);
+    expect(issuerDefaultsSchema.safeParse(defaults).success).toBe(false);
   });
 });

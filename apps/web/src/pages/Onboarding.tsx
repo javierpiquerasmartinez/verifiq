@@ -1,29 +1,29 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import {
-  DEFAULT_RECTIFICATIVA_PREFIX,
-  DEFAULT_SERIE_PREFIX,
-  EmisorErrorCode,
+  DEFAULT_CORRECTIVE_PREFIX,
+  DEFAULT_SERIES_PREFIX,
+  IssuerErrorCode,
   fiscalDataSchema,
   invoiceNumber,
-  IVA_RATES,
+  VAT_RATES,
   LEGAL_DOCUMENTS,
   LOGO_CONTENT_TYPES,
   LOGO_MAX_BYTES,
   normalizeTaxId,
   ONBOARDING_STEPS,
   parseTaxId,
-  RETENCION_IRPF_RATES,
+  WITHHOLDING_RATES,
   seriesSchema,
-  SUPUESTO_EXENCION_IDS,
-  supuestoExencion,
-  type EmisorDefaults,
+  EXEMPTION_GROUND_IDS,
+  exemptionGround,
+  type IssuerDefaults,
   type FiscalData,
-  type IvaTreatment,
+  type VatTreatment,
   type Onboarding,
   type OnboardingStep,
-  type RetencionIrpfRate,
-  type SupuestoExencionId,
+  type WithholdingRate,
+  type ExemptionGroundId,
 } from '@verifiq/domain';
 import { useEffect, useState, type FormEvent } from 'react';
 import {
@@ -45,7 +45,7 @@ import { Icon } from '../ui/icons';
 const STEP_LABELS: Record<OnboardingStep, string> = {
   'fiscal-data': 'Tus datos',
   defaults: 'Impuestos',
-  serie: 'Numeración',
+  series: 'Numeración',
   terms: 'Condiciones',
 };
 
@@ -58,7 +58,7 @@ const STEP_TITLES: Record<OnboardingStep, { title: string; subtitle: string }> =
     title: 'Impuestos por defecto',
     subtitle: 'Cada factura nueva empezará con estos valores. Podrás cambiarlos en cualquier factura.',
   },
-  serie: {
+  series: {
     title: 'Numeración de tus facturas',
     subtitle: 'Tus facturas de Verifiq tendrán una Serie propia que empieza en 1.',
   },
@@ -68,22 +68,22 @@ const STEP_TITLES: Record<OnboardingStep, { title: string; subtitle: string }> =
   },
 };
 
-/** The year of today's date in Spain, which names the Serie of the invoices issued now. */
+/** The year of today's date in Spain, which names the series of the invoices issued now. */
 const currentYear = () =>
   Number(new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', year: 'numeric' }).format(new Date()));
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     switch (error.code) {
-      case EmisorErrorCode.NifTaken:
+      case IssuerErrorCode.TaxIdTaken:
         return 'Ya hay un Emisor dado de alta con este NIF. Si es el tuyo, escríbenos.';
-      case EmisorErrorCode.SerieAlreadyConfirmed:
+      case IssuerErrorCode.SeriesAlreadyConfirmed:
         return 'Tu numeración ya estaba confirmada y no se puede cambiar.';
-      case EmisorErrorCode.LegalVersionOutdated:
+      case IssuerErrorCode.LegalVersionOutdated:
         return 'Las condiciones se han actualizado mientras tanto. Recarga la página y vuelve a leerlas.';
-      case EmisorErrorCode.LogoInvalid:
+      case IssuerErrorCode.LogoInvalid:
         return 'El logo debe ser una imagen PNG o JPEG.';
-      case EmisorErrorCode.OnboardingStepPending:
+      case IssuerErrorCode.OnboardingStepPending:
         return 'Falta completar un paso anterior.';
     }
     if (error.status === 413) return 'El logo ocupa demasiado: como máximo 1 MB.';
@@ -128,7 +128,7 @@ function Stepper({
   );
 }
 
-/** Alta del Emisor: four steps, each saved as it is completed, resumable at any time. */
+/** Issuer onboarding: four steps, each saved as it is completed, resumable at any time. */
 export function OnboardingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -150,7 +150,7 @@ export function OnboardingPage() {
 
   async function signOut() {
     await authClient.signOut();
-    await navigate({ to: '/entrar' });
+    await navigate({ to: '/sign-in' });
   }
 
   const heading = step ? STEP_TITLES[step] : { title: 'Alta en Verifiq', subtitle: '' };
@@ -175,11 +175,11 @@ export function OnboardingPage() {
           {step === 'defaults' && (
             <DefaultsStep onboarding={data} onSaved={saved} onBack={() => setViewing('fiscal-data')} />
           )}
-          {step === 'serie' && (
-            <SerieStep onboarding={data} onSaved={saved} onBack={() => setViewing('defaults')} />
+          {step === 'series' && (
+            <SeriesStep onboarding={data} onSaved={saved} onBack={() => setViewing('defaults')} />
           )}
           {step === 'terms' && (
-            <TermsStep onSaved={saved} onBack={() => setViewing('serie')} />
+            <TermsStep onSaved={saved} onBack={() => setViewing('series')} />
           )}
         </>
       )}
@@ -210,7 +210,7 @@ function useSubmit() {
 
 const EMPTY_FISCAL_DATA: Record<keyof FiscalData, string> = {
   name: '',
-  nif: '',
+  taxId: '',
   address: '',
   postalCode: '',
   municipality: '',
@@ -222,7 +222,7 @@ const EMPTY_FISCAL_DATA: Record<keyof FiscalData, string> = {
 
 const FIELD_ERRORS: Record<keyof FiscalData, string> = {
   name: 'Escribe tu nombre completo o razón social (hasta 120 caracteres).',
-  nif: 'El NIF no es válido: revisa los números y la letra.',
+  taxId: 'El NIF no es válido: revisa los números y la letra.',
   address: 'Escribe tu domicilio fiscal.',
   postalCode: 'El código postal debe tener 5 cifras.',
   municipality: 'Escribe el municipio.',
@@ -251,9 +251,9 @@ function FiscalDataStep({ onboarding, onSaved }: StepProps & { onboarding: Onboa
     setErrors((current) => ({ ...current, [key]: undefined }));
   };
 
-  // Validated as typed once it has the length of a NIF, so a typo shows up before saving.
-  const nif = normalizeTaxId(values.nif);
-  const nifError = errors.nif ?? (nif.length >= 9 && !parseTaxId(nif).valid ? FIELD_ERRORS.nif : undefined);
+  // Validated as typed once it has the length of a tax ID, so a typo shows up before saving.
+  const taxId = normalizeTaxId(values.taxId);
+  const taxIdError = errors.taxId ?? (taxId.length >= 9 && !parseTaxId(taxId).valid ? FIELD_ERRORS.taxId : undefined);
 
   function pickLogo(file: File | undefined) {
     setLogoError(undefined);
@@ -285,7 +285,7 @@ function FiscalDataStep({ onboarding, onSaved }: StepProps & { onboarding: Onboa
     }
     await run(async () => {
       const next = await saveFiscalData(parsed.data);
-      // The Emisor exists once its fiscal data is saved: only then can it have a logo.
+      // The issuer exists once its fiscal data is saved: only then can it have a logo.
       if (logo) {
         await uploadLogo(logo);
         setLogo(null);
@@ -307,8 +307,8 @@ function FiscalDataStep({ onboarding, onSaved }: StepProps & { onboarding: Onboa
         required
         className="input mono"
         help="Tu DNI con la letra, o tu NIE."
-        {...field('nif')}
-        error={nifError}
+        {...field('taxId')}
+        error={taxIdError}
       />
       <div className="grid">
         <div className="span3">
@@ -364,31 +364,31 @@ function FiscalDataStep({ onboarding, onSaved }: StepProps & { onboarding: Onboa
   );
 }
 
-const IRPF_LABELS: Record<RetencionIrpfRate, string> = { 15: '15 %', 7: '7 %', 0: 'Sin retención' };
+const WITHHOLDING_LABELS: Record<WithholdingRate, string> = { 15: '15 %', 7: '7 %', 0: 'Sin retención' };
 
-type IvaChoice = 'exempt' | `${(typeof IVA_RATES)[number]}`;
+type VatChoice = 'exempt' | `${(typeof VAT_RATES)[number]}`;
 
-function ivaChoiceOf(iva: IvaTreatment): IvaChoice {
-  return iva.kind === 'exempt' ? 'exempt' : `${iva.rate}`;
+function vatChoiceOf(vat: VatTreatment): VatChoice {
+  return vat.kind === 'exempt' ? 'exempt' : `${vat.rate}`;
 }
 
 function DefaultsStep({ onboarding, onSaved, onBack }: StepProps & { onboarding: Onboarding; onBack: () => void }) {
   const initial = onboarding.defaults;
-  const [retencionIrpf, setRetencionIrpf] = useState<RetencionIrpfRate>(initial?.retencionIrpf ?? 15);
-  const [iva, setIva] = useState<IvaChoice>(initial ? ivaChoiceOf(initial.iva) : '21');
-  const [supuesto, setSupuesto] = useState<SupuestoExencionId>(
-    initial?.iva.kind === 'exempt' ? initial.iva.supuesto : SUPUESTO_EXENCION_IDS[0],
+  const [withholding, setWithholding] = useState<WithholdingRate>(initial?.withholding ?? 15);
+  const [vat, setVat] = useState<VatChoice>(initial ? vatChoiceOf(initial.vat) : '21');
+  const [ground, setGround] = useState<ExemptionGroundId>(
+    initial?.vat.kind === 'exempt' ? initial.vat.ground : EXEMPTION_GROUND_IDS[0],
   );
   const { pending, error, run } = useSubmit();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const defaults: EmisorDefaults = {
-      retencionIrpf,
-      iva:
-        iva === 'exempt'
-          ? { kind: 'exempt', supuesto }
-          : { kind: 'taxed', rate: Number(iva) as (typeof IVA_RATES)[number] },
+    const defaults: IssuerDefaults = {
+      withholding,
+      vat:
+        vat === 'exempt'
+          ? { kind: 'exempt', ground }
+          : { kind: 'taxed', rate: Number(vat) as (typeof VAT_RATES)[number] },
     };
     await run(async () => onSaved(await saveDefaults(defaults)));
   }
@@ -400,32 +400,32 @@ function DefaultsStep({ onboarding, onSaved, onBack }: StepProps & { onboarding:
         <span className="label">Retención de IRPF</span>
         <Seg
           label="Retención de IRPF"
-          options={RETENCION_IRPF_RATES.map((rate) => ({ value: rate, label: IRPF_LABELS[rate] }))}
-          value={retencionIrpf}
-          onChange={setRetencionIrpf}
+          options={WITHHOLDING_RATES.map((rate) => ({ value: rate, label: WITHHOLDING_LABELS[rate] }))}
+          value={withholding}
+          onChange={setWithholding}
         />
         <p className="help">
           Lo habitual para profesionales es el 15 %; el 7 % durante los tres primeros años de actividad.
         </p>
       </div>
-      <Select label="IVA" value={iva} onChange={(event) => setIva(event.target.value as IvaChoice)}>
+      <Select label="IVA" value={vat} onChange={(event) => setVat(event.target.value as VatChoice)}>
         <option value="exempt">Exenta</option>
-        {IVA_RATES.map((rate) => (
+        {VAT_RATES.map((rate) => (
           <option key={rate} value={`${rate}`}>
             {rate} %
           </option>
         ))}
       </Select>
-      {iva === 'exempt' && (
+      {vat === 'exempt' && (
         <Select
           label="Supuesto de exención"
-          value={supuesto}
-          onChange={(event) => setSupuesto(event.target.value as SupuestoExencionId)}
+          value={ground}
+          onChange={(event) => setGround(event.target.value as ExemptionGroundId)}
           help="Determina la mención legal que se imprime en tus facturas."
         >
-          {SUPUESTO_EXENCION_IDS.map((id) => (
+          {EXEMPTION_GROUND_IDS.map((id) => (
             <option key={id} value={id}>
-              {supuestoExencion(id).label}
+              {exemptionGround(id).label}
             </option>
           ))}
         </Select>
@@ -442,10 +442,10 @@ function DefaultsStep({ onboarding, onSaved, onBack }: StepProps & { onboarding:
   );
 }
 
-function SerieStep({ onboarding, onSaved, onBack }: StepProps & { onboarding: Onboarding; onBack: () => void }) {
+function SeriesStep({ onboarding, onSaved, onBack }: StepProps & { onboarding: Onboarding; onBack: () => void }) {
   const year = currentYear();
-  const [prefix, setPrefix] = useState(DEFAULT_SERIE_PREFIX);
-  const [rectificativaPrefix, setRectificativaPrefix] = useState(DEFAULT_RECTIFICATIVA_PREFIX);
+  const [prefix, setPrefix] = useState(DEFAULT_SERIES_PREFIX);
+  const [correctivePrefix, setCorrectivePrefix] = useState(DEFAULT_CORRECTIVE_PREFIX);
   const [checked, setChecked] = useState(false);
   const { pending, error, run } = useSubmit();
 
@@ -460,7 +460,7 @@ function SerieStep({ onboarding, onSaved, onBack }: StepProps & { onboarding: On
           <dt>Facturas</dt>
           <dd className="mono">{invoiceNumber(series.prefix, year, 1)}, …</dd>
           <dt>Rectificativas</dt>
-          <dd className="mono">{invoiceNumber(series.rectificativaPrefix, year, 1)}, …</dd>
+          <dd className="mono">{invoiceNumber(series.correctivePrefix, year, 1)}, …</dd>
         </dl>
         <div className="row">
           <button type="button" className="btn btn-secondary" onClick={onBack}>
@@ -474,8 +474,8 @@ function SerieStep({ onboarding, onSaved, onBack }: StepProps & { onboarding: On
     );
   }
 
-  const parsed = seriesSchema.safeParse({ prefix, rectificativaPrefix });
-  const issue = (key: 'prefix' | 'rectificativaPrefix') =>
+  const parsed = seriesSchema.safeParse({ prefix, correctivePrefix });
+  const issue = (key: 'prefix' | 'correctivePrefix') =>
     parsed.success ? undefined : parsed.error.issues.find((i) => i.path[0] === key)?.message;
   const preview = (value: string) => invoiceNumber(value.trim() || '…', year, 1);
 
@@ -511,12 +511,12 @@ function SerieStep({ onboarding, onSaved, onBack }: StepProps & { onboarding: On
           label="Prefijo de tus rectificativas"
           className="input mono"
           maxLength={10}
-          value={rectificativaPrefix}
-          onChange={(event) => setRectificativaPrefix(event.target.value.toUpperCase())}
-          error={issue('rectificativaPrefix')}
+          value={correctivePrefix}
+          onChange={(event) => setCorrectivePrefix(event.target.value.toUpperCase())}
+          error={issue('correctivePrefix')}
           help={
             <>
-              La primera será <b className="mono">{preview(rectificativaPrefix)}</b>
+              La primera será <b className="mono">{preview(correctivePrefix)}</b>
             </>
           }
         />
@@ -544,16 +544,16 @@ function SerieStep({ onboarding, onSaved, onBack }: StepProps & { onboarding: On
 }
 
 function TermsStep({ onSaved, onBack }: StepProps & { onBack: () => void }) {
-  const [terminos, setTerminos] = useState(false);
-  const [contratoEncargo, setContratoEncargo] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [agreementAccepted, setAgreementAccepted] = useState(false);
   const { pending, error, run } = useSubmit();
-  const { terminos: terms, contratoEncargo: contract } = LEGAL_DOCUMENTS;
+  const { termsOfUse: terms, dataProcessingAgreement: agreement } = LEGAL_DOCUMENTS;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     await run(async () =>
       onSaved(
-        await acceptTerms({ terminosVersion: terms.version, contratoEncargoVersion: contract.version }),
+        await acceptTerms({ termsOfUseVersion: terms.version, dataProcessingAgreementVersion: agreement.version }),
       ),
     );
   }
@@ -566,7 +566,7 @@ function TermsStep({ onSaved, onBack }: StepProps & { onBack: () => void }) {
         tratamos, por cuenta tuya, los datos de tus facturas y de tus clientes.
       </p>
       <label className="chk">
-        <input type="checkbox" checked={terminos} onChange={(event) => setTerminos(event.target.checked)} />
+        <input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} />
         <span>
           He leído y acepto los <b>{terms.title}</b> <span className="muted">(versión {terms.version})</span>.
         </span>
@@ -574,11 +574,11 @@ function TermsStep({ onSaved, onBack }: StepProps & { onBack: () => void }) {
       <label className="chk">
         <input
           type="checkbox"
-          checked={contratoEncargo}
-          onChange={(event) => setContratoEncargo(event.target.checked)}
+          checked={agreementAccepted}
+          onChange={(event) => setAgreementAccepted(event.target.checked)}
         />
         <span>
-          He leído y acepto el <b>{contract.title}</b> <span className="muted">(versión {contract.version})</span>.
+          He leído y acepto el <b>{agreement.title}</b> <span className="muted">(versión {agreement.version})</span>.
         </span>
       </label>
       <p className="small muted">Guardaremos la fecha de tu aceptación y la versión de cada documento.</p>
@@ -586,7 +586,7 @@ function TermsStep({ onSaved, onBack }: StepProps & { onBack: () => void }) {
         <button type="button" className="btn btn-secondary" onClick={onBack}>
           Atrás
         </button>
-        <button className="btn btn-primary" style={{ flex: 1 }} disabled={pending || !terminos || !contratoEncargo}>
+        <button className="btn btn-primary" style={{ flex: 1 }} disabled={pending || !termsAccepted || !agreementAccepted}>
           {pending ? 'Guardando…' : 'Aceptar y terminar'}
         </button>
       </div>

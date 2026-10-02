@@ -27,13 +27,13 @@ Schema in `apps/api/src/database/schema.ts`; versioned SQL migrations in `apps/a
 
 ## Access
 
-There is no public sign-up. The operator invites a Usuario from the API's environment (locally, or the Render shell):
+There is no public sign-up. The operator invites a user from the API's environment (locally, or the Render shell):
 
 ```bash
 pnpm invite lucia@example.com
 ```
 
-It prints a single-use link (`APP_URL/invitacion/<token>`, valid for 7 days) and emails it. The Usuario sets a password and must set up TOTP 2FA (with recovery codes) before reaching anything else. Until 2FA is set up the password alone never opens a session: a Usuario who abandons the set-up needs a new invitation, which resumes the account. Auth is Better Auth mounted on `/auth`, with data in our Postgres; sessions are httpOnly cookies that expire after 1 hour of inactivity and 7 days at most (a trigger on `sessions`). Sign-in, 2FA and password recovery are rate-limited per client IP.
+It prints a single-use link (`APP_URL/invitation/<token>`, valid for 7 days) and emails it. The user sets a password and must set up TOTP 2FA (with recovery codes) before reaching anything else. Until 2FA is set up the password alone never opens a session: a user who abandons the set-up needs a new invitation, which resumes the account. Auth is Better Auth mounted on `/auth`, with data in our Postgres; sessions are httpOnly cookies that expire after 1 hour of inactivity and 7 days at most (a trigger on `sessions`). Sign-in, 2FA and password recovery are rate-limited per client IP.
 
 ## Version
 
@@ -63,4 +63,4 @@ The code is hosting-agnostic: any Node 24 host works with these `package.json` s
 
 ## Language
 
-Code, comments, commits, PRs and this README are in English. Exceptions: user-facing copy is in Spanish (the product is for Spanish freelancers), and domain terms keep their Spanish names from `GLOSSARY.md` (Emisor, Destinatario, Borrador…). Specs, ADRs and issues stay in Spanish.
+Everything in the code is in English, including routes, database names and domain terms: `GLOSSARY.md` gives each Spanish domain term its English code name (Emisor → `Issuer`, Destinatario → `Recipient`, Borrador → `Draft`…). Only user-facing copy is in Spanish (the product is for Spanish freelancers). Specs, ADRs, issues and the glossary stay in Spanish.

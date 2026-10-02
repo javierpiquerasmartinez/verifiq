@@ -10,13 +10,13 @@ import {
   Res,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
-import { EmisorErrorCode, type EmisorSummary } from '@verifiq/domain';
+import { IssuerErrorCode, type IssuerSummary } from '@verifiq/domain';
 import type { Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { OBJECT_STORAGE, type ObjectStorage } from '../storage/object-storage.js';
-import { findLogoKey, findSummary, replaceLogoKey } from './emisores.js';
-import { CurrentEmisor, OnboardingEmisor } from './tenancy.js';
+import { findLogoKey, findSummary, replaceLogoKey } from './issuers.js';
+import { CurrentIssuer, OnboardingIssuer } from './issuer-context.js';
 
 /** The content type comes from the file's signature, never from what the client claims. */
 function logoContentType(body: unknown): string | null {
@@ -28,47 +28,47 @@ function logoContentType(body: unknown): string | null {
   return null;
 }
 
-function requireEmisor(emisorId: string | null): string {
-  if (!emisorId) {
+function requireIssuer(issuerId: string | null): string {
+  if (!issuerId) {
     throw new ConflictException({
-      code: EmisorErrorCode.OnboardingStepPending,
+      code: IssuerErrorCode.OnboardingStepPending,
       message: 'Save the fiscal data first',
     });
   }
-  return emisorId;
+  return issuerId;
 }
 
 const logoNotFound = () =>
-  new NotFoundException({ code: EmisorErrorCode.LogoNotFound, message: 'There is no logo' });
+  new NotFoundException({ code: IssuerErrorCode.LogoNotFound, message: 'There is no logo' });
 
-/** The Emisor of the session. The logo can be set from step 1 of the alta on. */
-@Controller('emisor')
-export class EmisorController {
+/** The issuer of the session. The logo can be set from onboarding step 1 on. */
+@Controller('issuer')
+export class IssuerController {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
   ) {}
 
   @Get()
-  show(@CurrentEmisor() emisorId: string): Promise<EmisorSummary> {
-    return findSummary(this.db, emisorId);
+  show(@CurrentIssuer() issuerId: string): Promise<IssuerSummary> {
+    return findSummary(this.db, issuerId);
   }
 
   /** Raw PNG or JPEG body (see configureHttp), up to LOGO_MAX_BYTES. */
   @Put('logo')
   async uploadLogo(
-    @OnboardingEmisor() emisorId: string | null,
+    @OnboardingIssuer() issuerId: string | null,
     @Body() body: unknown,
   ): Promise<{ hasLogo: true }> {
-    const id = requireEmisor(emisorId);
+    const id = requireIssuer(issuerId);
     const contentType = logoContentType(body);
     if (!contentType) {
       throw new UnsupportedMediaTypeException({
-        code: EmisorErrorCode.LogoInvalid,
+        code: IssuerErrorCode.LogoInvalid,
         message: 'The logo must be a PNG or JPEG image',
       });
     }
-    const key = `emisores/${id}/logo/${randomUUID()}`;
+    const key = `issuers/${id}/logo/${randomUUID()}`;
     await this.storage.put(key, { body: body as Buffer, contentType });
     const previous = await replaceLogoKey(this.db, id, key);
     if (previous) await this.storage.delete(previous);
@@ -77,10 +77,10 @@ export class EmisorController {
 
   @Get('logo')
   async logo(
-    @OnboardingEmisor() emisorId: string | null,
+    @OnboardingIssuer() issuerId: string | null,
     @Res() response: Response,
   ): Promise<void> {
-    const key = await findLogoKey(this.db, requireEmisor(emisorId));
+    const key = await findLogoKey(this.db, requireIssuer(issuerId));
     const logo = key ? await this.storage.get(key) : null;
     if (!logo) throw logoNotFound();
     response
@@ -93,8 +93,8 @@ export class EmisorController {
   }
 
   @Delete('logo')
-  async removeLogo(@OnboardingEmisor() emisorId: string | null): Promise<{ hasLogo: false }> {
-    const previous = await replaceLogoKey(this.db, requireEmisor(emisorId), null);
+  async removeLogo(@OnboardingIssuer() issuerId: string | null): Promise<{ hasLogo: false }> {
+    const previous = await replaceLogoKey(this.db, requireIssuer(issuerId), null);
     if (previous) await this.storage.delete(previous);
     return { hasLogo: false };
   }

@@ -1,20 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
-import { fetchEmisor } from '../api';
+import { fetchIssuer } from '../api';
 import { authClient } from '../auth-client';
 import { useSessionExpiry } from '../session';
 import { BrandMark } from './icons';
 
-/** The app once the alta is complete: header with the active Emisor, page, footer. */
+/** The app once onboarding is complete: header with the active issuer, page, footer. */
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const emisor = useQuery({ queryKey: ['emisor'], queryFn: fetchEmisor, retry: false });
-  useSessionExpiry(emisor.error);
+  const issuer = useQuery({ queryKey: ['issuer'], queryFn: fetchIssuer, retry: false });
+  useSessionExpiry(issuer.error);
 
   async function signOut() {
     await authClient.signOut();
-    await navigate({ to: '/entrar' });
+    await navigate({ to: '/sign-in' });
   }
 
   return (
@@ -25,10 +25,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <BrandMark />
             Verifiq
           </span>
-          {emisor.data && (
-            <div className="emisor" aria-label="Emisor activo">
-              <b>{emisor.data.name}</b>
-              <span>NIF {emisor.data.nif}</span>
+          {issuer.data && (
+            <div className="issuer" aria-label="Emisor activo">
+              <b>{issuer.data.name}</b>
+              <span>NIF {issuer.data.taxId}</span>
             </div>
           )}
           <button type="button" className="btn btn-ghost" onClick={signOut}>

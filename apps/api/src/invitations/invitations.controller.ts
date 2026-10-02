@@ -57,7 +57,7 @@ export class InvitationsController {
     return { email: invitation.email };
   }
 
-  /** Creates the Usuario with its password and signs it in; the next step is setting up 2FA. */
+  /** Creates the user with its password and signs it in; the next step is setting up 2FA. */
   @Post(':token/accept')
   @HttpCode(200)
   async accept(

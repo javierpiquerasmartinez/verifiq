@@ -5,7 +5,7 @@ import { authClient, authErrorMessage } from '../auth-client';
 import { AccessLayout, Alert, Field } from '../ui/components';
 
 export function ResetPasswordPage() {
-  const { token } = useSearch({ from: '/restablecer' });
+  const { token } = useSearch({ from: '/reset-password' });
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [repeat, setRepeat] = useState('');
@@ -23,11 +23,11 @@ export function ResetPasswordPage() {
     const { error } = await authClient.resetPassword({ token, newPassword: password });
     setPending(false);
     if (error) return setError(authErrorMessage(error));
-    await navigate({ to: '/entrar', search: { motivo: 'restablecida' } });
+    await navigate({ to: '/sign-in', search: { reason: 'reset' } });
   }
 
   const footer = (
-    <Link className="lnk" to="/recuperar">
+    <Link className="lnk" to="/forgot-password">
       Pedir un enlace nuevo
     </Link>
   );

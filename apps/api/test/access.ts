@@ -21,7 +21,7 @@ export function browser(app: INestApplication): Agent {
     .set('User-Agent', 'vitest-browser');
 }
 
-export const uniqueEmail = () => `usuario-${randomUUID()}@example.com`;
+export const uniqueEmail = () => `user-${randomUUID()}@example.com`;
 
 /** What the operator script does: returns the token of the link. */
 export async function invite(app: INestApplication, email = uniqueEmail()) {
@@ -29,8 +29,8 @@ export async function invite(app: INestApplication, email = uniqueEmail()) {
   return { token, email };
 }
 
-/** An invited Usuario who has set a password: signed in, 2FA not set up yet. */
-export async function invitedUsuario(app: INestApplication) {
+/** An invited user who has set a password: signed in, 2FA not set up yet. */
+export async function invitedUser(app: INestApplication) {
   const { token, email } = await invite(app);
   const agent = browser(app);
   await agent
@@ -40,7 +40,7 @@ export async function invitedUsuario(app: INestApplication) {
   return { agent, email };
 }
 
-/** Sets up TOTP for the signed-in Usuario of `agent`, as the set-up screen does. */
+/** Sets up TOTP for the signed-in user of `agent`, as the set-up screen does. */
 export async function setUpTwoFactor(agent: Agent) {
   const enabled = await agent.post('/auth/two-factor/enable').send({ password: PASSWORD }).expect(200);
   const secret = secretFromUri(enabled.body.totpURI);
@@ -48,9 +48,9 @@ export async function setUpTwoFactor(agent: Agent) {
   return { secret, backupCodes: enabled.body.backupCodes as string[] };
 }
 
-/** A Usuario with 2FA set up, signed in on `agent`. */
-export async function activeUsuario(app: INestApplication) {
-  const { agent, email } = await invitedUsuario(app);
+/** A user with 2FA set up, signed in on `agent`. */
+export async function activeUser(app: INestApplication) {
+  const { agent, email } = await invitedUser(app);
   const { secret, backupCodes } = await setUpTwoFactor(agent);
   return { agent, email, secret, backupCodes };
 }

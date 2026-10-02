@@ -106,7 +106,7 @@ export const rateLimits = pgTable('rate_limits', {
   lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
 });
 
-// --- Invitations: the only way to create a Usuario (no public sign-up).
+// --- Invitations: the only way to create a user (no public sign-up).
 
 export const invitations = pgTable('invitations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -119,15 +119,15 @@ export const invitations = pgTable('invitations', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-// --- Emisores: the unit of data isolation. Every business row belongs to one (emisor_id).
+// --- Issuers: the unit of data isolation. Every business row belongs to one (issuer_id).
 
-export const emisores = pgTable(
-  'emisores',
+export const issuers = pgTable(
+  'issuers',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     // Step 1: fiscal data.
     name: text('name').notNull(),
-    nif: text('nif').notNull().unique(),
+    taxId: text('tax_id').notNull().unique(),
     address: text('address').notNull(),
     postalCode: text('postal_code').notNull(),
     municipality: text('municipality').notNull(),
@@ -137,57 +137,57 @@ export const emisores = pgTable(
     iban: text('iban'),
     // Object storage key of the logo; a new key per upload.
     logoKey: text('logo_key'),
-    // Step 2: defaults. IVA is either a rate or a Supuesto de exención, never both.
-    defaultRetencionIrpf: smallint('default_retencion_irpf'),
-    defaultIvaRate: smallint('default_iva_rate'),
-    defaultSupuestoExencion: text('default_supuesto_exencion'),
-    // Step 3: Serie prefixes (ADR 0004). Immutable once confirmed (trigger in migration 0002).
-    seriePrefix: text('serie_prefix'),
-    rectificativaPrefix: text('rectificativa_prefix'),
-    serieConfirmedAt: timestamp('serie_confirmed_at', { withTimezone: true }),
-    // Step 4: terms accepted, the alta is complete.
+    // Step 2: defaults. VAT is either a rate or a exemption ground, never both.
+    defaultWithholding: smallint('default_withholding'),
+    defaultVatRate: smallint('default_vat_rate'),
+    defaultExemptionGround: text('default_exemption_ground'),
+    // Step 3: Series prefixes (ADR 0004). Immutable once confirmed (trigger in migration 0002).
+    seriesPrefix: text('series_prefix'),
+    correctivePrefix: text('corrective_prefix'),
+    seriesConfirmedAt: timestamp('series_confirmed_at', { withTimezone: true }),
+    // Step 4: terms accepted, onboarding is complete.
     onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     check(
-      'emisores_default_iva_check',
-      sql`${table.defaultIvaRate} IS NULL OR ${table.defaultSupuestoExencion} IS NULL`,
+      'issuers_default_vat_check',
+      sql`${table.defaultVatRate} IS NULL OR ${table.defaultExemptionGround} IS NULL`,
     ),
     check(
-      'emisores_serie_check',
-      sql`(${table.seriePrefix} IS NULL) = (${table.serieConfirmedAt} IS NULL) AND (${table.rectificativaPrefix} IS NULL) = (${table.serieConfirmedAt} IS NULL)`,
+      'issuers_series_check',
+      sql`(${table.seriesPrefix} IS NULL) = (${table.seriesConfirmedAt} IS NULL) AND (${table.correctivePrefix} IS NULL) = (${table.seriesConfirmedAt} IS NULL)`,
     ),
   ],
 );
 
-/** Usuario ↔ Emisor. The MVP creates exactly one per Usuario; the model allows more. */
-export const emisorMemberships = pgTable(
-  'emisor_memberships',
+/** User ↔ issuer. The MVP creates exactly one per user; the model allows more. */
+export const issuerMemberships = pgTable(
+  'issuer_memberships',
   {
-    emisorId: uuid('emisor_id')
+    issuerId: uuid('issuer_id')
       .notNull()
-      .references(() => emisores.id),
+      .references(() => issuers.id),
     userId: text('user_id')
       .notNull()
       .references(() => users.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    primaryKey({ columns: [table.emisorId, table.userId] }),
-    index('emisor_memberships_user_id_idx').on(table.userId),
+    primaryKey({ columns: [table.issuerId, table.userId] }),
+    index('issuer_memberships_user_id_idx').on(table.userId),
   ],
 );
 
-/** Append-only (trigger in migration 0002) record of every legal document version a Usuario accepted for an Emisor. */
+/** Append-only (trigger in migration 0002) record of every legal document version a user accepted for an issuer. */
 export const legalAcceptances = pgTable(
   'legal_acceptances',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    emisorId: uuid('emisor_id')
+    issuerId: uuid('issuer_id')
       .notNull()
-      .references(() => emisores.id),
+      .references(() => issuers.id),
     userId: text('user_id')
       .notNull()
       .references(() => users.id),
@@ -195,5 +195,5 @@ export const legalAcceptances = pgTable(
     version: text('version').notNull(),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index('legal_acceptances_emisor_id_idx').on(table.emisorId)],
+  (table) => [index('legal_acceptances_issuer_id_idx').on(table.issuerId)],
 );

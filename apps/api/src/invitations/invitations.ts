@@ -72,11 +72,11 @@ export async function releaseInvitation(db: Database, id: string): Promise<void>
   await db.update(invitations).set({ acceptedAt: null }).where(eq(invitations.id, id));
 }
 
-/** The email already belongs to a Usuario with 2FA set up: an invitation cannot take it over. */
+/** The email already belongs to a user with 2FA set up: an invitation cannot take it over. */
 export class EmailTakenError extends Error {}
 
 /**
- * Creates the Usuario of an accepted invitation with its password. An account that never set up
+ * Creates the user of an accepted invitation with its password. An account that never set up
  * 2FA is resumed instead (new name and password, earlier sessions closed): signing in with the
  * password alone is refused for it, so a new invitation is the only way back in.
  */

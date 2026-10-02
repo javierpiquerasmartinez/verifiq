@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ivaTreatmentSchema, RETENCION_IRPF_RATES } from './amounts.js';
+import { vatTreatmentSchema, WITHHOLDING_RATES } from './amounts.js';
 import { ibanSchema } from './iban.js';
 import { taxIdSchema } from './tax-id.js';
 
@@ -19,12 +19,12 @@ const postalCodeSchema = z
   .trim()
   .regex(/^(0[1-9]|[1-4]\d|5[0-2])\d{3}$/, { message: 'Código postal no válido' });
 
-/** Step 1 of the alta: the data every invoice carries about its Emisor. */
+/** Onboarding step 1: the data every invoice carries about its issuer. */
 export const fiscalDataSchema = z.object({
-  /** Nombre o razón social; VeriFactu takes up to 120 characters. */
+  /** Full name or company name; VeriFactu takes up to 120 characters. */
   name: requiredText(120),
-  nif: taxIdSchema,
-  /** Domicilio fiscal. */
+  taxId: taxIdSchema,
+  /** Fiscal address. */
   address: requiredText(200),
   postalCode: postalCodeSchema,
   municipality: requiredText(100),
@@ -39,10 +39,10 @@ export const fiscalDataSchema = z.object({
 export type FiscalData = z.infer<typeof fiscalDataSchema>;
 export type FiscalDataInput = z.input<typeof fiscalDataSchema>;
 
-/** Step 2 of the alta: what every new invoice line and invoice starts with. */
-export const emisorDefaultsSchema = z.object({
-  retencionIrpf: z.literal(RETENCION_IRPF_RATES),
-  iva: ivaTreatmentSchema,
+/** Onboarding step 2: what every new invoice line and invoice starts with. */
+export const issuerDefaultsSchema = z.object({
+  withholding: z.literal(WITHHOLDING_RATES),
+  vat: vatTreatmentSchema,
 });
 
-export type EmisorDefaults = z.infer<typeof emisorDefaultsSchema>;
+export type IssuerDefaults = z.infer<typeof issuerDefaultsSchema>;

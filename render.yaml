@@ -37,4 +37,4 @@ services:
         sync: false
       - key: R2_BUCKET
         sync: false
-  # Worker (`pnpm start:worker`): added when it has work (Emisión). Render has no free workers.
+  # Worker (`pnpm start:worker`): added when it has work (invoice issuance). Render has no free workers.

@@ -1,15 +1,15 @@
 import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { activeUsuario, signIn } from './access.js';
+import { activeUser, signIn } from './access.js';
 import {
   CURRENT_TERMS,
   DENTIST_DEFAULTS,
   fiscalData,
-  onboardedUsuario,
-} from './emisor.js';
+  onboardedUser,
+} from './issuer.js';
 import { createTestApp } from './test-app.js';
 
-describe('Alta del Emisor', () => {
+describe('Issuer onboarding', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
@@ -20,8 +20,8 @@ describe('Alta del Emisor', () => {
     await app.close();
   });
 
-  it('starts at the fiscal data for a new Usuario', async () => {
-    const { agent } = await activeUsuario(app);
+  it('starts at the fiscal data for a new user', async () => {
+    const { agent } = await activeUser(app);
 
     const response = await agent.get('/onboarding').expect(200);
 
@@ -36,13 +36,13 @@ describe('Alta del Emisor', () => {
   });
 
   describe('step 1: fiscal data', () => {
-    it('creates the Emisor and moves on to the defaults', async () => {
-      const { agent } = await activeUsuario(app);
+    it('creates the issuer and moves on to the defaults', async () => {
+      const { agent } = await activeUser(app);
       const data = fiscalData();
 
       const response = await agent
         .put('/onboarding/fiscal-data')
-        .send({ ...data, nif: data.nif.toLowerCase(), email: 'lucia@example.com', iban: '' })
+        .send({ ...data, taxId: data.taxId.toLowerCase(), email: 'lucia@example.com', iban: '' })
         .expect(200);
 
       expect(response.body).toMatchObject({
@@ -52,7 +52,7 @@ describe('Alta del Emisor', () => {
     });
 
     it('is resumed where it was left from a new sign-in', async () => {
-      const { agent, email, secret } = await activeUsuario(app);
+      const { agent, email, secret } = await activeUser(app);
       const data = fiscalData();
       await agent.put('/onboarding/fiscal-data').send(data).expect(200);
       await agent.post('/auth/sign-out').expect(200);
@@ -63,8 +63,8 @@ describe('Alta del Emisor', () => {
       expect(response.body).toMatchObject({ step: 'defaults', fiscalData: data });
     });
 
-    it('can be corrected before finishing the alta', async () => {
-      const { agent } = await activeUsuario(app);
+    it('can be corrected before finishing onboarding', async () => {
+      const { agent } = await activeUser(app);
       const data = fiscalData();
       await agent.put('/onboarding/fiscal-data').send(data).expect(200);
 
@@ -76,47 +76,47 @@ describe('Alta del Emisor', () => {
       expect(response.body.fiscalData.name).toBe('Lucía Ferrer i Albiol');
     });
 
-    it('rejects an invalid NIF', async () => {
-      const { agent } = await activeUsuario(app);
+    it('rejects an invalid tax ID', async () => {
+      const { agent } = await activeUser(app);
 
       const response = await agent
         .put('/onboarding/fiscal-data')
-        .send({ ...fiscalData(), nif: '12345678A' })
+        .send({ ...fiscalData(), taxId: '12345678A' })
         .expect(400);
 
       expect(response.body.code).toBe('VALIDATION_FAILED');
-      expect(response.body.issues).toEqual([expect.objectContaining({ path: ['nif'] })]);
+      expect(response.body.issues).toEqual([expect.objectContaining({ path: ['taxId'] })]);
       const state = await agent.get('/onboarding').expect(200);
       expect(state.body.step).toBe('fiscal-data');
     });
 
-    it('rejects a NIF that already belongs to another Emisor', async () => {
-      const first = await activeUsuario(app);
-      const second = await activeUsuario(app);
+    it('rejects a tax ID that already belongs to another issuer', async () => {
+      const first = await activeUser(app);
+      const second = await activeUser(app);
       const data = fiscalData();
       await first.agent.put('/onboarding/fiscal-data').send(data).expect(200);
 
       const response = await second.agent.put('/onboarding/fiscal-data').send(data).expect(409);
 
-      expect(response.body.code).toBe('NIF_TAKEN');
+      expect(response.body.code).toBe('TAX_ID_TAKEN');
     });
   });
 
   describe('step 2: defaults', () => {
-    it('saves Exenta with its Supuesto de exención and moves on to the Serie', async () => {
-      const { agent } = await activeUsuario(app);
+    it('saves exempt with its exemption ground and moves on to the series', async () => {
+      const { agent } = await activeUser(app);
       await agent.put('/onboarding/fiscal-data').send(fiscalData()).expect(200);
 
       const response = await agent.put('/onboarding/defaults').send(DENTIST_DEFAULTS).expect(200);
 
-      expect(response.body).toMatchObject({ step: 'serie', defaults: DENTIST_DEFAULTS });
+      expect(response.body).toMatchObject({ step: 'series', defaults: DENTIST_DEFAULTS });
     });
 
-    it('can switch to a taxed IVA rate', async () => {
-      const { agent } = await activeUsuario(app);
+    it('can switch to a taxed VAT rate', async () => {
+      const { agent } = await activeUser(app);
       await agent.put('/onboarding/fiscal-data').send(fiscalData()).expect(200);
       await agent.put('/onboarding/defaults').send(DENTIST_DEFAULTS).expect(200);
-      const taxed = { retencionIrpf: 7, iva: { kind: 'taxed', rate: 21 } };
+      const taxed = { withholding: 7, vat: { kind: 'taxed', rate: 21 } };
 
       const response = await agent.put('/onboarding/defaults').send(taxed).expect(200);
 
@@ -124,73 +124,73 @@ describe('Alta del Emisor', () => {
     });
 
     it('needs the fiscal data first', async () => {
-      const { agent } = await activeUsuario(app);
+      const { agent } = await activeUser(app);
 
       const response = await agent.put('/onboarding/defaults').send(DENTIST_DEFAULTS).expect(409);
 
       expect(response.body.code).toBe('ONBOARDING_STEP_PENDING');
     });
 
-    it('rejects a Retención de IRPF outside 15, 7 and none', async () => {
-      const { agent } = await activeUsuario(app);
+    it('rejects a withholding outside 15, 7 and none', async () => {
+      const { agent } = await activeUser(app);
       await agent.put('/onboarding/fiscal-data').send(fiscalData()).expect(200);
 
       await agent
         .put('/onboarding/defaults')
-        .send({ ...DENTIST_DEFAULTS, retencionIrpf: 19 })
+        .send({ ...DENTIST_DEFAULTS, withholding: 19 })
         .expect(400);
     });
   });
 
-  describe('step 3: Serie', () => {
-    async function atSerieStep() {
-      const { agent } = await activeUsuario(app);
+  describe('step 3: series', () => {
+    async function atSeriesStep() {
+      const { agent } = await activeUser(app);
       await agent.put('/onboarding/fiscal-data').send(fiscalData()).expect(200);
       await agent.put('/onboarding/defaults').send(DENTIST_DEFAULTS).expect(200);
       return agent;
     }
 
     it('confirms the prefixes of both Series and moves on to the terms', async () => {
-      const agent = await atSerieStep();
+      const agent = await atSeriesStep();
 
       const response = await agent
-        .post('/onboarding/serie')
-        .send({ prefix: 'vq', rectificativaPrefix: 'vqr' })
+        .post('/onboarding/series')
+        .send({ prefix: 'vq', correctivePrefix: 'vqr' })
         .expect(200);
 
       expect(response.body).toMatchObject({
         step: 'terms',
-        series: { prefix: 'VQ', rectificativaPrefix: 'VQR' },
+        series: { prefix: 'VQ', correctivePrefix: 'VQR' },
       });
     });
 
     it('cannot change once confirmed', async () => {
-      const agent = await atSerieStep();
-      await agent.post('/onboarding/serie').send({ prefix: 'F', rectificativaPrefix: 'R' }).expect(200);
+      const agent = await atSeriesStep();
+      await agent.post('/onboarding/series').send({ prefix: 'F', correctivePrefix: 'R' }).expect(200);
 
       const response = await agent
-        .post('/onboarding/serie')
-        .send({ prefix: 'G', rectificativaPrefix: 'S' })
+        .post('/onboarding/series')
+        .send({ prefix: 'G', correctivePrefix: 'S' })
         .expect(409);
 
-      expect(response.body.code).toBe('SERIE_ALREADY_CONFIRMED');
+      expect(response.body.code).toBe('SERIES_ALREADY_CONFIRMED');
       const state = await agent.get('/onboarding').expect(200);
-      expect(state.body.series).toEqual({ prefix: 'F', rectificativaPrefix: 'R' });
+      expect(state.body.series).toEqual({ prefix: 'F', correctivePrefix: 'R' });
     });
 
-    it('rejects the same prefix for ordinary invoices and rectificativas', async () => {
-      const agent = await atSerieStep();
+    it('rejects the same prefix for ordinary invoices and corrective invoices', async () => {
+      const agent = await atSeriesStep();
 
-      await agent.post('/onboarding/serie').send({ prefix: 'F', rectificativaPrefix: 'F' }).expect(400);
+      await agent.post('/onboarding/series').send({ prefix: 'F', correctivePrefix: 'F' }).expect(400);
     });
 
     it('needs the defaults first', async () => {
-      const { agent } = await activeUsuario(app);
+      const { agent } = await activeUser(app);
       await agent.put('/onboarding/fiscal-data').send(fiscalData()).expect(200);
 
       const response = await agent
-        .post('/onboarding/serie')
-        .send({ prefix: 'F', rectificativaPrefix: 'R' })
+        .post('/onboarding/series')
+        .send({ prefix: 'F', correctivePrefix: 'R' })
         .expect(409);
 
       expect(response.body.code).toBe('ONBOARDING_STEP_PENDING');
@@ -199,14 +199,14 @@ describe('Alta del Emisor', () => {
 
   describe('step 4: terms', () => {
     async function atTermsStep() {
-      const { agent } = await activeUsuario(app);
+      const { agent } = await activeUser(app);
       await agent.put('/onboarding/fiscal-data').send(fiscalData()).expect(200);
       await agent.put('/onboarding/defaults').send(DENTIST_DEFAULTS).expect(200);
-      await agent.post('/onboarding/serie').send({ prefix: 'F', rectificativaPrefix: 'R' }).expect(200);
+      await agent.post('/onboarding/series').send({ prefix: 'F', correctivePrefix: 'R' }).expect(200);
       return agent;
     }
 
-    it('records the accepted versions with their date and completes the alta', async () => {
+    it('records the accepted versions with their date and completes onboarding', async () => {
       const agent = await atTermsStep();
       const before = Date.now();
 
@@ -223,7 +223,7 @@ describe('Alta del Emisor', () => {
 
       const response = await agent
         .post('/onboarding/terms')
-        .send({ ...CURRENT_TERMS, contratoEncargoVersion: '2020-01-01' })
+        .send({ ...CURRENT_TERMS, dataProcessingAgreementVersion: '2020-01-01' })
         .expect(409);
 
       expect(response.body.code).toBe('LEGAL_VERSION_OUTDATED');
@@ -231,8 +231,8 @@ describe('Alta del Emisor', () => {
       expect(state.body).toMatchObject({ step: 'terms', terms: null });
     });
 
-    it('needs the Serie first', async () => {
-      const { agent } = await activeUsuario(app);
+    it('needs the series first', async () => {
+      const { agent } = await activeUser(app);
       await agent.put('/onboarding/fiscal-data').send(fiscalData()).expect(200);
       await agent.put('/onboarding/defaults').send(DENTIST_DEFAULTS).expect(200);
 
@@ -242,22 +242,22 @@ describe('Alta del Emisor', () => {
     });
   });
 
-  describe('the active Emisor', () => {
-    it('is not reachable until the alta is complete', async () => {
-      const { agent } = await activeUsuario(app);
+  describe('the active issuer', () => {
+    it('is not reachable until onboarding is complete', async () => {
+      const { agent } = await activeUser(app);
       await agent.put('/onboarding/fiscal-data').send(fiscalData()).expect(200);
 
-      const response = await agent.get('/emisor').expect(403);
+      const response = await agent.get('/issuer').expect(403);
 
       expect(response.body.code).toBe('ONBOARDING_INCOMPLETE');
     });
 
-    it('shows its name and NIF once the alta is complete', async () => {
-      const { agent, nif } = await onboardedUsuario(app);
+    it('shows its name and tax ID once onboarding is complete', async () => {
+      const { agent, taxId } = await onboardedUser(app);
 
-      const response = await agent.get('/emisor').expect(200);
+      const response = await agent.get('/issuer').expect(200);
 
-      expect(response.body).toEqual({ name: 'Lucía Ferrer Albiol', nif });
+      expect(response.body).toEqual({ name: 'Lucía Ferrer Albiol', taxId });
     });
   });
 });

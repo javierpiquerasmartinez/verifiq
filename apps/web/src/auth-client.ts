@@ -14,13 +14,13 @@ export type SessionUser = NonNullable<
   Awaited<ReturnType<typeof authClient.getSession>>['data']
 >['user'];
 
-/** The signed-in Usuario, or null. Never served from cache: it drives the route guards. */
+/** The signed-in user, or null. Never served from cache: it drives the route guards. */
 export async function currentUser(): Promise<SessionUser | null> {
   const { data } = await authClient.getSession({ query: { disableCookieCache: true } });
   return data?.user ?? null;
 }
 
-/** The second-factor challenge is gone: the Usuario must start again from the password. */
+/** The second-factor challenge is gone: the user must start again from the password. */
 export function isChallengeExpired(error: { code?: string }): boolean {
   return (
     error.code === 'INVALID_TWO_FACTOR_COOKIE' ||

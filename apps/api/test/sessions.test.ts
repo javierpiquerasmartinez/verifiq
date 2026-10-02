@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { afterAll, afterEach, beforeAll, describe, it, vi } from 'vitest';
-import { activeUsuario } from './access.js';
+import { activeUser } from './access.js';
 import { createTestApp } from './test-app.js';
 
 const MINUTE = 60 * 1000;
@@ -26,7 +26,7 @@ describe('Session expiry', () => {
   }
 
   it('expires after an hour without activity', async () => {
-    const { agent } = await activeUsuario(app);
+    const { agent } = await activeUser(app);
     vi.useFakeTimers({ toFake: ['Date'], now: Date.now() });
 
     travel(59 * MINUTE);
@@ -36,7 +36,7 @@ describe('Session expiry', () => {
   });
 
   it('activity keeps it alive, but never beyond 7 days', async () => {
-    const { agent } = await activeUsuario(app);
+    const { agent } = await activeUser(app);
     vi.useFakeTimers({ toFake: ['Date'], now: Date.now() });
 
     const sevenDays = 7 * 24 * 60 * MINUTE;

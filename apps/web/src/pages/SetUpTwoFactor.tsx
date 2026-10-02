@@ -67,7 +67,7 @@ export function SetUpTwoFactorPage() {
 
   async function signOut() {
     await authClient.signOut();
-    await navigate({ to: '/entrar' });
+    await navigate({ to: '/sign-in' });
   }
 
   const secret = totpURI ? new URL(totpURI).searchParams.get('secret') : null;
