@@ -19,4 +19,14 @@ services:
         sync: false
       - key: WEB_ORIGIN
         sync: false
+      - key: APP_URL
+        sync: false
+      - key: API_URL
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
   # Worker (`pnpm start:worker`): added when it has work (Emisión). Render has no free workers.
