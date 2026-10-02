@@ -1,0 +1,30 @@
+name: Verifacti contract
+
+# On demand: sends real records to the AEAT test environment through the operator's Verifacti account.
+on:
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      VERIFACTI_TEST_API_KEY: ${{ secrets.VERIFACTI_TEST_API_KEY }}
+      VERIFACTI_TEST_TAX_ID: ${{ secrets.VERIFACTI_TEST_TAX_ID }}
+      VERIFACTI_TEST_NAME: ${{ secrets.VERIFACTI_TEST_NAME }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Fail without the sandbox secrets
+        run: test -n "$VERIFACTI_TEST_API_KEY" && test -n "$VERIFACTI_TEST_TAX_ID" && test -n "$VERIFACTI_TEST_NAME"
+      - run: pnpm --filter @verifiq/api exec vitest run test/verifactu-connector.contract.test.ts

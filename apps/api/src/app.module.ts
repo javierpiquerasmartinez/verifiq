@@ -7,6 +7,8 @@ import { HealthController } from './health/health.controller.js';
 import { InvitationsController } from './invitations/invitations.controller.js';
 import type { Mailer } from './mail/mailer.js';
 import type { ObjectStorage } from './storage/object-storage.js';
+import type { VerifactuConnectorFactory } from './verifactu/from-env.js';
+import { VerifactuModule } from './verifactu/verifactu.module.js';
 import { APP_VERSION } from './version.js';
 
 export interface AppOptions {
@@ -15,6 +17,7 @@ export interface AppOptions {
   auth: AuthOptions;
   mailer: Mailer;
   storage: ObjectStorage;
+  verifactu: VerifactuConnectorFactory;
 }
 
 @Module({})
@@ -26,6 +29,7 @@ export class AppModule {
         DatabaseModule.forRoot(options.databaseUrl),
         AuthModule.forRoot(options.auth, options.mailer),
         IssuersModule.forRoot(options.storage),
+        VerifactuModule.forRoot(options.verifactu),
       ],
       controllers: [HealthController, InvitationsController],
       providers: [{ provide: APP_VERSION, useValue: options.version }],

@@ -6,6 +6,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   smallint,
@@ -196,4 +197,52 @@ export const legalAcceptances = pgTable(
     acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('legal_acceptances_issuer_id_idx').on(table.issuerId)],
+);
+
+// --- VeriFactu connector (ADR 0001): the adapter's credentials and its evidence.
+
+/** One API key per issuer, sealed with AES-GCM under a master key that lives outside the database. */
+export const connectorCredentials = pgTable('connector_credentials', {
+  issuerId: uuid('issuer_id')
+    .primaryKey()
+    .references(() => issuers.id),
+  // `test` or `prod`: the connector environment the key belongs to.
+  environment: text('environment').notNull(),
+  sealedApiKey: text('sealed_api_key').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Append-only (trigger in migration 0003) copy of every request to the connector and its answer,
+ * kept beyond the connector's own retention. Credentials are redacted before storing.
+ */
+export const connectorExchanges = pgTable(
+  'connector_exchanges',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    // The InvoiceRecord the exchange belongs to. The foreign key arrives with the invoice_records table.
+    invoiceRecordId: uuid('invoice_record_id'),
+    operation: text('operation').notNull(),
+    method: text('method').notNull(),
+    url: text('url').notNull(),
+    requestHeaders: jsonb('request_headers').notNull(),
+    requestBody: text('request_body'),
+    // Null when no answer arrived (timeout, network error): see `error`.
+    responseStatus: integer('response_status'),
+    responseHeaders: jsonb('response_headers'),
+    responseBody: text('response_body'),
+    error: text('error'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    // Microsecond precision: orders exchanges that started within the same millisecond.
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('connector_exchanges_issuer_id_idx').on(table.issuerId, table.recordedAt),
+    index('connector_exchanges_invoice_record_id_idx').on(table.invoiceRecordId),
+  ],
 );

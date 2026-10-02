@@ -88,6 +88,16 @@ Registro firmado y encadenado (huella) que se remite a la AEAT por cada alta o a
 _En código_: `InvoiceRecord`
 _Avoid_: Timbre, ticket
 
+**Huella**:
+Hash del Registro de facturación encadenado con el anterior del mismo Emisor.
+_En código_: `fingerprint`
+_Avoid_: Hash (a secas)
+
+**Conector VeriFactu**:
+Servicio que genera, encadena y remite los Registros de facturación a la AEAT por cuenta del Emisor (hoy Verifacti, ADR 0001). Verifiq solo le habla a través de su interfaz propia.
+_En código_: `VerifactuConnector`
+_Avoid_: Proveedor, pasarela
+
 **Anulación**:
 Registro que deja sin efecto una factura que nunca debió existir. No corrige errores; su número no se reutiliza jamás.
 _En código_: `Voiding`

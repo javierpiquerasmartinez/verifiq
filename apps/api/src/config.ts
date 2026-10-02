@@ -30,6 +30,16 @@ const envSchema = z
     R2_ACCESS_KEY_ID: z.string().min(1).optional(),
     R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
     R2_BUCKET: z.string().min(1).optional(),
+    // Verifacti account key (vfn_…), the VeriFactu connector (ADR 0001). Without it an in-memory fake
+    // stands in, which never reaches the AEAT (local development only).
+    VERIFACTI_API_KEY: z.string().min(1).optional(),
+    // `test` sends to the AEAT test environment; `prod` registers real invoices.
+    VERIFACTI_ENVIRONMENT: z.enum(['test', 'prod']).default('test'),
+    // Seals the issuers' connector API keys in the database (AES-256-GCM). 32 random bytes in base64.
+    CONNECTOR_MASTER_KEY: z
+      .string()
+      .refine((value) => Buffer.from(value, 'base64').length === 32, { message: 'Must be 32 bytes in base64' })
+      .optional(),
   })
   .refine(
     (env) => {
@@ -37,7 +47,13 @@ const envSchema = z
       return r2.every(Boolean) || !r2.some(Boolean);
     },
     { message: 'Set all of R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET, or none' },
-  );
+  )
+  .refine((env) => !env.VERIFACTI_API_KEY || env.CONNECTOR_MASTER_KEY, {
+    message: 'VERIFACTI_API_KEY requires CONNECTOR_MASTER_KEY',
+  })
+  .refine((env) => env.VERIFACTI_ENVIRONMENT !== 'prod' || env.VERIFACTI_API_KEY, {
+    message: 'VERIFACTI_ENVIRONMENT=prod requires VERIFACTI_API_KEY',
+  });
 
 export type Env = z.infer<typeof envSchema>;
 
