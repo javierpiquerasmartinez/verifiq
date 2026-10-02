@@ -1,0 +1,1 @@
+-- Baseline: establishes the versioned migration history. Feature tables arrive in later migrations.
