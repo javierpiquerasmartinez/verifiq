@@ -33,7 +33,7 @@ El código no depende del proveedor: cualquier hosting de Node 24 sirve con esto
 
 | Proceso | Build | Arranque | Variables |
 |---|---|---|---|
-| API | `corepack enable && pnpm install --frozen-lockfile && pnpm build:api` | `pnpm start:api` (migra y arranca) | `DATABASE_URL`, `WEB_ORIGIN`, `PORT` (la pone el hosting) |
+| API | `pnpm install --frozen-lockfile && pnpm build:api` | `pnpm start:api` (migra y arranca) | `DATABASE_URL`, `WEB_ORIGIN`, `PORT` (la pone el hosting) |
 | Worker | igual que la API | `pnpm start:worker` | `DATABASE_URL` |
 | Web (estática) | `pnpm build:web` → `apps/web/dist` | — | `VITE_API_URL` (en build) |
 

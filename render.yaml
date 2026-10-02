@@ -7,7 +7,7 @@ services:
     plan: free
     region: frankfurt
     branch: stage
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build:api
+    buildCommand: pnpm install --frozen-lockfile && pnpm build:api
     # Migrates on start: if it fails, the new version never passes the health check
     # and Render keeps the previous one live. Fine with a single instance.
     startCommand: pnpm start:api
