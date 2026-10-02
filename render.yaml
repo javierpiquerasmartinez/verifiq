@@ -7,10 +7,10 @@ services:
     plan: free
     region: frankfurt
     branch: stage
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm turbo run build --filter=@verifiq/api
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build:api
     # Migrates on start: if it fails, the new version never passes the health check
     # and Render keeps the previous one live. Fine with a single instance.
-    startCommand: node apps/api/dist/run-migrations.js && node apps/api/dist/main.js
+    startCommand: pnpm start:api
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
@@ -19,4 +19,4 @@ services:
         sync: false
       - key: WEB_ORIGIN
         sync: false
-  # Worker (`node apps/api/dist/worker.js`): added when it has work (Emisión). Render has no free workers.
+  # Worker (`pnpm start:worker`): added when it has work (Emisión). Render has no free workers.

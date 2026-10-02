@@ -29,13 +29,13 @@ Esquema en `apps/api/src/database/schema.ts`; migraciones SQL versionadas en `ap
 
 ## Despliegue
 
-El código no depende del proveedor: cualquier hosting de Node 24 sirve con estos comandos, ejecutados desde la raíz del repo.
+El código no depende del proveedor: cualquier hosting de Node 24 sirve con estos scripts de `package.json`, ejecutados desde la raíz del repo.
 
 | Proceso | Build | Arranque | Variables |
 |---|---|---|---|
-| API | `corepack enable && pnpm install --frozen-lockfile && pnpm turbo run build --filter=@verifiq/api` | `node apps/api/dist/run-migrations.js && node apps/api/dist/main.js` | `DATABASE_URL`, `WEB_ORIGIN`, `PORT` (la pone el hosting) |
-| Worker | igual que la API | `node apps/api/dist/worker.js` | `DATABASE_URL` |
-| Web (estática) | `pnpm turbo run build --filter=@verifiq/web` → `apps/web/dist` | — | `VITE_API_URL` (en build) |
+| API | `corepack enable && pnpm install --frozen-lockfile && pnpm build:api` | `pnpm start:api` (migra y arranca) | `DATABASE_URL`, `WEB_ORIGIN`, `PORT` (la pone el hosting) |
+| Worker | igual que la API | `pnpm start:worker` | `DATABASE_URL` |
+| Web (estática) | `pnpm build:web` → `apps/web/dist` | — | `VITE_API_URL` (en build) |
 
 - Las migraciones se aplican al arrancar la API: si fallan, la versión nueva no arranca, no pasa el health check (`/health`) y el hosting mantiene la anterior. Válido con una sola instancia; con varias (producción) mover la migración a un paso único previo al despliegue.
 - Staging: rama `stage`. API en Render (Frankfurt, plan free, health check `/health`) definida en el Blueprint `render.yaml`; el worker no se despliega hasta que tenga trabajo. Web en Vercel con raíz `apps/web` (`vercel.json`) y `ENABLE_EXPERIMENTAL_COREPACK=1`.

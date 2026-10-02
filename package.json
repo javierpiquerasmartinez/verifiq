@@ -12,7 +12,11 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "build:api": "turbo run build --filter=@verifiq/api",
+    "build:web": "turbo run build --filter=@verifiq/web",
+    "start:api": "pnpm --filter @verifiq/api db:migrate && pnpm --filter @verifiq/api start",
+    "start:worker": "pnpm --filter @verifiq/api start:worker"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
