@@ -6,7 +6,7 @@ Spec: `../spec.md` (historias 1–12) · ADR 0003
 
 **Blocked by:** 01; `design.html`
 
-**Status:** done
+**Status:** ready-for-human
 
 - [x] Better Auth embebido; datos en nuestra Postgres; sesiones por cookie httpOnly
 - [x] Invitaciones de un solo uso con caducidad; enlace caducado o usado muestra un mensaje claro
