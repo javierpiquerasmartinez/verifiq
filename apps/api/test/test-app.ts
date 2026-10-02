@@ -5,6 +5,7 @@ import { inject } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttp } from '../src/http.js';
 import type { EmailMessage, Mailer } from '../src/mail/mailer.js';
+import type { ObjectStorage, StoredObject } from '../src/storage/object-storage.js';
 
 export const TEST_VERSION = '9.9.9-test';
 export const WEB_ORIGIN = 'http://localhost:5173';
@@ -22,11 +23,29 @@ export class FakeMailer implements Mailer {
   }
 }
 
+/** Keeps stored files in memory. */
+export class InMemoryObjectStorage implements ObjectStorage {
+  readonly objects = new Map<string, StoredObject>();
+
+  async put(key: string, object: StoredObject): Promise<void> {
+    this.objects.set(key, object);
+  }
+
+  async get(key: string): Promise<StoredObject | null> {
+    return this.objects.get(key) ?? null;
+  }
+
+  async delete(key: string): Promise<void> {
+    this.objects.delete(key);
+  }
+}
+
 /** Boots the full Nest app against the per-run test database. */
 export async function createTestApp({
   webOrigins = [WEB_ORIGIN],
   mailer = new FakeMailer(),
-}: { webOrigins?: string[]; mailer?: Mailer } = {}): Promise<INestApplication> {
+  storage = new InMemoryObjectStorage(),
+}: { webOrigins?: string[]; mailer?: Mailer; storage?: ObjectStorage } = {}): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({
     imports: [
       AppModule.forRoot({
@@ -40,6 +59,7 @@ export async function createTestApp({
           trustedProxies: [],
         },
         mailer,
+        storage,
       }),
     ],
   }).compile();

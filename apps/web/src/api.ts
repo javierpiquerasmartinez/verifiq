@@ -1,11 +1,17 @@
 import {
+  issuerSummarySchema,
   healthResponseSchema,
   invitationSchema,
-  meSchema,
+  onboardingSchema,
   type AcceptInvitation,
+  type AcceptTerms,
+  type IssuerDefaults,
+  type IssuerSummary,
+  type FiscalDataInput,
   type HealthResponse,
   type Invitation,
-  type Me,
+  type Onboarding,
+  type Series,
 } from '@verifiq/domain';
 
 /** Base URL of the API: `/api` behind the same-origin proxy (Vercel rewrite, Vite dev server). */
@@ -39,10 +45,6 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return healthResponseSchema.parse(await request('/health'));
 }
 
-export async function fetchMe(): Promise<Me> {
-  return meSchema.parse(await request('/me'));
-}
-
 export async function fetchInvitation(token: string): Promise<Invitation> {
   return invitationSchema.parse(await request(`/invitations/${encodeURIComponent(token)}`));
 }
@@ -52,4 +54,41 @@ export async function acceptInvitation(token: string, body: AcceptInvitation): P
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+const sendJson = (method: string, body: unknown): RequestInit => ({ method, body: JSON.stringify(body) });
+
+export async function fetchOnboarding(): Promise<Onboarding> {
+  return onboardingSchema.parse(await request('/onboarding'));
+}
+
+export async function saveFiscalData(body: FiscalDataInput): Promise<Onboarding> {
+  return onboardingSchema.parse(await request('/onboarding/fiscal-data', sendJson('PUT', body)));
+}
+
+export async function saveDefaults(body: IssuerDefaults): Promise<Onboarding> {
+  return onboardingSchema.parse(await request('/onboarding/defaults', sendJson('PUT', body)));
+}
+
+export async function confirmSeries(body: Series): Promise<Onboarding> {
+  return onboardingSchema.parse(await request('/onboarding/series', sendJson('POST', body)));
+}
+
+export async function acceptTerms(body: AcceptTerms): Promise<Onboarding> {
+  return onboardingSchema.parse(await request('/onboarding/terms', sendJson('POST', body)));
+}
+
+export async function fetchIssuer(): Promise<IssuerSummary> {
+  return issuerSummarySchema.parse(await request('/issuer'));
+}
+
+/** Served to the signed-in user only; `version` busts the browser cache after a change. */
+export const logoUrl = (version: number) => `${apiUrl}/issuer/logo?v=${version}`;
+
+export async function uploadLogo(file: File): Promise<void> {
+  await request('/issuer/logo', { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+}
+
+export async function removeLogo(): Promise<void> {
+  await request('/issuer/logo', { method: 'DELETE' });
 }

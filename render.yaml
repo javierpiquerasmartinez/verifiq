@@ -29,4 +29,12 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
-  # Worker (`pnpm start:worker`): added when it has work (Emisión). Render has no free workers.
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+  # Worker (`pnpm start:worker`): added when it has work (invoice issuance). Render has no free workers.

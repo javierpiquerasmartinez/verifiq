@@ -1,10 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
-  activeUsuario,
+  activeUser,
   browser,
   invite,
-  invitedUsuario,
+  invitedUser,
   PASSWORD,
   setUpTwoFactor,
 } from './access.js';
@@ -32,7 +32,7 @@ describe('Invitations', () => {
     expect(response.body).toEqual({ email });
   });
 
-  it('creates the Usuario, signs it in and leaves 2FA pending', async () => {
+  it('creates the user, signs it in and leaves 2FA pending', async () => {
     const { token, email } = await invite(app);
     const agent = browser(app);
 
@@ -94,7 +94,7 @@ describe('Invitations', () => {
     const NEW_PASSWORD = 'another-good-password';
 
     it('resumes an account that never set up 2FA, with the new password', async () => {
-      const { agent: abandoned, email } = await invitedUsuario(app);
+      const { agent: abandoned, email } = await invitedUser(app);
       const { token } = await invite(app, email);
       const agent = browser(app);
 
@@ -114,7 +114,7 @@ describe('Invitations', () => {
     });
 
     it('the resumed account can finish the set-up', async () => {
-      const { email } = await invitedUsuario(app);
+      const { email } = await invitedUser(app);
       const { token } = await invite(app, email);
       const agent = browser(app);
       await agent
@@ -128,7 +128,7 @@ describe('Invitations', () => {
     });
 
     it('is refused for an account with 2FA set up, and stays usable', async () => {
-      const { email, agent: owner } = await activeUsuario(app);
+      const { email, agent: owner } = await activeUser(app);
       const { token } = await invite(app, email);
 
       const response = await accept(token).expect(409);

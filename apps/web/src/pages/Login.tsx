@@ -6,7 +6,7 @@ import { AccessLayout, Alert, Field } from '../ui/components';
 type Step = 'password' | 'totp' | 'backup';
 
 export function LoginPage() {
-  const { motivo } = useSearch({ from: '/entrar' });
+  const { reason } = useSearch({ from: '/sign-in' });
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('password');
   const [email, setEmail] = useState('');
@@ -48,10 +48,10 @@ export function LoginPage() {
   if (step === 'password') {
     return (
       <AccessLayout title="Entrar en Verifiq" subtitle="Accede para emitir y consultar tus facturas.">
-        {motivo === 'caducada' && (
+        {reason === 'expired' && (
           <Alert tone="info">Tu sesión ha caducado por inactividad. Vuelve a entrar.</Alert>
         )}
-        {motivo === 'restablecida' && (
+        {reason === 'reset' && (
           <Alert tone="ok">Contraseña cambiada. Ya puedes entrar con la nueva.</Alert>
         )}
         {error && <Alert tone="danger">{error}</Alert>}
@@ -76,7 +76,7 @@ export function LoginPage() {
             {pending ? 'Comprobando…' : 'Continuar'}
           </button>
         </form>
-        <Link className="lnk small" to="/recuperar">
+        <Link className="lnk small" to="/forgot-password">
           ¿Has olvidado tu contraseña?
         </Link>
       </AccessLayout>

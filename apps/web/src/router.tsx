@@ -6,48 +6,70 @@ import {
   redirect,
 } from '@tanstack/react-router';
 import { z } from 'zod';
+import { fetchOnboarding } from './api';
 import { currentUser } from './auth-client';
 import { ForgotPasswordPage } from './pages/ForgotPassword';
 import { HomePage } from './pages/Home';
 import { InvitationPage } from './pages/Invitation';
 import { LoginPage } from './pages/Login';
+import { OnboardingPage } from './pages/Onboarding';
 import { ResetPasswordPage } from './pages/ResetPassword';
 import { SetUpTwoFactorPage } from './pages/SetUpTwoFactor';
 
 const rootRoute = createRootRoute({ component: Outlet });
 
-/** The app: needs a session with 2FA set up. */
+/** A session with 2FA set up, or a redirect to what is missing. */
+async function requireActiveUser() {
+  const user = await currentUser();
+  if (!user) throw redirect({ to: '/sign-in' });
+  if (!user.twoFactorEnabled) throw redirect({ to: '/set-up-2fa' });
+  return user;
+}
+
+/** The app: needs a session with 2FA set up and the issuer onboarding complete. */
 const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: async () => {
-    const user = await currentUser();
-    if (!user) throw redirect({ to: '/entrar' });
-    if (!user.twoFactorEnabled) throw redirect({ to: '/configurar-2fa' });
+    const user = await requireActiveUser();
+    const { step } = await fetchOnboarding();
+    if (step !== 'completed') throw redirect({ to: '/onboarding' });
     return { user };
   },
   component: HomePage,
 });
 
+/** Issuer onboarding: resumable wizard, reachable until it is complete. */
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/onboarding',
+  beforeLoad: async () => {
+    await requireActiveUser();
+    const { step } = await fetchOnboarding();
+    if (step === 'completed') throw redirect({ to: '/' });
+  },
+  component: OnboardingPage,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/entrar',
-  validateSearch: z.object({ motivo: z.enum(['caducada', 'restablecida']).optional() }),
+  path: '/sign-in',
+  validateSearch: z.object({ reason: z.enum(['expired', 'reset']).optional() }),
   component: LoginPage,
 });
 
 const invitationRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/invitacion/$token',
+  path: '/invitation/$token',
   component: InvitationPage,
 });
 
 const setUpTwoFactorRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/configurar-2fa',
+  path: '/set-up-2fa',
   beforeLoad: async () => {
     const user = await currentUser();
-    if (!user) throw redirect({ to: '/entrar' });
+    if (!user) throw redirect({ to: '/sign-in' });
     if (user.twoFactorEnabled) throw redirect({ to: '/' });
   },
   component: SetUpTwoFactorPage,
@@ -55,19 +77,20 @@ const setUpTwoFactorRoute = createRoute({
 
 const forgotPasswordRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/recuperar',
+  path: '/forgot-password',
   component: ForgotPasswordPage,
 });
 
 const resetPasswordRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/restablecer',
+  path: '/reset-password',
   validateSearch: z.object({ token: z.string().optional() }),
   component: ResetPasswordPage,
 });
 
 const routeTree = rootRoute.addChildren([
   homeRoute,
+  onboardingRoute,
   loginRoute,
   invitationRoute,
   setUpTwoFactorRoute,

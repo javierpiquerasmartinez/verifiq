@@ -28,7 +28,7 @@ export interface AuthOptions {
   trustedProxies: string[];
 }
 
-/** Paths a signed-in Usuario can use before setting up 2FA: everything else is refused. */
+/** Paths a signed-in user can use before setting up 2FA: everything else is refused. */
 const ALLOWED_BEFORE_TWO_FACTOR = new Set([
   '/get-session',
   '/sign-out',
@@ -42,7 +42,7 @@ const ALLOWED_BEFORE_TWO_FACTOR = new Set([
 /** Where a sign-in completes: the second factor (the password step only opens the challenge). */
 const SECOND_FACTOR_PATHS = new Set(['/two-factor/verify-totp', '/two-factor/verify-backup-code']);
 
-/** Error body for a signed-in Usuario who has not set up 2FA yet (also used by SessionGuard). */
+/** Error body for a signed-in user who has not set up 2FA yet (also used by SessionGuard). */
 export const TWO_FACTOR_REQUIRED = {
   code: AuthErrorCode.TwoFactorRequired,
   message: 'Two-factor authentication must be set up first',
@@ -68,14 +68,14 @@ export function createAuth(db: Database, mailer: Mailer, options: AuthOptions) {
     }),
     emailAndPassword: {
       enabled: true,
-      // Usuarios only arrive by invitation (see invitations/).
+      // Users only arrive by invitation (see invitations/).
       disableSignUp: true,
       minPasswordLength: PASSWORD_MIN_LENGTH,
       maxPasswordLength: PASSWORD_MAX_LENGTH,
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: 60 * 60,
       sendResetPassword: async ({ user, token }) => {
-        const url = new URL('/restablecer', options.appUrl);
+        const url = new URL('/reset-password', options.appUrl);
         url.searchParams.set('token', token);
         await mailer.send(passwordResetEmail(user.email, url.toString()));
       },
@@ -136,7 +136,7 @@ export function createAuth(db: Database, mailer: Mailer, options: AuthOptions) {
           });
         }
         if (!SECOND_FACTOR_PATHS.has(ctx.path)) return;
-        // verify-totp also confirms the 2FA set-up of an already signed-in Usuario; a sign-in
+        // verify-totp also confirms the 2FA set-up of an already signed-in user; a sign-in
         // carries the challenge cookie issued after the password step.
         if (!ctx.getCookie(ctx.context.createAuthCookie('two_factor').name)) return;
         try {

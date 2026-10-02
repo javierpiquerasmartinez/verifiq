@@ -1,9 +1,9 @@
 import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  activeUsuario,
+  activeUser,
   browser,
-  invitedUsuario,
+  invitedUser,
   PASSWORD,
   setUpTwoFactor,
   signIn,
@@ -24,7 +24,7 @@ describe('Mandatory 2FA', () => {
 
   describe('before setting it up', () => {
     it('the app refuses everything', async () => {
-      const { agent } = await invitedUsuario(app);
+      const { agent } = await invitedUser(app);
 
       const response = await agent.get('/me').expect(403);
 
@@ -32,7 +32,7 @@ describe('Mandatory 2FA', () => {
     });
 
     it('account endpoints are refused too', async () => {
-      const { agent } = await invitedUsuario(app);
+      const { agent } = await invitedUser(app);
 
       const response = await agent.get('/auth/list-sessions').expect(403);
 
@@ -40,7 +40,7 @@ describe('Mandatory 2FA', () => {
     });
 
     it('the password alone does not open a session: only the invitation does', async () => {
-      const { email } = await invitedUsuario(app);
+      const { email } = await invitedUser(app);
       const agent = browser(app);
 
       const response = await agent
@@ -56,7 +56,7 @@ describe('Mandatory 2FA', () => {
     });
 
     it('a wrong password does not reveal that the set-up is pending', async () => {
-      const { email } = await invitedUsuario(app);
+      const { email } = await invitedUser(app);
 
       const response = await browser(app)
         .post('/auth/sign-in/email')
@@ -68,7 +68,7 @@ describe('Mandatory 2FA', () => {
   });
 
   it('setting it up opens the app and shows recovery codes once', async () => {
-    const { agent, email } = await invitedUsuario(app);
+    const { agent, email } = await invitedUser(app);
 
     const { backupCodes } = await setUpTwoFactor(agent);
 
@@ -81,7 +81,7 @@ describe('Mandatory 2FA', () => {
   });
 
   it('a wrong code does not complete the set-up', async () => {
-    const { agent } = await invitedUsuario(app);
+    const { agent } = await invitedUser(app);
     await agent.post('/auth/two-factor/enable').send({ password: PASSWORD }).expect(200);
 
     await agent.post('/auth/two-factor/verify-totp').send({ code: '000000' }).expect(401);
@@ -90,14 +90,14 @@ describe('Mandatory 2FA', () => {
   });
 
   it('cannot be switched off', async () => {
-    const { agent } = await activeUsuario(app);
+    const { agent } = await activeUser(app);
 
     await agent.post('/auth/two-factor/disable').send({ password: PASSWORD }).expect(404);
   });
 
   describe('signing in', () => {
     it('the password alone gives no session', async () => {
-      const { email } = await activeUsuario(app);
+      const { email } = await activeUser(app);
       const agent = browser(app);
 
       const response = await agent
@@ -110,7 +110,7 @@ describe('Mandatory 2FA', () => {
     });
 
     it('works with the TOTP code', async () => {
-      const { email, secret } = await activeUsuario(app);
+      const { email, secret } = await activeUser(app);
 
       const agent = await signIn(app, email, secret);
 
@@ -118,7 +118,7 @@ describe('Mandatory 2FA', () => {
     });
 
     it('rejects a wrong TOTP code', async () => {
-      const { email, secret } = await activeUsuario(app);
+      const { email, secret } = await activeUser(app);
       const agent = browser(app);
       await agent.post('/auth/sign-in/email').send({ email, password: PASSWORD }).expect(200);
 
@@ -129,7 +129,7 @@ describe('Mandatory 2FA', () => {
     });
 
     it('rejects a wrong password', async () => {
-      const { email } = await activeUsuario(app);
+      const { email } = await activeUser(app);
 
       const response = await browser(app)
         .post('/auth/sign-in/email')
@@ -140,7 +140,7 @@ describe('Mandatory 2FA', () => {
     });
 
     it('works with a recovery code, once', async () => {
-      const { email, backupCodes } = await activeUsuario(app);
+      const { email, backupCodes } = await activeUser(app);
       const code = backupCodes[0]!;
 
       const agent = browser(app);
@@ -155,7 +155,7 @@ describe('Mandatory 2FA', () => {
     });
 
     it('never trusts the device to skip the code next time', async () => {
-      const { email, secret } = await activeUsuario(app);
+      const { email, secret } = await activeUser(app);
       const agent = browser(app);
       await agent.post('/auth/sign-in/email').send({ email, password: PASSWORD }).expect(200);
 
@@ -167,7 +167,7 @@ describe('Mandatory 2FA', () => {
   });
 
   it('signing out ends the session', async () => {
-    const { agent } = await activeUsuario(app);
+    const { agent } = await activeUser(app);
 
     await agent.post('/auth/sign-out').send({}).expect(200);
 

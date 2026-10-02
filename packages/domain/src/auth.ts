@@ -33,7 +33,7 @@ export const AuthErrorCode = {
 
 export type AuthErrorCode = (typeof AuthErrorCode)[keyof typeof AuthErrorCode];
 
-/** Response of GET /me: the signed-in Usuario. */
+/** Response of GET /me: the signed-in user. */
 export const meSchema = z.object({
   id: z.string(),
   email: z.email(),

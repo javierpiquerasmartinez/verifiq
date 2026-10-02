@@ -24,7 +24,20 @@ const envSchema = z
     EMAIL_FROM: z.string().default('Verifiq <no-reply@verifiq.app>'),
     // Comma-separated CIDRs of the proxies in front of the API, to read the client IP for rate limiting.
     TRUSTED_PROXIES: z.string().default('').transform(commaSeparated),
-  });
+    // Cloudflare R2 (EU jurisdiction) for logos and PDFs. Without them, files go to apps/api/.storage
+    // (local development only).
+    R2_ACCOUNT_ID: z.string().min(1).optional(),
+    R2_ACCESS_KEY_ID: z.string().min(1).optional(),
+    R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    R2_BUCKET: z.string().min(1).optional(),
+  })
+  .refine(
+    (env) => {
+      const r2 = [env.R2_ACCOUNT_ID, env.R2_ACCESS_KEY_ID, env.R2_SECRET_ACCESS_KEY, env.R2_BUCKET];
+      return r2.every(Boolean) || !r2.some(Boolean);
+    },
+    { message: 'Set all of R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET, or none' },
+  );
 
 export type Env = z.infer<typeof envSchema>;
 

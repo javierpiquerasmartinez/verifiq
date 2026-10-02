@@ -24,7 +24,7 @@ export function ForgotPasswordPage() {
       title="Recupera tu contraseña"
       subtitle="Te enviaremos un enlace para elegir una contraseña nueva."
       footer={
-        <Link className="lnk" to="/entrar">
+        <Link className="lnk" to="/sign-in">
           Volver a entrar
         </Link>
       }

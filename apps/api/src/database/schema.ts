@@ -1,5 +1,18 @@
 // Drizzle schema; migrations live in ../../drizzle.
-import { bigint, boolean, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import {
+  bigint,
+  boolean,
+  check,
+  index,
+  integer,
+  pgTable,
+  primaryKey,
+  smallint,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 // --- Better Auth tables (see auth/auth.ts). Property names are the field names Better Auth expects.
 
@@ -93,7 +106,7 @@ export const rateLimits = pgTable('rate_limits', {
   lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
 });
 
-// --- Invitations: the only way to create a Usuario (no public sign-up).
+// --- Invitations: the only way to create a user (no public sign-up).
 
 export const invitations = pgTable('invitations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -105,3 +118,82 @@ export const invitations = pgTable('invitations', {
   userId: text('user_id').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// --- Issuers: the unit of data isolation. Every business row belongs to one (issuer_id).
+
+export const issuers = pgTable(
+  'issuers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Step 1: fiscal data.
+    name: text('name').notNull(),
+    taxId: text('tax_id').notNull().unique(),
+    address: text('address').notNull(),
+    postalCode: text('postal_code').notNull(),
+    municipality: text('municipality').notNull(),
+    province: text('province').notNull(),
+    email: text('email'),
+    phone: text('phone'),
+    iban: text('iban'),
+    // Object storage key of the logo; a new key per upload.
+    logoKey: text('logo_key'),
+    // Step 2: defaults. VAT is either a rate or a exemption ground, never both.
+    defaultWithholding: smallint('default_withholding'),
+    defaultVatRate: smallint('default_vat_rate'),
+    defaultExemptionGround: text('default_exemption_ground'),
+    // Step 3: Series prefixes (ADR 0004). Immutable once confirmed (trigger in migration 0002).
+    seriesPrefix: text('series_prefix'),
+    correctivePrefix: text('corrective_prefix'),
+    seriesConfirmedAt: timestamp('series_confirmed_at', { withTimezone: true }),
+    // Step 4: terms accepted, onboarding is complete.
+    onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'issuers_default_vat_check',
+      sql`${table.defaultVatRate} IS NULL OR ${table.defaultExemptionGround} IS NULL`,
+    ),
+    check(
+      'issuers_series_check',
+      sql`(${table.seriesPrefix} IS NULL) = (${table.seriesConfirmedAt} IS NULL) AND (${table.correctivePrefix} IS NULL) = (${table.seriesConfirmedAt} IS NULL)`,
+    ),
+  ],
+);
+
+/** User ↔ issuer. The MVP creates exactly one per user; the model allows more. */
+export const issuerMemberships = pgTable(
+  'issuer_memberships',
+  {
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.issuerId, table.userId] }),
+    index('issuer_memberships_user_id_idx').on(table.userId),
+  ],
+);
+
+/** Append-only (trigger in migration 0002) record of every legal document version a user accepted for an issuer. */
+export const legalAcceptances = pgTable(
+  'legal_acceptances',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    document: text('document').notNull(),
+    version: text('version').notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('legal_acceptances_issuer_id_idx').on(table.issuerId)],
+);

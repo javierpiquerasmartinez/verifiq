@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { activeUsuario, browser, PASSWORD } from './access.js';
+import { activeUser, browser, PASSWORD } from './access.js';
 import { createTestApp, FakeMailer, WEB_ORIGIN } from './test-app.js';
 import { totpCode } from './totp.js';
 
@@ -23,12 +23,12 @@ describe('Password recovery', () => {
     const message = mailer.to(email).findLast((m) => m.subject.includes('Restablece'));
     const link = message?.text.match(/https?:\/\/\S+/)?.[0];
     if (!link) throw new Error(`No recovery email for ${email}`);
-    expect(link.startsWith(`${WEB_ORIGIN}/restablecer?token=`)).toBe(true);
+    expect(link.startsWith(`${WEB_ORIGIN}/reset-password?token=`)).toBe(true);
     return new URL(link).searchParams.get('token')!;
   }
 
   it('emails a link that sets a new password, ends every session and keeps 2FA', async () => {
-    const { agent: oldSession, email, secret } = await activeUsuario(app);
+    const { agent: oldSession, email, secret } = await activeUser(app);
 
     await browser(app).post('/auth/request-password-reset').send({ email }).expect(200);
     await browser(app)
@@ -49,7 +49,7 @@ describe('Password recovery', () => {
   });
 
   it('the link works only once', async () => {
-    const { email } = await activeUsuario(app);
+    const { email } = await activeUser(app);
     await browser(app).post('/auth/request-password-reset').send({ email }).expect(200);
     const token = tokenFromEmail(email);
     await browser(app).post('/auth/reset-password').send({ token, newPassword: NEW_PASSWORD }).expect(200);
@@ -85,7 +85,7 @@ describe('New sign-in email', () => {
     mailer.to(email).filter((m) => m.subject === 'Nuevo inicio de sesión en Verifiq');
 
   it('is sent when a sign-in completes, with the browser and IP', async () => {
-    const { email, secret } = await activeUsuario(app);
+    const { email, secret } = await activeUser(app);
     expect(loginEmails(email)).toHaveLength(0);
 
     const agent = browser(app);
@@ -100,7 +100,7 @@ describe('New sign-in email', () => {
   });
 
   it('is not sent for a failed sign-in', async () => {
-    const { email } = await activeUsuario(app);
+    const { email } = await activeUser(app);
     const agent = browser(app);
     await agent.post('/auth/sign-in/email').send({ email, password: PASSWORD }).expect(200);
 

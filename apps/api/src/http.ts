@@ -1,4 +1,5 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { LOGO_CONTENT_TYPES, LOGO_MAX_BYTES } from '@verifiq/domain';
 import { toNodeHandler } from 'better-auth/node';
 import { AUTH, type Auth } from './auth/auth.js';
 
@@ -18,6 +19,8 @@ export function configureHttp(app: NestExpressApplication, { webOrigins }: HttpO
     request.url.startsWith('/auth/') ? void authHandler(request as never, response) : next(),
   );
   app.useBodyParser('json');
+  // Logo uploads (PUT /issuer/logo) send the image as the raw body.
+  app.useBodyParser('raw', { type: [...LOGO_CONTENT_TYPES], limit: LOGO_MAX_BYTES });
 }
 
 function toOriginMatcher(origin: string): string | RegExp {

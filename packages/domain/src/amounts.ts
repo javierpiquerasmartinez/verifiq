@@ -1,46 +1,46 @@
 import Big from 'big.js';
 import { z } from 'zod';
 import {
-  SUPUESTO_EXENCION_IDS,
-  supuestoExencion,
-  supuestoExencionSchema,
-  type SupuestoExencionId,
+  EXEMPTION_GROUND_IDS,
+  exemptionGround,
+  exemptionGroundSchema,
+  type ExemptionGroundId,
 } from './exemptions.js';
 
-/** 0 % is a taxed rate (e.g. some resold goods), not an exemption: exempt lines carry a Supuesto de exención. */
-export const IVA_RATES = [21, 10, 4, 0] as const;
-export type IvaRate = (typeof IVA_RATES)[number];
+/** 0 % is a taxed rate (e.g. some resold goods), not an exemption: exempt lines carry an exemption ground. */
+export const VAT_RATES = [21, 10, 4, 0] as const;
+export type VatRate = (typeof VAT_RATES)[number];
 
-export const RETENCION_IRPF_RATES = [15, 7, 0] as const;
-export type RetencionIrpfRate = (typeof RETENCION_IRPF_RATES)[number];
+export const WITHHOLDING_RATES = [15, 7, 0] as const;
+export type WithholdingRate = (typeof WITHHOLDING_RATES)[number];
 
 /** Decimal amounts travel as strings so they never go through a float. */
 const decimalString = (maxDecimals: number, { signed }: { signed: boolean }) =>
   z.string().regex(new RegExp(`^${signed ? '-?' : ''}\\d{1,9}(\\.\\d{1,${maxDecimals}})?$`));
 
-/** A line is either taxed at an IVA rate or exempt under a Supuesto de exención. */
-export const ivaTreatmentSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('taxed'), rate: z.literal(IVA_RATES) }),
-  z.object({ kind: z.literal('exempt'), supuesto: supuestoExencionSchema }),
+/** A line is either taxed at a VAT rate or exempt under an exemption ground. */
+export const vatTreatmentSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('taxed'), rate: z.literal(VAT_RATES) }),
+  z.object({ kind: z.literal('exempt'), ground: exemptionGroundSchema }),
 ]);
 
-export type IvaTreatment = z.infer<typeof ivaTreatmentSchema>;
+export type VatTreatment = z.infer<typeof vatTreatmentSchema>;
 
 export const breakdownLineSchema = z.object({
-  /** Signed: rectificativas por diferencias carry negative lines. */
+  /** Signed: corrective invoices by differences carry negative lines. */
   quantity: decimalString(2, { signed: true }),
   unitPrice: decimalString(4, { signed: true }),
   discountPercent: decimalString(2, { signed: false })
     .refine((value) => new Big(value).lte(100), { message: 'El descuento no puede superar el 100 %' })
     .optional(),
-  iva: ivaTreatmentSchema,
+  vat: vatTreatmentSchema,
 });
 
 export type BreakdownLine = z.infer<typeof breakdownLineSchema>;
 
 export const breakdownInputSchema = z.object({
   lines: z.array(breakdownLineSchema),
-  retencionIrpf: z.literal(RETENCION_IRPF_RATES),
+  withholding: z.literal(WITHHOLDING_RATES),
 });
 
 export type BreakdownInput = z.infer<typeof breakdownInputSchema>;
@@ -49,16 +49,16 @@ export type BreakdownInput = z.infer<typeof breakdownInputSchema>;
 export interface Breakdown {
   lines: { base: string }[];
   /** Highest rate first. */
-  taxed: { rate: IvaRate; base: string; cuota: string }[];
+  taxed: { rate: VatRate; base: string; taxAmount: string }[];
   /** In catalogue order, with the legal mention to print. */
-  exempt: { supuesto: SupuestoExencionId; base: string; mention: string }[];
+  exempt: { ground: ExemptionGroundId; base: string; mention: string }[];
   /** Sum of every line base, taxed and exempt. */
-  baseImponible: string;
-  /** Base imponible plus cuotas: what is declared to the AEAT. */
-  importeTotal: string;
-  retencionIrpf: { rate: RetencionIrpfRate; amount: string };
-  /** Importe total minus the Retención de IRPF: what the Destinatario pays. */
-  totalAPagar: string;
+  taxBase: string;
+  /** Tax base plus tax amounts: what is declared to the AEAT. */
+  totalAmount: string;
+  withholding: { rate: WithholdingRate; amount: string };
+  /** Total amount minus the withholding: what the recipient pays. */
+  amountDue: string;
 }
 
 const HUNDRED = new Big(100);
@@ -87,40 +87,40 @@ function lineBase(line: BreakdownLine): Big {
 
 /**
  * Invoice breakdown, the single source of truth for amounts in web and api.
- * Line bases are rounded to cents; each cuota is computed on the sum of its rate's bases;
- * the Retención de IRPF on the whole base imponible.
+ * Line bases are rounded to cents; each tax amount is computed on the sum of its rate's bases;
+ * the withholding on the whole tax base.
  */
 export function computeBreakdown(input: BreakdownInput): Breakdown {
   const bases = input.lines.map(lineBase);
 
-  const taxedBases = new Map<IvaRate, Big>();
-  const exemptBases = new Map<SupuestoExencionId, Big>();
+  const taxedBases = new Map<VatRate, Big>();
+  const exemptBases = new Map<ExemptionGroundId, Big>();
   input.lines.forEach((line, i) => {
     const base = bases[i]!;
-    if (line.iva.kind === 'taxed') addTo(taxedBases, line.iva.rate, base);
-    else addTo(exemptBases, line.iva.supuesto, base);
+    if (line.vat.kind === 'taxed') addTo(taxedBases, line.vat.rate, base);
+    else addTo(exemptBases, line.vat.ground, base);
   });
 
-  const taxed = IVA_RATES.filter((rate) => taxedBases.has(rate)).map((rate) => {
+  const taxed = VAT_RATES.filter((rate) => taxedBases.has(rate)).map((rate) => {
     const base = taxedBases.get(rate)!;
-    return { rate, base, cuota: percentOf(base, rate) };
+    return { rate, base, taxAmount: percentOf(base, rate) };
   });
 
-  const baseImponible = bases.reduce((sum, base) => sum.plus(base), new Big(0));
-  const importeTotal = taxed.reduce((sum, { cuota }) => sum.plus(cuota), baseImponible);
-  const retencion = percentOf(baseImponible, input.retencionIrpf);
+  const taxBase = bases.reduce((sum, base) => sum.plus(base), new Big(0));
+  const totalAmount = taxed.reduce((sum, { taxAmount }) => sum.plus(taxAmount), taxBase);
+  const withheld = percentOf(taxBase, input.withholding);
 
   return {
     lines: bases.map((base) => ({ base: formatCents(base) })),
-    taxed: taxed.map(({ rate, base, cuota }) => ({ rate, base: formatCents(base), cuota: formatCents(cuota) })),
-    exempt: SUPUESTO_EXENCION_IDS.filter((id) => exemptBases.has(id)).map((supuesto) => ({
-      supuesto,
-      base: formatCents(exemptBases.get(supuesto)!),
-      mention: supuestoExencion(supuesto).mention,
+    taxed: taxed.map(({ rate, base, taxAmount }) => ({ rate, base: formatCents(base), taxAmount: formatCents(taxAmount) })),
+    exempt: EXEMPTION_GROUND_IDS.filter((id) => exemptBases.has(id)).map((ground) => ({
+      ground,
+      base: formatCents(exemptBases.get(ground)!),
+      mention: exemptionGround(ground).mention,
     })),
-    baseImponible: formatCents(baseImponible),
-    importeTotal: formatCents(importeTotal),
-    retencionIrpf: { rate: input.retencionIrpf, amount: formatCents(retencion) },
-    totalAPagar: formatCents(importeTotal.minus(retencion)),
+    taxBase: formatCents(taxBase),
+    totalAmount: formatCents(totalAmount),
+    withholding: { rate: input.withholding, amount: formatCents(withheld) },
+    amountDue: formatCents(totalAmount.minus(withheld)),
   };
 }

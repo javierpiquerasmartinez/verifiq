@@ -16,6 +16,7 @@
     "invite": "node --env-file-if-exists=.env dist/create-invitation.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1144.0",
     "@nestjs/common": "^12.1.2",
     "@nestjs/core": "^12.1.2",
     "@nestjs/platform-express": "^12.1.2",

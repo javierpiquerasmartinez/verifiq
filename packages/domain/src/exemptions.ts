@@ -1,14 +1,14 @@
 import { z } from 'zod';
 
-/** Closed catalogue of Supuestos de exención (art. 20 LIVA) the product supports. */
-export const SUPUESTO_EXENCION_IDS = ['odontologia'] as const;
+/** Closed catalogue of exemption grounds (art. 20 of the Spanish VAT Act) the product supports. */
+export const EXEMPTION_GROUND_IDS = ['dentistry'] as const;
 
-export type SupuestoExencionId = (typeof SUPUESTO_EXENCION_IDS)[number];
+export type ExemptionGroundId = (typeof EXEMPTION_GROUND_IDS)[number];
 
-export const supuestoExencionSchema = z.enum(SUPUESTO_EXENCION_IDS);
+export const exemptionGroundSchema = z.enum(EXEMPTION_GROUND_IDS);
 
-export interface SupuestoExencion {
-  /** Shown when picking the Supuesto de exención for a line. */
+export interface ExemptionGround {
+  /** Shown when picking the exemption ground for a line. */
   label: string;
   /** Legal mention printed on the invoice. */
   mention: string;
@@ -16,8 +16,8 @@ export interface SupuestoExencion {
   verifactuCode: 'E1';
 }
 
-const SUPUESTOS_EXENCION: Record<SupuestoExencionId, SupuestoExencion> = {
-  odontologia: {
+const EXEMPTION_GROUNDS: Record<ExemptionGroundId, ExemptionGround> = {
+  dentistry: {
     label: 'Servicios sanitarios — odontología (art. 20.Uno.5º LIVA)',
     mention:
       'Operación exenta de IVA en virtud del artículo 20.Uno.5º de la Ley 37/1992, del Impuesto sobre el Valor Añadido.',
@@ -25,6 +25,6 @@ const SUPUESTOS_EXENCION: Record<SupuestoExencionId, SupuestoExencion> = {
   },
 };
 
-export function supuestoExencion(id: SupuestoExencionId): SupuestoExencion {
-  return SUPUESTOS_EXENCION[id];
+export function exemptionGround(id: ExemptionGroundId): ExemptionGround {
+  return EXEMPTION_GROUNDS[id];
 }

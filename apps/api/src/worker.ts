@@ -3,7 +3,7 @@ import { Logger, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { loadBuildVersion } from './version.js';
 
-/** Background worker (Render). Empty for now: the outbox consumer arrives with Emisión. */
+/** Background worker (Render). Empty for now: the outbox consumer arrives with invoice issuance. */
 @Module({})
 class WorkerModule {}
 
