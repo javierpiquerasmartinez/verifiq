@@ -38,7 +38,7 @@ The code is hosting-agnostic: any Node 24 host works with these `package.json` s
 | Web (static) | `pnpm build:web` → `apps/web/dist` | — | `VITE_API_URL` (at build time) |
 
 - Migrations run when the API starts: if they fail, the new version never starts, fails the health check (`/health`) and the host keeps the previous one. Fine with a single instance; with several (production), move migrations to a single step before the deploy.
-- Staging: branch `stage`. API on Render (Frankfurt, free plan, health check `/health`), defined in the `render.yaml` Blueprint; the worker is not deployed until it has work to do. Web on Vercel with root `apps/web` (`vercel.json`) and `ENABLE_EXPERIMENTAL_COREPACK=1`.
+- Staging: branch `stage`. API on Render (Frankfurt, free plan, health check `/health`), defined in the `render.yaml` Blueprint (Render syncs it from `stage`); the worker is not deployed until it has work to do. Web on Vercel with root `apps/web` (`vercel.json`) and `ENABLE_EXPERIMENTAL_COREPACK=1`.
 - `WEB_ORIGIN` on the API: comma-separated web origins; `*` stands for one fragment of a host name (letters, digits and hyphens). Staging: `https://verifiq-phi.vercel.app,https://verifiq-*-javier-piqueras-martinezs-projects.vercel.app` (includes this team's Vercel previews).
 - Secrets only via environment variables (`DATABASE_URL`, `WEB_ORIGIN`, `VITE_API_URL`); never in the repo.
 
