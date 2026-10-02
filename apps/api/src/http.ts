@@ -1,13 +1,23 @@
-import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { toNodeHandler } from 'better-auth/node';
+import { AUTH, type Auth } from './auth/auth.js';
 
 export interface HttpOptions {
   /** Exact origins, or patterns where `*` stands for one DNS-label fragment (e.g. Vercel previews). */
   webOrigins: string[];
 }
 
-/** HTTP setup shared by main.ts and the tests. */
-export function configureHttp(app: INestApplication, { webOrigins }: HttpOptions): void {
-  app.enableCors({ origin: webOrigins.map(toOriginMatcher) });
+/**
+ * HTTP setup shared by main.ts and the tests. The app must be created with `bodyParser: false`:
+ * Better Auth reads the raw body of /auth/*, so the JSON parser is registered after it.
+ */
+export function configureHttp(app: NestExpressApplication, { webOrigins }: HttpOptions): void {
+  app.enableCors({ origin: webOrigins.map(toOriginMatcher), credentials: true });
+  const authHandler = toNodeHandler(app.get<Auth>(AUTH));
+  app.use((request: { url: string }, response: Parameters<typeof authHandler>[1], next: () => void) =>
+    request.url.startsWith('/auth/') ? void authHandler(request as never, response) : next(),
+  );
+  app.useBodyParser('json');
 }
 
 function toOriginMatcher(origin: string): string | RegExp {

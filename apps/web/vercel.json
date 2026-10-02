@@ -4,5 +4,8 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "cd ../.. && pnpm build:web",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://verifiq-api-staging.onrender.com/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }

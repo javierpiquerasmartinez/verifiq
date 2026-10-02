@@ -13,5 +13,14 @@ export default defineConfig(({ mode }) => {
     define: {
       __APP_VERSION__: JSON.stringify(resolveVersion()),
     },
+    server: {
+      // Same-origin API in development too, so session cookies behave as in staging.
+      proxy: {
+        '/api': {
+          target: env.VITE_DEV_API_TARGET || 'http://localhost:3000',
+          rewrite: (path) => path.replace(/^\/api/, ''),
+        },
+      },
+    },
   };
 });

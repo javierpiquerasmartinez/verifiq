@@ -16,7 +16,8 @@
     "build:api": "turbo run build --filter=@verifiq/api",
     "build:web": "turbo run build --filter=@verifiq/web",
     "start:api": "pnpm --filter @verifiq/api db:migrate && pnpm --filter @verifiq/api start",
-    "start:worker": "pnpm --filter @verifiq/api start:worker"
+    "start:worker": "pnpm --filter @verifiq/api start:worker",
+    "invite": "pnpm --filter @verifiq/api invite"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
