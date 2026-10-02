@@ -29,8 +29,16 @@ Esquema en `apps/api/src/database/schema.ts`; migraciones SQL versionadas en `ap
 
 ## Despliegue
 
-- Staging: rama `stage`. Render Blueprint `render.yaml` (API + worker, Frankfurt). Web en Vercel con raíz `apps/web` (`vercel.json`) y `VITE_API_URL` apuntando a la API.
-- Vercel: definir `ENABLE_EXPERIMENTAL_COREPACK=1` para que use el pnpm de `packageManager`. `WEB_ORIGIN` en la API debe incluir el dominio de la web (las URLs de preview no están permitidas por CORS).
-- Render: `preDeployCommand` requiere una instancia de pago (`plan: starter`).
+El código no depende del proveedor: cualquier hosting de Node 24 sirve con estos comandos, ejecutados desde la raíz del repo.
+
+| Proceso | Build | Arranque | Variables |
+|---|---|---|---|
+| API | `corepack enable && pnpm install --frozen-lockfile && pnpm turbo run build --filter=@verifiq/api` | `node apps/api/dist/run-migrations.js && node apps/api/dist/main.js` | `DATABASE_URL`, `WEB_ORIGIN`, `PORT` (la pone el hosting) |
+| Worker | igual que la API | `node apps/api/dist/worker.js` | `DATABASE_URL` |
+| Web (estática) | `pnpm turbo run build --filter=@verifiq/web` → `apps/web/dist` | — | `VITE_API_URL` (en build) |
+
+- Las migraciones se aplican al arrancar la API: si fallan, la versión nueva no arranca, no pasa el health check (`/health`) y el hosting mantiene la anterior. Válido con una sola instancia; con varias (producción) mover la migración a un paso único previo al despliegue.
+- Staging: rama `stage`. API en Render (Frankfurt, health check `/health`); el worker no se despliega hasta que tenga trabajo. Web en Vercel con raíz `apps/web` (`vercel.json`) y `ENABLE_EXPERIMENTAL_COREPACK=1`.
+- `WEB_ORIGIN` en la API debe incluir el dominio de la web (las URLs de preview no están permitidas por CORS).
 - Secretos solo por variables de entorno (`DATABASE_URL`, `WEB_ORIGIN`, `VITE_API_URL`); nunca en el repo.
-- CI (`.github/workflows/ci.yml`): lint, typecheck y tests en cada PR a `stage` y `main`. Para que bloquee el merge, marcar el job `ci` como check obligatorio en la protección de ambas ramas.
+- CI (`.github/workflows/ci.yml`): lint, typecheck, tests y build en cada PR a `stage` y `main`. Para que bloquee el merge, marcar el job `ci` como check obligatorio en la protección de ambas ramas.
