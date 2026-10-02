@@ -6,10 +6,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node ../../scripts/version.js dist/version.json",
     "dev": "tsc -p tsconfig.build.json && (trap 'kill 0' EXIT; tsc -p tsconfig.build.json --watch --preserveWatchOutput & node --watch --env-file-if-exists=.env dist/main.js)",
-    "start": "node dist/main.js",
+    "start": "node --env-file-if-exists=.env dist/main.js",
     "start:worker": "node dist/worker.js",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node dist/run-migrations.js",
+    "db:migrate": "node --env-file-if-exists=.env dist/run-migrations.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test",
     "test": "vitest run"
