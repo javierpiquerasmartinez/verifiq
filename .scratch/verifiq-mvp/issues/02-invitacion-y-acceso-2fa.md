@@ -6,7 +6,7 @@ Spec: `../spec.md` (historias 1–12) · ADR 0003
 
 **Blocked by:** 01; `design.html`
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] Better Auth embebido; datos en nuestra Postgres; sesiones por cookie httpOnly
 - [x] Invitaciones de un solo uso con caducidad; enlace caducado o usado muestra un mensaje claro
@@ -38,3 +38,9 @@ Pendiente del operador para staging:
 - Cerrado el hueco de alta a medias: una cuenta sin 2FA ya no puede iniciar sesión con la contraseña (403 `TWO_FACTOR_SETUP_INCOMPLETE`; solo con la contraseña correcta, para no revelar nada a quien no la sepa). Antes, quien tuviera la contraseña podía configurar el 2FA con su propio móvil y quedarse la cuenta. La única sesión sin 2FA es la que crea el enlace de invitación (que exige acceso al email).
 - Si el Usuario abandona el alta, el operador le envía otra invitación (`pnpm invite <email>`): al aceptarla se retoma la cuenta (nombre y contraseña nuevos, sesiones anteriores cerradas). Si la cuenta ya tiene 2FA, la invitación se rechaza con `EMAIL_TAKEN` y sigue sin usarse.
 - Pendiente, a decidir con datos de staging: el rate limiting comparte contador entre todos los clientes cuando la API no puede resolver la IP real detrás de Vercel + Render. Opciones: fiarse de una cabecera de Vercel (con un secreto compartido para que no se pueda llamar a Render directamente) o, en producción, un dominio propio con la API en un subdominio (issue 21).
+
+**2026-10-02 (agente):** cierre. Verificado en staging (PR #5, versión `0.1.0+1ac1f2d`).
+- Variables configuradas: en Render `BETTER_AUTH_SECRET`, `APP_URL`, `API_URL`, `RESEND_API_KEY` y `EMAIL_FROM` (Resend con el dominio `verifiq.jpdev.app`, región UE); en Vercel `VITE_API_URL=/api` en Preview y Production.
+- Flujo probado por el operador en el navegador: invitación → cuenta → configuración del 2FA → códigos de recuperación → cierre de sesión → inicio con TOTP (llega el aviso de nuevo inicio de sesión) → recuperación de contraseña por email.
+- Render free no tiene Shell: la invitación se generó con `pnpm invite` en local contra la base de datos de staging (`APP_URL` de staging). Hasta que exista el panel de operador (issue 19), es la forma de invitar.
+- Confirmado el problema del rate limiting: el aviso de inicio de sesión muestra «Dirección IP: desconocida», así que detrás de Vercel + Render todos los clientes comparten el contador. Sigue en la issue 22.
