@@ -32,3 +32,10 @@ Spec: `../spec.md` · ADR 0003
 - CI: ruleset de GitHub en `stage` y `main` — PR obligatorio, check `ci` obligatorio, sin force push ni borrado.
 - Worker: no desplegado (Render no tiene workers gratuitos y está vacío). Se despliega con `pnpm start:worker` cuando tenga trabajo (Emisión).
 - Pendiente para producción (issue 21): servicio de pago siempre encendido, worker, base de datos propia, migración en un paso único previo al despliegue (p. ej. GitHub Action + deploy hook), CORS para previews de Vercel si se quieren.
+
+**2026-10-02 (agente):** cierre.
+- Previews de Vercel operativos: `WEB_ORIGIN` admite comodines (`https://verifiq-*-javier-piqueras-martinezs-projects.vercel.app`), con tests de CORS.
+- `stage` es la rama por defecto del repo; el Blueprint de Render lee `render.yaml` de `stage`.
+- CI en cuatro checks obligatorios (`lint`, `typecheck`, `test`, `build`).
+- Convención de idioma en `AGENTS.md`: código, commits y PRs en inglés; interfaz y términos del glosario en español.
+- Producción aplazada a la issue 21. Decisiones previas: Render free al principio (Starter antes de emitir facturas reales); en Neon, rama raíz `production` con `staging` como rama hija, sin resetear nunca staging desde producción con datos reales; release `stage` → `main` con merge commit.

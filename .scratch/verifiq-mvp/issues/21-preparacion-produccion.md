@@ -13,3 +13,12 @@ Spec: `../spec.md` (historias 97, 100; Further Notes)
 - [ ] Exportación periódica a R2 de copias congeladas, PDFs y respuestas del conector; conservación 6 años documentada
 - [ ] Alertas operativas (errores del worker, webhooks fallidos) llegan al operador
 - [ ] Checklist (humano): textos legales y declaración responsable, contratos de subencargo, validación del asesor (tabla R1/R4, Anulación por no entrega, fecha de operación mensual), dudas abiertas con Verifacti, revisión de aplazamientos de VeriFactu
+
+## Comments
+
+**2026-10-02 (agente, desde la issue 01):** decisiones previas para montar producción (rama `main`):
+- Render: servicio `verifiq-api` en `render.yaml` (`branch: main`), plan free al principio; pasar a Starter antes de emitir facturas reales (sin arranques en frío: webhook de Verifacti <10 s) y desplegar el worker (`pnpm start:worker`).
+- Migraciones: con una instancia basta migrar al arrancar (`pnpm start:api`); con API + worker siempre encendidos, migrar en un paso único previo (`preDeployCommand` en plan de pago, o GitHub Action que migra y luego llama al deploy hook con auto-deploy desactivado).
+- Neon: rama raíz `production` y `staging` como rama hija (el `DATABASE_URL` de staging cambia a la rama hija). Nunca resetear staging desde producción con datos reales salvo anonimizados.
+- Vercel: proyecto propio siguiendo `main`, con `VITE_API_URL` de producción y `ENABLE_EXPERIMENTAL_COREPACK=1`. `WEB_ORIGIN` de producción: solo su dominio, sin previews.
+- Release: PR `stage` → `main` con merge commit (no squash), para que las ramas no diverjan.
