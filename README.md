@@ -45,16 +45,16 @@ The code is hosting-agnostic: any Node 24 host works with these `package.json` s
 
 | Process | Build | Start | Variables |
 |---|---|---|---|
-| API | `pnpm install --frozen-lockfile && pnpm build:api` | `pnpm start:api` (migrates, then starts) | `DATABASE_URL`, `WEB_ORIGIN`, `APP_URL`, `API_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `TRUSTED_PROXIES`, `PORT` (set by the host) |
+| API | `pnpm install --frozen-lockfile && pnpm build:api` | `pnpm start:api` (migrates, then starts) | `DATABASE_URL`, `WEB_ORIGIN`, `APP_URL`, `API_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `TRUSTED_PROXIES`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `PORT` (set by the host) |
 | Worker | same as the API | `pnpm start:worker` | `DATABASE_URL` |
 | Web (static) | `pnpm build:web` → `apps/web/dist` | — | `VITE_API_URL=/api` (at build time) |
 
 - Migrations run when the API starts: if they fail, the new version never starts, fails the health check (`/health`) and the host keeps the previous one. Fine with a single instance; with several (production), move migrations to a single step before the deploy.
 - Staging: branch `stage`. API on Render (Frankfurt, free plan, health check `/health`), defined in the `render.yaml` Blueprint (Render syncs it from `stage`); the worker is not deployed until it has work to do. Web on Vercel with root `apps/web` (`vercel.json`) and `ENABLE_EXPERIMENTAL_COREPACK=1`.
 - The web reaches the API through a same-origin rewrite (`/api/*` → the API, in `apps/web/vercel.json`), so the session cookies are first-party. The rewrite destination is the staging API; production needs its own (issue 21).
-- `APP_URL` is the web app's public URL (links in emails); `API_URL` the API's own (https turns on secure cookies). `BETTER_AUTH_SECRET` signs the cookies and encrypts the TOTP secrets: changing it signs everybody out and breaks every 2FA set-up. Without `RESEND_API_KEY`, emails only go to the log. `TRUSTED_PROXIES` (comma-separated CIDRs) lets rate limiting read the client IP behind proxies; otherwise all clients share one bucket per endpoint.
+- `APP_URL` is the web app's public URL (links in emails); `API_URL` the API's own (https turns on secure cookies). `BETTER_AUTH_SECRET` signs the cookies and encrypts the TOTP secrets: changing it signs everybody out and breaks every 2FA set-up. Without `RESEND_API_KEY`, emails only go to the log. Without the `R2_*` variables (a Cloudflare R2 bucket created with EU jurisdiction), files such as logos are written to `apps/api/.storage`, which a host like Render wipes on every deploy. `TRUSTED_PROXIES` (comma-separated CIDRs) lets rate limiting read the client IP behind proxies; otherwise all clients share one bucket per endpoint.
 - `WEB_ORIGIN` on the API: comma-separated web origins; `*` stands for one fragment of a host name (letters, digits and hyphens). Staging: `https://verifiq-phi.vercel.app,https://verifiq-*-javier-piqueras-martinezs-projects.vercel.app` (includes this team's Vercel previews).
-- Secrets only via environment variables (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`); never in the repo.
+- Secrets only via environment variables (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `R2_*`); never in the repo.
 
 ## Branches and CI
 

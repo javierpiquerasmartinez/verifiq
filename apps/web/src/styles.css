@@ -79,8 +79,16 @@ ul {
   font-weight: 600;
   letter-spacing: -0.008em;
 }
+.h3 {
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 600;
+}
 .small {
   font-size: 13.5px;
+}
+.xs {
+  font-size: 12.5px;
 }
 .eyebrow {
   font-size: 12px;
@@ -204,6 +212,9 @@ ul {
 }
 .access-card.wide {
   max-width: 560px;
+}
+.access-card.wider {
+  max-width: 720px;
 }
 .access-head {
   display: flex;
@@ -347,6 +358,82 @@ ul {
   flex: none;
 }
 
+.opt {
+  font-weight: 400;
+  color: var(--ink-3);
+}
+.sel {
+  position: relative;
+  display: block;
+}
+.sel .input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 38px;
+}
+.sel .ic {
+  position: absolute;
+  right: 12px;
+  top: 13px;
+  pointer-events: none;
+  color: var(--ink-3);
+}
+.seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  padding: 3px;
+  background: #fff;
+  gap: 2px;
+  align-self: flex-start;
+}
+.seg button {
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  border-radius: 4px;
+  font: 500 14px var(--font);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.seg button[aria-pressed='true'] {
+  background: var(--primary);
+  color: #fff;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.grid .span2 {
+  grid-column: span 2;
+}
+.grid .span3 {
+  grid-column: 1 / -1;
+}
+.divider {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 4px 0;
+}
+.logo-box {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.logo-box img {
+  max-width: 160px;
+  max-height: 64px;
+  object-fit: contain;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: #fff;
+}
+
 /* surfaces */
 .card {
   background: var(--surface);
@@ -434,6 +521,16 @@ ul {
   color: var(--ink);
   font-weight: 600;
 }
+button.step {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+button.step:hover {
+  color: var(--ink);
+}
 .step.on .n {
   border-color: var(--primary);
   color: var(--primary);
@@ -504,8 +601,12 @@ ul {
   .access-card {
     padding: 24px 20px;
   }
-  .kv {
+  .kv,
+  .grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .grid .span2 {
+    grid-column: auto;
   }
   .btn {
     white-space: normal;

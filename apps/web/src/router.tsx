@@ -6,27 +6,49 @@ import {
   redirect,
 } from '@tanstack/react-router';
 import { z } from 'zod';
+import { fetchOnboarding } from './api';
 import { currentUser } from './auth-client';
 import { ForgotPasswordPage } from './pages/ForgotPassword';
 import { HomePage } from './pages/Home';
 import { InvitationPage } from './pages/Invitation';
 import { LoginPage } from './pages/Login';
+import { OnboardingPage } from './pages/Onboarding';
 import { ResetPasswordPage } from './pages/ResetPassword';
 import { SetUpTwoFactorPage } from './pages/SetUpTwoFactor';
 
 const rootRoute = createRootRoute({ component: Outlet });
 
-/** The app: needs a session with 2FA set up. */
+/** A session with 2FA set up, or a redirect to what is missing. */
+async function requireActiveUser() {
+  const user = await currentUser();
+  if (!user) throw redirect({ to: '/entrar' });
+  if (!user.twoFactorEnabled) throw redirect({ to: '/configurar-2fa' });
+  return user;
+}
+
+/** The app: needs a session with 2FA set up and the alta del Emisor complete. */
 const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: async () => {
-    const user = await currentUser();
-    if (!user) throw redirect({ to: '/entrar' });
-    if (!user.twoFactorEnabled) throw redirect({ to: '/configurar-2fa' });
+    const user = await requireActiveUser();
+    const { step } = await fetchOnboarding();
+    if (step !== 'completed') throw redirect({ to: '/alta' });
     return { user };
   },
   component: HomePage,
+});
+
+/** Alta del Emisor: resumable wizard, reachable until it is complete. */
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/alta',
+  beforeLoad: async () => {
+    await requireActiveUser();
+    const { step } = await fetchOnboarding();
+    if (step === 'completed') throw redirect({ to: '/' });
+  },
+  component: OnboardingPage,
 });
 
 const loginRoute = createRoute({
@@ -68,6 +90,7 @@ const resetPasswordRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   homeRoute,
+  onboardingRoute,
   loginRoute,
   invitationRoute,
   setUpTwoFactorRoute,
