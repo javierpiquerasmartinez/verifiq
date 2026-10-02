@@ -12,7 +12,7 @@ import { Reflector } from '@nestjs/core';
 import { AuthErrorCode } from '@verifiq/domain';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { Request, Response } from 'express';
-import { AUTH, type Auth } from './auth.js';
+import { AUTH, TWO_FACTOR_REQUIRED, type Auth } from './auth.js';
 
 const IS_PUBLIC = Symbol('IS_PUBLIC');
 
@@ -64,10 +64,7 @@ export class SessionGuard implements CanActivate {
       });
     }
     if (!session.user.twoFactorEnabled) {
-      throw new ForbiddenException({
-        code: AuthErrorCode.TwoFactorRequired,
-        message: 'Two-factor authentication must be set up first',
-      });
+      throw new ForbiddenException(TWO_FACTOR_REQUIRED);
     }
     request.auth = session;
     return true;

@@ -33,3 +33,8 @@ Spec: `../spec.md` (historias 1–12) · ADR 0003
 Pendiente del operador para staging:
 - Render: `BETTER_AUTH_SECRET` (el Blueprint lo genera), `APP_URL=https://verifiq-phi.vercel.app`, `API_URL=https://verifiq-api-staging.onrender.com`, `RESEND_API_KEY` y `EMAIL_FROM` con un dominio verificado en Resend en la región UE. `TRUSTED_PROXIES` si se quiere rate limiting por IP real detrás de Vercel + Render (sin él, todos los clientes comparten el contador de cada endpoint).
 - Vercel: `VITE_API_URL=/api`. Comprobar que el destino del rewrite en `apps/web/vercel.json` es la URL real del servicio de Render.
+
+**2026-10-02 (agente):** tras la revisión de código.
+- Cerrado el hueco de alta a medias: una cuenta sin 2FA ya no puede iniciar sesión con la contraseña (403 `TWO_FACTOR_SETUP_INCOMPLETE`; solo con la contraseña correcta, para no revelar nada a quien no la sepa). Antes, quien tuviera la contraseña podía configurar el 2FA con su propio móvil y quedarse la cuenta. La única sesión sin 2FA es la que crea el enlace de invitación (que exige acceso al email).
+- Si el Usuario abandona el alta, el operador le envía otra invitación (`pnpm invite <email>`): al aceptarla se retoma la cuenta (nombre y contraseña nuevos, sesiones anteriores cerradas). Si la cuenta ya tiene 2FA, la invitación se rechaza con `EMAIL_TAKEN` y sigue sin usarse.
+- Pendiente, a decidir con datos de staging: el rate limiting comparte contador entre todos los clientes cuando la API no puede resolver la IP real detrás de Vercel + Render. Opciones: fiarse de una cabecera de Vercel (con un secreto compartido para que no se pueda llamar a Render directamente) o, en producción, un dominio propio con la API en un subdominio (issue 21).

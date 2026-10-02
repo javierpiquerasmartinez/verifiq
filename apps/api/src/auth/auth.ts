@@ -2,6 +2,7 @@ import { AuthErrorCode, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@verifi
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api';
+import { deleteSessionCookie } from 'better-auth/cookies';
 import { twoFactor } from 'better-auth/plugins';
 import type { Database } from '../database/database.module.js';
 import * as schema from '../database/schema.js';
@@ -38,12 +39,14 @@ const ALLOWED_BEFORE_TWO_FACTOR = new Set([
   '/reset-password',
 ]);
 
-/** Sign-ins that finish with a session: password alone (2FA not yet set up) or the second factor. */
-const SIGN_IN_PATHS = new Set([
-  '/sign-in/email',
-  '/two-factor/verify-totp',
-  '/two-factor/verify-backup-code',
-]);
+/** Where a sign-in completes: the second factor (the password step only opens the challenge). */
+const SECOND_FACTOR_PATHS = new Set(['/two-factor/verify-totp', '/two-factor/verify-backup-code']);
+
+/** Error body for a signed-in Usuario who has not set up 2FA yet (also used by SessionGuard). */
+export const TWO_FACTOR_REQUIRED = {
+  code: AuthErrorCode.TwoFactorRequired,
+  message: 'Two-factor authentication must be set up first',
+};
 
 export function createAuth(db: Database, mailer: Mailer, options: AuthOptions) {
   return betterAuth({
@@ -112,26 +115,30 @@ export function createAuth(db: Database, mailer: Mailer, options: AuthOptions) {
         if (ALLOWED_BEFORE_TWO_FACTOR.has(ctx.path)) return;
         const session = await getSessionFromCtx(ctx);
         if (session && !session.user.twoFactorEnabled) {
-          throw new APIError('FORBIDDEN', {
-            code: AuthErrorCode.TwoFactorRequired,
-            message: 'Two-factor authentication must be set up first',
-          });
+          throw new APIError('FORBIDDEN', TWO_FACTOR_REQUIRED);
         }
       }),
       after: createAuthMiddleware(async (ctx) => {
-        // Only browser sign-ins: server-side calls (accepting an invitation) are not new logins.
-        if (!ctx.request || !SIGN_IN_PATHS.has(ctx.path)) return;
+        // Server-side calls (accepting an invitation) have no request: they are not browser sign-ins.
+        if (!ctx.request) return;
         const created = ctx.context.newSession;
         if (!created) return;
         if (ctx.path === '/sign-in/email') {
-          // With 2FA the password step's session is discarded: the sign-in completes on verify.
+          // With 2FA set up, the plugin turns this session into a second-factor challenge.
           if (created.user.twoFactorEnabled) return;
-        } else {
-          // verify-totp also confirms the 2FA set-up of an already signed-in Usuario; a sign-in
-          // carries the challenge cookie issued after the password step.
-          const challengeCookie = ctx.context.createAuthCookie('two_factor').name;
-          if (!ctx.getCookie(challengeCookie)) return;
+          // Without it the password alone must not open a session: whoever knew it could set up
+          // 2FA on their own phone. Only a session from an invitation (sent by email) can.
+          await ctx.context.internalAdapter.deleteSession(created.session.token);
+          deleteSessionCookie(ctx);
+          throw new APIError('FORBIDDEN', {
+            code: AuthErrorCode.TwoFactorSetupIncomplete,
+            message: 'Two-factor authentication was never set up: ask for a new invitation',
+          });
         }
+        if (!SECOND_FACTOR_PATHS.has(ctx.path)) return;
+        // verify-totp also confirms the 2FA set-up of an already signed-in Usuario; a sign-in
+        // carries the challenge cookie issued after the password step.
+        if (!ctx.getCookie(ctx.context.createAuthCookie('two_factor').name)) return;
         try {
           await mailer.send(
             loginNotificationEmail(created.user.email, {

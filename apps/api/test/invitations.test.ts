@@ -1,6 +1,13 @@
 import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { browser, invite, PASSWORD } from './access.js';
+import {
+  activeUsuario,
+  browser,
+  invite,
+  invitedUsuario,
+  PASSWORD,
+  setUpTwoFactor,
+} from './access.js';
 import { createTestApp } from './test-app.js';
 
 describe('Invitations', () => {
@@ -81,6 +88,55 @@ describe('Invitations', () => {
     await accept(token, { name: 'Lucía Ferrer', password: 'short' }).expect(400);
 
     await accept(token).expect(200);
+  });
+
+  describe('a new invitation for an existing email', () => {
+    const NEW_PASSWORD = 'another-good-password';
+
+    it('resumes an account that never set up 2FA, with the new password', async () => {
+      const { agent: abandoned, email } = await invitedUsuario(app);
+      const { token } = await invite(app, email);
+      const agent = browser(app);
+
+      await agent
+        .post(`/invitations/${token}/accept`)
+        .send({ name: 'Lucía Ferrer Albiol', password: NEW_PASSWORD })
+        .expect(200);
+
+      const session = await agent.get('/auth/get-session').expect(200);
+      expect(session.body.user).toMatchObject({ email, name: 'Lucía Ferrer Albiol' });
+      // Earlier sessions of the unfinished account are closed.
+      const old = await abandoned.get('/auth/get-session').expect(200);
+      expect(old.body).toBeNull();
+      // The 2FA set-up confirms the new password.
+      const enabled = await agent.post('/auth/two-factor/enable').send({ password: NEW_PASSWORD });
+      expect(enabled.status).toBe(200);
+    });
+
+    it('the resumed account can finish the set-up', async () => {
+      const { email } = await invitedUsuario(app);
+      const { token } = await invite(app, email);
+      const agent = browser(app);
+      await agent
+        .post(`/invitations/${token}/accept`)
+        .send({ name: 'Lucía Ferrer', password: PASSWORD })
+        .expect(200);
+
+      await setUpTwoFactor(agent);
+
+      await agent.get('/me').expect(200);
+    });
+
+    it('is refused for an account with 2FA set up, and stays usable', async () => {
+      const { email, agent: owner } = await activeUsuario(app);
+      const { token } = await invite(app, email);
+
+      const response = await accept(token).expect(409);
+
+      expect(response.body.code).toBe('EMAIL_TAKEN');
+      await owner.get('/me').expect(200);
+      await browser(app).get(`/invitations/${token}`).expect(200);
+    });
   });
 
   it('there is no public sign-up', async () => {

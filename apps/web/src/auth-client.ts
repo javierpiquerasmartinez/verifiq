@@ -1,3 +1,4 @@
+import { AuthErrorCode } from '@verifiq/domain';
 import { twoFactorClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 import { apiUrl } from './api';
@@ -19,18 +20,26 @@ export async function currentUser(): Promise<SessionUser | null> {
   return data?.user ?? null;
 }
 
+/** The second-factor challenge is gone: the Usuario must start again from the password. */
+export function isChallengeExpired(error: { code?: string }): boolean {
+  return (
+    error.code === 'INVALID_TWO_FACTOR_COOKIE' ||
+    error.code === 'TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE'
+  );
+}
+
 /** Spanish message for an error returned by Better Auth. */
 export function authErrorMessage(error: { status: number; code?: string }): string {
   if (error.status === 429) return 'Demasiados intentos. Espera un minuto y vuelve a probar.';
+  if (isChallengeExpired(error)) return 'La verificación ha caducado. Vuelve a introducir tu contraseña.';
   switch (error.code) {
     case 'INVALID_EMAIL_OR_PASSWORD':
       return 'El email o la contraseña no son correctos.';
+    case AuthErrorCode.TwoFactorSetupIncomplete:
+      return 'Tu cuenta no terminó de configurarse: falta la verificación en dos pasos. Pide una nueva invitación para completarla.';
     case 'INVALID_CODE':
     case 'INVALID_BACKUP_CODE':
       return 'El código no es correcto. Compruébalo y vuelve a probar.';
-    case 'INVALID_TWO_FACTOR_COOKIE':
-    case 'TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE':
-      return 'La verificación ha caducado. Vuelve a introducir tu contraseña.';
     case 'ACCOUNT_TEMPORARILY_LOCKED':
       return 'Demasiados códigos incorrectos. Tu cuenta está bloqueada 15 minutos.';
     case 'INVALID_PASSWORD':

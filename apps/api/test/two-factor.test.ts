@@ -39,13 +39,31 @@ describe('Mandatory 2FA', () => {
       expect(response.body.code).toBe('TWO_FACTOR_REQUIRED');
     });
 
-    it('signing in again still leads to the set-up', async () => {
+    it('the password alone does not open a session: only the invitation does', async () => {
       const { email } = await invitedUsuario(app);
       const agent = browser(app);
 
-      await agent.post('/auth/sign-in/email').send({ email, password: PASSWORD }).expect(200);
+      const response = await agent
+        .post('/auth/sign-in/email')
+        .send({ email, password: PASSWORD })
+        .expect(403);
 
-      await agent.get('/me').expect(403);
+      expect(response.body.code).toBe('TWO_FACTOR_SETUP_INCOMPLETE');
+      await agent.get('/me').expect(401);
+      const session = await agent.get('/auth/get-session').expect(200);
+      expect(session.body).toBeNull();
+      await agent.post('/auth/two-factor/enable').send({ password: PASSWORD }).expect(401);
+    });
+
+    it('a wrong password does not reveal that the set-up is pending', async () => {
+      const { email } = await invitedUsuario(app);
+
+      const response = await browser(app)
+        .post('/auth/sign-in/email')
+        .send({ email, password: 'not-the-password' })
+        .expect(401);
+
+      expect(response.body.code).toBe('INVALID_EMAIL_OR_PASSWORD');
     });
   });
 

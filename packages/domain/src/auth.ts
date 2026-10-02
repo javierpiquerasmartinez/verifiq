@@ -26,6 +26,9 @@ export const AuthErrorCode = {
   EmailTaken: 'EMAIL_TAKEN',
   Unauthenticated: 'UNAUTHENTICATED',
   TwoFactorRequired: 'TWO_FACTOR_REQUIRED',
+  /** Right password, but 2FA was never set up: only a new invitation can resume the account. */
+  TwoFactorSetupIncomplete: 'TWO_FACTOR_SETUP_INCOMPLETE',
+  ValidationFailed: 'VALIDATION_FAILED',
 } as const;
 
 export type AuthErrorCode = (typeof AuthErrorCode)[keyof typeof AuthErrorCode];

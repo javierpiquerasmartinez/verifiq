@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { AuthErrorCode } from '@verifiq/domain';
 import { and, eq, gt, isNull } from 'drizzle-orm';
+import type { Auth } from '../auth/auth.js';
 import type { Database } from '../database/database.module.js';
 import { invitations } from '../database/schema.js';
 
@@ -69,6 +70,42 @@ export async function claimInvitation(db: Database, token: string): Promise<Invi
 /** Undoes a claim whose account could not be created, so the link keeps working. */
 export async function releaseInvitation(db: Database, id: string): Promise<void> {
   await db.update(invitations).set({ acceptedAt: null }).where(eq(invitations.id, id));
+}
+
+/** The email already belongs to a Usuario with 2FA set up: an invitation cannot take it over. */
+export class EmailTakenError extends Error {}
+
+/**
+ * Creates the Usuario of an accepted invitation with its password. An account that never set up
+ * 2FA is resumed instead (new name and password, earlier sessions closed): signing in with the
+ * password alone is refused for it, so a new invitation is the only way back in.
+ */
+export async function establishAccount(
+  auth: Auth,
+  { email, name, password }: { email: string; name: string; password: string },
+): Promise<string> {
+  const ctx = await auth.$context;
+  const hash = await ctx.password.hash(password);
+  const existing = await ctx.internalAdapter.findUserByEmail(email);
+  if (existing) {
+    const { user } = existing;
+    if ((user as { twoFactorEnabled?: boolean }).twoFactorEnabled) throw new EmailTakenError();
+    await ctx.internalAdapter.deleteUserSessions(user.id);
+    await ctx.internalAdapter.updateUser(user.id, { name });
+    await ctx.internalAdapter.updatePassword(user.id, hash);
+    return user.id;
+  }
+  const user = await ctx.internalAdapter.createUser(
+    { email, name, emailVerified: true },
+    { method: 'email-password' },
+  );
+  await ctx.internalAdapter.linkAccount({
+    userId: user.id,
+    providerId: 'credential',
+    accountId: user.id,
+    password: hash,
+  });
+  return user.id;
 }
 
 export async function linkInvitationToUser(db: Database, id: string, userId: string): Promise<void> {

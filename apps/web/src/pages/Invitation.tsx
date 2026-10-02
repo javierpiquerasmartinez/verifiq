@@ -1,4 +1,4 @@
-import { PASSWORD_MIN_LENGTH } from '@verifiq/domain';
+import { AuthErrorCode, PASSWORD_MIN_LENGTH } from '@verifiq/domain';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
@@ -6,15 +6,15 @@ import { acceptInvitation, ApiError, fetchInvitation } from '../api';
 import { AccessLayout, Alert, Field } from '../ui/components';
 
 const PROBLEMS: Record<string, { title: string; text: string }> = {
-  INVITATION_EXPIRED: {
+  [AuthErrorCode.InvitationExpired]: {
     title: 'Esta invitación ha caducado',
     text: 'Las invitaciones caducan a los 7 días. Pide una nueva a quien te invitó.',
   },
-  INVITATION_USED: {
+  [AuthErrorCode.InvitationUsed]: {
     title: 'Esta invitación ya se ha usado',
-    text: 'Si ya creaste tu cuenta, entra con tu email y contraseña. Si no fuiste tú, pide una nueva invitación.',
+    text: 'Si ya configuraste la verificación en dos pasos, entra con tu email y contraseña. Si no la terminaste, pide una nueva invitación.',
   },
-  INVITATION_NOT_FOUND: {
+  [AuthErrorCode.InvitationNotFound]: {
     title: 'Esta invitación no es válida',
     text: 'Comprueba que has copiado el enlace completo o pide una nueva invitación.',
   },
@@ -53,8 +53,11 @@ export function InvitationPage() {
       setPending(false);
       setError(
         problemOf(caught) ??
-          (caught instanceof ApiError && caught.code === 'EMAIL_TAKEN'
-            ? { title: 'Ya existe una cuenta con este email', text: 'Entra con tu contraseña.' }
+          (caught instanceof ApiError && caught.code === AuthErrorCode.EmailTaken
+            ? {
+                title: 'Ya existe una cuenta activa con este email',
+                text: 'Entra con tu email, tu contraseña y el código de tu móvil.',
+              }
             : { title: 'No se ha podido crear la cuenta', text: 'Vuelve a intentarlo.' }),
       );
     }

@@ -33,7 +33,7 @@ There is no public sign-up. The operator invites a Usuario from the API's enviro
 pnpm invite lucia@example.com
 ```
 
-It prints a single-use link (`APP_URL/invitacion/<token>`, valid for 7 days) and emails it. The Usuario sets a password and must set up TOTP 2FA (with recovery codes) before reaching anything else. Auth is Better Auth mounted on `/auth`, with data in our Postgres; sessions are httpOnly cookies that expire after 1 hour of inactivity and 7 days at most (a trigger on `sessions`). Sign-in, 2FA and password recovery are rate-limited per client IP.
+It prints a single-use link (`APP_URL/invitacion/<token>`, valid for 7 days) and emails it. The Usuario sets a password and must set up TOTP 2FA (with recovery codes) before reaching anything else. Until 2FA is set up the password alone never opens a session: a Usuario who abandons the set-up needs a new invitation, which resumes the account. Auth is Better Auth mounted on `/auth`, with data in our Postgres; sessions are httpOnly cookies that expire after 1 hour of inactivity and 7 days at most (a trigger on `sessions`). Sign-in, 2FA and password recovery are rate-limited per client IP.
 
 ## Version
 

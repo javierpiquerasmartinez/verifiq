@@ -1,6 +1,6 @@
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
-import { authClient, authErrorMessage } from '../auth-client';
+import { authClient, authErrorMessage, isChallengeExpired } from '../auth-client';
 import { AccessLayout, Alert, Field } from '../ui/components';
 
 type Step = 'password' | 'totp' | 'backup';
@@ -26,7 +26,6 @@ export function LoginPage() {
       setCode('');
       return setStep('totp');
     }
-    // Without 2FA set up yet, the home route sends the Usuario to the set-up.
     await navigate({ to: '/' });
   }
 
@@ -40,9 +39,7 @@ export function LoginPage() {
         : await authClient.twoFactor.verifyBackupCode({ code: code.trim() });
     setPending(false);
     if (error) {
-      if (error.code === 'INVALID_TWO_FACTOR_COOKIE' || error.code === 'TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE') {
-        setStep('password');
-      }
+      if (isChallengeExpired(error)) setStep('password');
       return setError(authErrorMessage(error));
     }
     await navigate({ to: '/' });

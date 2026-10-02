@@ -8,16 +8,12 @@ import {
   Inject,
   NotFoundException,
   Param,
-  Post,
   Get,
+  Post,
   Req,
   Res,
 } from '@nestjs/common';
-import {
-  AuthErrorCode,
-  acceptInvitationSchema,
-  type Invitation,
-} from '@verifiq/domain';
+import { AuthErrorCode, acceptInvitationSchema, type Invitation } from '@verifiq/domain';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { Request, Response } from 'express';
 import { AUTH, type Auth } from '../auth/auth.js';
@@ -25,6 +21,8 @@ import { Public } from '../auth/session.guard.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import {
   claimInvitation,
+  EmailTakenError,
+  establishAccount,
   findInvitation,
   linkInvitationToUser,
   releaseInvitation,
@@ -70,7 +68,10 @@ export class InvitationsController {
   ): Promise<Invitation> {
     const parsed = acceptInvitationSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException({ code: 'VALIDATION_FAILED', issues: parsed.error.issues });
+      throw new BadRequestException({
+        code: AuthErrorCode.ValidationFailed,
+        issues: parsed.error.issues,
+      });
     }
     const { name, password } = parsed.data;
 
@@ -78,27 +79,17 @@ export class InvitationsController {
     if (!invitation.ok) throw invitationError(invitation.problem);
     const { email } = invitation;
 
-    const ctx = await this.auth.$context;
     try {
-      if (await ctx.internalAdapter.findUserByEmail(email)) {
+      const userId = await establishAccount(this.auth, { email, name, password });
+      await linkInvitationToUser(this.db, invitation.id, userId);
+    } catch (error) {
+      await releaseInvitation(this.db, invitation.id);
+      if (error instanceof EmailTakenError) {
         throw new ConflictException({
           code: AuthErrorCode.EmailTaken,
           message: 'There is already an account with this email',
         });
       }
-      const user = await ctx.internalAdapter.createUser(
-        { email, name, emailVerified: true },
-        { method: 'email-password' },
-      );
-      await ctx.internalAdapter.linkAccount({
-        userId: user.id,
-        providerId: 'credential',
-        accountId: user.id,
-        password: await ctx.password.hash(password),
-      });
-      await linkInvitationToUser(this.db, invitation.id, user.id);
-    } catch (error) {
-      await releaseInvitation(this.db, invitation.id);
       throw error;
     }
 
