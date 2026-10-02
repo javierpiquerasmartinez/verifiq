@@ -41,4 +41,4 @@ El código no depende del proveedor: cualquier hosting de Node 24 sirve con esto
 - Staging: rama `stage`. API en Render (Frankfurt, plan free, health check `/health`) definida en el Blueprint `render.yaml`; el worker no se despliega hasta que tenga trabajo. Web en Vercel con raíz `apps/web` (`vercel.json`) y `ENABLE_EXPERIMENTAL_COREPACK=1`.
 - `WEB_ORIGIN` en la API debe incluir el dominio de la web (las URLs de preview no están permitidas por CORS).
 - Secretos solo por variables de entorno (`DATABASE_URL`, `WEB_ORIGIN`, `VITE_API_URL`); nunca en el repo.
-- CI (`.github/workflows/ci.yml`): lint, typecheck, tests y build en cada PR a `stage` y `main`. Para que bloquee el merge, marcar el job `ci` como check obligatorio en la protección de ambas ramas.
+- CI (`.github/workflows/ci.yml`): jobs `lint`, `typecheck`, `test` y `build` en paralelo en cada PR a `stage` y `main`; los cuatro son checks obligatorios en el ruleset de ambas ramas.
