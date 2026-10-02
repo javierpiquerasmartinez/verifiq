@@ -39,6 +39,6 @@ El código no depende del proveedor: cualquier hosting de Node 24 sirve con esto
 
 - Las migraciones se aplican al arrancar la API: si fallan, la versión nueva no arranca, no pasa el health check (`/health`) y el hosting mantiene la anterior. Válido con una sola instancia; con varias (producción) mover la migración a un paso único previo al despliegue.
 - Staging: rama `stage`. API en Render (Frankfurt, plan free, health check `/health`) definida en el Blueprint `render.yaml`; el worker no se despliega hasta que tenga trabajo. Web en Vercel con raíz `apps/web` (`vercel.json`) y `ENABLE_EXPERIMENTAL_COREPACK=1`.
-- `WEB_ORIGIN` en la API debe incluir el dominio de la web (las URLs de preview no están permitidas por CORS).
+- `WEB_ORIGIN` en la API: orígenes de la web separados por comas; `*` sustituye un fragmento del nombre de host (letras, números y guiones). Staging: `https://verifiq-phi.vercel.app,https://verifiq-*-javier-piqueras-martinezs-projects.vercel.app` (incluye los previews de Vercel de este equipo).
 - Secretos solo por variables de entorno (`DATABASE_URL`, `WEB_ORIGIN`, `VITE_API_URL`); nunca en el repo.
 - CI (`.github/workflows/ci.yml`): jobs `lint`, `typecheck`, `test` y `build` en paralelo en cada PR a `stage` y `main`; los cuatro son checks obligatorios en el ruleset de ambas ramas.
