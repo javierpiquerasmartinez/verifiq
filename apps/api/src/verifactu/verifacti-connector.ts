@@ -1,6 +1,4 @@
-import { and, eq } from 'drizzle-orm';
 import type { Database } from '../database/database.module.js';
-import { connectorCredentials } from '../database/schema.js';
 import {
   REJECTION_CODES,
   issuerNotRegistered,
@@ -26,6 +24,7 @@ import {
   type VerifactuConnector,
   type VoidingSubmission,
 } from './connector.js';
+import { loadIssuerApiKey, saveIssuerApiKey } from './credentials.js';
 import { recordExchange } from './exchanges.js';
 import type { SecretBox } from './secret-box.js';
 
@@ -150,14 +149,11 @@ export class VerifactiConnector implements VerifactuConnector {
     const apiKey = fetched.body?.api_key;
     if (typeof apiKey !== 'string' || !apiKey) throw new Error('Verifacti returned no API key');
 
-    const sealedApiKey = this.options.secretBox.seal(apiKey, issuer.issuerId);
-    await this.options.db
-      .insert(connectorCredentials)
-      .values({ issuerId: issuer.issuerId, environment, sealedApiKey })
-      .onConflictDoUpdate({
-        target: connectorCredentials.issuerId,
-        set: { environment, sealedApiKey, updatedAt: new Date() },
-      });
+    await saveIssuerApiKey(this.options.db, this.options.secretBox, {
+      issuerId: issuer.issuerId,
+      environment,
+      apiKey,
+    });
     return ok(undefined);
   }
 
@@ -299,14 +295,9 @@ export class VerifactiConnector implements VerifactuConnector {
     run: (apiKey: string) => Promise<ConnectorResult<T>>,
   ): Promise<ConnectorResult<T>> {
     const { db, environment, secretBox } = this.options;
-    const [credentials] = await db
-      .select({ sealedApiKey: connectorCredentials.sealedApiKey })
-      .from(connectorCredentials)
-      .where(
-        and(eq(connectorCredentials.issuerId, issuer.issuerId), eq(connectorCredentials.environment, environment)),
-      );
-    if (!credentials) return issuerNotRegistered();
-    return run(secretBox.open(credentials.sealedApiKey, issuer.issuerId));
+    const apiKey = await loadIssuerApiKey(db, secretBox, { issuerId: issuer.issuerId, environment });
+    if (!apiKey) return issuerNotRegistered();
+    return run(apiKey);
   }
 
   /** One HTTP call, kept in the exchange log whatever its outcome. */

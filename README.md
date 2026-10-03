@@ -59,7 +59,7 @@ The code is hosting-agnostic: any Node 24 host works with these `package.json` s
 ## Branches and CI
 
 - Feature PRs go to `stage` (deploys staging); releases are a PR from `stage` to `main` (production). Both branches are protected by a ruleset: PR required, no force push or deletion.
-- CI (`.github/workflows/ci.yml`) runs the `lint`, `typecheck`, `test` and `build` jobs in parallel on every PR to `stage` and `main`; all four are required checks. The `Verifacti contract` workflow runs the VeriFactu connector contract tests against the Verifacti sandbox on demand (Actions → Run workflow); it needs the `VERIFACTI_TEST_API_KEY`, `VERIFACTI_TEST_TAX_ID` and `VERIFACTI_TEST_NAME` repository secrets (the operator's account key and its free test NIF with its census name).
+- CI (`.github/workflows/ci.yml`) runs the `lint`, `typecheck`, `test` and `build` jobs in parallel on every PR to `stage` and `main`; all four are required checks. The `Verifacti contract` workflow runs the VeriFactu connector contract tests against the Verifacti sandbox on demand (Actions → Run workflow); it needs the `VERIFACTI_TEST_TAX_ID` and `VERIFACTI_TEST_NAME` repository secrets (the test NIF and its census name) and a key: `VERIFACTI_TEST_ISSUER_API_KEY`, the free plan's test company key (`vf_test_…`), runs the records part (submission, amendment, voiding, status); `VERIFACTI_TEST_ACCOUNT_API_KEY`, the account key (`vfn_…`, paid plan), runs the whole contract, registering issuers, Representation and census included.
 
 ## Language
 

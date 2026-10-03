@@ -52,32 +52,46 @@ const submission = (invoice: RecordInvoice) => ({
 });
 
 /** What every VerifactuConnector adapter must do the same way. */
-export function verifactuConnectorContract(name: string, makeHarness: () => Promise<ContractHarness>) {
+export function verifactuConnectorContract(
+  name: string,
+  makeHarness: () => Promise<ContractHarness>,
+  {
+    managesIssuers = true,
+  }: {
+    /**
+     * False when the harness only holds a key for one tax ID (Verifacti's free test company): the issuer
+     * is already registered, and registering issuers, the Representation and the census are left out.
+     */
+    managesIssuers?: boolean;
+  } = {},
+) {
   describe(`VerifactuConnector contract: ${name}`, () => {
     let h: ContractHarness;
 
     beforeAll(async () => {
       h = await makeHarness();
-      ok(await h.connector.createIssuerKey(h.issuer));
+      if (managesIssuers) ok(await h.connector.createIssuerKey(h.issuer));
     }, 60_000);
 
-    it('creates the issuer key again without complaint', async () => {
-      expect(await h.connector.createIssuerKey(h.issuer)).toEqual({ outcome: 'ok', value: undefined });
-    });
+    describe.runIf(managesIssuers)('issuers', () => {
+      it('creates the issuer key again without complaint', async () => {
+        expect(await h.connector.createIssuerKey(h.issuer)).toEqual({ outcome: 'ok', value: undefined });
+      });
 
-    it('reports the representation state', async () => {
-      const status = ok(await h.connector.representationStatus(h.issuer));
-      expect(['none', 'pending', 'signed', 'rejected', 'expired', 'cancelled']).toContain(status.state);
-    });
+      it('reports the representation state', async () => {
+        const status = ok(await h.connector.representationStatus(h.issuer));
+        expect(['none', 'pending', 'signed', 'rejected', 'expired', 'cancelled']).toContain(status.state);
+      });
 
-    it('finds a registered tax ID in the census', async () => {
-      const check = ok(await h.connector.validateTaxId(h.issuer, h.recipient));
-      expect(check.result).toBe('identified');
-    });
+      it('finds a registered tax ID in the census', async () => {
+        const check = ok(await h.connector.validateTaxId(h.issuer, h.recipient));
+        expect(check.result).toBe('identified');
+      });
 
-    it('does not find an unregistered tax ID in the census', async () => {
-      const check = ok(await h.connector.validateTaxId(h.issuer, { taxId: '00000000T', name: 'NADIE NADIE NADIE' }));
-      expect(check.result).not.toBe('identified');
+      it('does not find an unregistered tax ID in the census', async () => {
+        const check = ok(await h.connector.validateTaxId(h.issuer, { taxId: '00000000T', name: 'NADIE NADIE NADIE' }));
+        expect(check.result).not.toBe('identified');
+      });
     });
 
     it('queues a record with its fingerprint and QR, pending until the AEAT decides', async () => {
