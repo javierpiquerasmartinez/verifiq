@@ -29,4 +29,6 @@ jobs:
       - uses: ./.github/actions/setup
       - name: Fail without the sandbox secrets
         run: test -n "$VERIFACTI_TEST_ACCOUNT_API_KEY$VERIFACTI_TEST_ISSUER_API_KEY" && test -n "$VERIFACTI_TEST_TAX_ID" && test -n "$VERIFACTI_TEST_NAME"
+      # The API imports @verifiq/domain from its build; `pnpm test` gets it through turbo, this step does not.
+      - run: pnpm --filter @verifiq/domain build
       - run: pnpm --filter @verifiq/api exec vitest run test/verifactu-connector.contract.test.ts
