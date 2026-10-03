@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Representation, RepresentationSigner } from '@verifiq/domain';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull, notInArray, or } from 'drizzle-orm';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { issuers } from '../database/schema.js';
 import { MAILER, type Mailer } from '../mail/mailer.js';
@@ -34,8 +34,6 @@ export class ConnectorRejectedError extends Error {}
 export class ConnectorUnavailableError extends Error {}
 
 type IssuerRow = typeof issuers.$inferSelect;
-
-const ERROR_STATES = { rejected: 'rejected', expired: 'expired', cancelled: 'cancelled' } as const;
 
 /**
  * Step 5 of the issuer onboarding: the issuer's key at the VeriFactu connector and the remote
@@ -76,9 +74,9 @@ export class RepresentationService {
 
   /** The Representation as the connector reports it now (or the last state known, if it does not answer). */
   async status(issuerId: string): Promise<Representation> {
-    if (!this.options.representationRequired) return this.view(await this.find(issuerId), false);
     const row = await this.ensureIssuerKey(issuerId);
-    if (!row.connectorRegisteredAt) return this.view(row, row.connectorRejection === null);
+    const keyPending = !row.connectorRegisteredAt && row.connectorRejection === null;
+    if (!this.options.representationRequired || !row.connectorRegisteredAt) return this.view(row, keyPending);
     const result = await this.connector.representationStatus(ref(row));
     if (result.outcome !== 'ok') return this.view(row, true);
     const { state, signingUrl } = result.value;
@@ -92,11 +90,15 @@ export class RepresentationService {
     );
   }
 
-  /** Whether Emitir is enabled. A signed Representation is trusted without asking the connector again. */
+  /**
+   * Whether the issuer can issue: it needs its key at the connector and, where required, a signed
+   * Representation. A signed one is trusted without asking the connector again.
+   */
   async canIssue(issuerId: string): Promise<boolean> {
-    if (!this.options.representationRequired) return true;
     const row = await this.find(issuerId);
-    if (row.representationState === 'signed') return true;
+    if (row.connectorRegisteredAt && (!this.options.representationRequired || row.representationState === 'signed')) {
+      return true;
+    }
     return (await this.status(issuerId)).canIssue;
   }
 
@@ -109,9 +111,24 @@ export class RepresentationService {
     if (!row.connectorRegisteredAt) {
       throw row.connectorRejection ? new ConnectorRejectedError(row.connectorRejection) : new ConnectorUnavailableError();
     }
+    // Each signing has a cost: only the request that moves the state to pending starts one.
+    const [claimed] = await this.db
+      .update(issuers)
+      .set({ representationState: 'pending', representationSigningUrl: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(issuers.id, row.id),
+          or(isNull(issuers.representationState), notInArray(issuers.representationState, ['pending', 'signed'])),
+        ),
+      )
+      .returning({ id: issuers.id });
+    if (!claimed) throw new RepresentationInPlaceError();
     const result = await this.connector.startRepresentationSigning(ref(row), { ...signer, email });
-    // After a timeout the signing may have started: the next status check tells.
-    requireAnswer(result);
+    if (result.outcome !== 'ok') {
+      // Back to what it was. After a timeout the signing may have started: the next status check tells.
+      await this.update(row.id, { representationState: row.representationState });
+      requireAnswer(result);
+    }
     return this.view(
       await this.update(row.id, {
         representationState: 'pending',
@@ -126,6 +143,8 @@ export class RepresentationService {
   /** Sends the link of the pending signing again, from Verifiq (starting a new signing has a cost). */
   async resendLink(issuerId: string, fallbackEmail: string): Promise<Representation> {
     const current = await this.status(issuerId);
+    // A link the connector did not just confirm as pending may have expired or been completed.
+    if (current.stale) throw new ConnectorUnavailableError();
     if (current.state !== 'pending' || !current.signingUrl) throw new RepresentationNotPendingError();
     const row = await this.find(issuerId);
     await this.mailer.send(representationLinkEmail(row.representationSignerEmail ?? fallbackEmail, current.signingUrl));
@@ -133,11 +152,12 @@ export class RepresentationService {
   }
 
   private view(row: IssuerRow, stale: boolean): Representation {
-    if (!this.options.representationRequired) {
-      return { state: 'not-required', error: null, signingUrl: null, stale: false, canIssue: true };
-    }
     if (!row.connectorRegisteredAt && row.connectorRejection) {
       return { state: 'error', error: 'issuer-not-accepted', signingUrl: null, stale, canIssue: false };
+    }
+    const registered = row.connectorRegisteredAt !== null;
+    if (!this.options.representationRequired) {
+      return { state: 'not-required', error: null, signingUrl: null, stale, canIssue: registered };
     }
     const state = (row.representationState ?? 'none') as ConnectorState;
     switch (state) {
@@ -146,9 +166,9 @@ export class RepresentationService {
       case 'pending':
         return { state: 'pending', error: null, signingUrl: row.representationSigningUrl, stale, canIssue: false };
       case 'signed':
-        return { state: 'signed', error: null, signingUrl: null, stale, canIssue: true };
+        return { state: 'signed', error: null, signingUrl: null, stale, canIssue: registered };
       default:
-        return { state: 'error', error: ERROR_STATES[state], signingUrl: null, stale, canIssue: false };
+        return { state: 'error', error: state, signingUrl: null, stale, canIssue: false };
     }
   }
 

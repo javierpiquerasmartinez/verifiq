@@ -1,7 +1,5 @@
 import {
-  BadRequestException,
   Body,
-  ConflictException,
   Controller,
   Get,
   HttpCode,
@@ -10,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { IssuerErrorCode, representationSignerSchema, type Representation } from '@verifiq/domain';
 import { CurrentSession, type AuthSession } from '../auth/session.guard.js';
+import { conflict, parseBody, withHttpErrors } from './http.js';
 import { CurrentIssuer } from './issuer-context.js';
 import {
   ConnectorRejectedError,
@@ -19,8 +18,6 @@ import {
   RepresentationNotRequiredError,
   RepresentationService,
 } from './representation.js';
-
-const conflict = (code: IssuerErrorCode, message: string) => new ConflictException({ code, message });
 
 function httpError(error: unknown): unknown {
   if (error instanceof RepresentationInPlaceError) {
@@ -44,13 +41,7 @@ function httpError(error: unknown): unknown {
   return error;
 }
 
-async function run<T>(work: Promise<T>): Promise<T> {
-  try {
-    return await work;
-  } catch (error) {
-    throw httpError(error);
-  }
-}
+const run = <T>(work: Promise<T>) => withHttpErrors(work, httpError);
 
 /**
  * Onboarding step 5: the Representation the issuer signs so the connector can register its
@@ -72,11 +63,8 @@ export class RepresentationController {
     @CurrentSession() { user }: AuthSession,
     @Body() body: unknown,
   ): Promise<Representation> {
-    const parsed = representationSignerSchema.safeParse(body);
-    if (!parsed.success) {
-      throw new BadRequestException({ code: IssuerErrorCode.ValidationFailed, issues: parsed.error.issues });
-    }
-    return run(this.representation.startSigning(issuerId, parsed.data, user.email));
+    const signer = parseBody(representationSignerSchema, body);
+    return run(this.representation.startSigning(issuerId, signer, user.email));
   }
 
   @Post('resend')

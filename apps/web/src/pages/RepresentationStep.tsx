@@ -4,11 +4,11 @@ import { fetchRepresentation } from '../api';
 import { authClient } from '../auth-client';
 import { AccessLayout } from '../ui/components';
 import { RepresentationPanel } from '../ui/RepresentationPanel';
-import { Stepper } from './Onboarding';
+import { Stepper } from '../ui/Stepper';
 
 /**
  * Onboarding step 5: sign the Representation. It can wait: the app is usable meanwhile, only
- * Emitir stays disabled, and the header's warning brings the user back here.
+ * issuing stays disabled, and the header's warning brings the user back here.
  */
 export function RepresentationStepPage() {
   const navigate = useNavigate();

@@ -1,7 +1,7 @@
 import { AppShell } from '../ui/AppShell';
 import { RepresentationPanel } from '../ui/RepresentationPanel';
 
-/** Ajustes. For now only the Representation; the issuer's data comes with issue 20. */
+/** Settings. For now only the Representation; the issuer's data comes with issue 20. */
 export function SettingsPage() {
   return (
     <AppShell>

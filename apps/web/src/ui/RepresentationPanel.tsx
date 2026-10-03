@@ -42,7 +42,7 @@ function actionError(error: unknown): string {
 }
 
 /**
- * The Representation (onboarding step 5, also in Ajustes): its state, the signing form and
+ * The Representation (onboarding step 5, also in settings): its state, the signing form and
  * resending the link. Polls while a signing is pending; the header's warning follows it.
  */
 export function RepresentationPanel() {
@@ -65,6 +65,8 @@ export function RepresentationPanel() {
     return <Alert tone="danger">No se ha podido consultar tu autorización. Recarga la página.</Alert>;
   }
   const data = representation.data;
+  const notAccepted = data.error === 'issuer-not-accepted';
+  const canSign = data.state === 'not-started' || (data.state === 'error' && !notAccepted);
   const updated = (next: Representation) => queryClient.setQueryData(['representation'], next);
 
   return (
@@ -85,12 +87,12 @@ export function RepresentationPanel() {
         </Alert>
       )}
       {data.state === 'pending' && <PendingSigning representation={data} onUpdated={updated} />}
-      {data.state === 'error' && data.error === 'issuer-not-accepted' && (
+      {notAccepted && (
         <Alert tone="danger" title={ERROR_MESSAGES['issuer-not-accepted']}>
           Comprueba que tu NIF está dado de alta en la AEAT y escríbenos para revisarlo.
         </Alert>
       )}
-      {(data.state === 'not-started' || (data.state === 'error' && data.error !== 'issuer-not-accepted')) && (
+      {canSign && (
         <>
           {data.error && (
             <Alert tone="danger" title={ERROR_MESSAGES[data.error]}>
@@ -196,13 +198,18 @@ function SigningForm({ onUpdated }: { onUpdated: (next: Representation) => void 
       }
       return setErrors(fieldErrors);
     }
+    // Opened within the click, so popup blockers let it through; it gets the URL once known.
+    const tab = window.open('', '_blank');
+    if (tab) tab.opener = null;
     setPending(true);
     setError(undefined);
     try {
       const next = await startRepresentationSigning(parsed.data);
       onUpdated(next);
-      if (next.signingUrl) window.open(next.signingUrl, '_blank', 'noopener');
+      if (tab && next.signingUrl) tab.location.href = next.signingUrl;
+      else tab?.close();
     } catch (cause) {
+      tab?.close();
       setError(actionError(cause));
     } finally {
       setPending(false);

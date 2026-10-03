@@ -5,6 +5,14 @@ import { activeUser } from './access.js';
 import { completeOnboarding, onboardedUser } from './issuer.js';
 import { createTestApp, FakeMailer } from './test-app.js';
 
+const signer = {
+  firstName: 'Lucía',
+  lastNames: 'Ferrer Albiol',
+  street: 'Carrer de Colón',
+  streetNumber: '12',
+  municipality: 'València',
+};
+
 describe('Representation', () => {
   let app: INestApplication;
   const connector = new FakeVerifactuConnector();
@@ -27,14 +35,6 @@ describe('Representation', () => {
     connector.calls.filter((call) => call.operation === 'startRepresentationSigning' && call.issuerId === issuerIdOf(taxId));
 
   const issuerIdOf = (taxId: string) => keyCreations(taxId)[0]!.issuerId;
-
-  const signer = {
-    firstName: 'Lucía',
-    lastNames: 'Ferrer Albiol',
-    street: 'Carrer de Colón',
-    streetNumber: '12',
-    municipality: 'València',
-  };
 
   it('creates the issuer key at the connector once onboarding is complete', async () => {
     const { agent, taxId } = await onboardedUser(app);
@@ -163,6 +163,30 @@ describe('Representation', () => {
       expect(retried.body.state).toBe('pending');
     });
 
+    it('shows the signing as pending when it started despite a timeout', async () => {
+      const { agent, taxId } = await onboardedUser(app);
+      connector.failNext({ kind: 'timeout', processed: true }, 'startRepresentationSigning');
+
+      await agent.post('/issuer/representation/signing').send(signer).expect(503);
+      const state = await agent.get('/issuer/representation').expect(200);
+      await agent.post('/issuer/representation/signing').send(signer).expect(409);
+
+      expect(state.body).toMatchObject({ state: 'pending', signingUrl: expect.any(String) });
+      expect(signings(taxId)).toHaveLength(1);
+    });
+
+    it('starts a single signing when asked twice at once', async () => {
+      const { agent, taxId } = await onboardedUser(app);
+
+      const responses = await Promise.all([
+        agent.post('/issuer/representation/signing').send(signer),
+        agent.post('/issuer/representation/signing').send(signer),
+      ]);
+
+      expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+      expect(signings(taxId)).toHaveLength(1);
+    });
+
     it('reports a refusal of the connector', async () => {
       const { agent } = await onboardedUser(app);
       connector.failNext({ kind: 'rejected', code: 'email', message: 'Email no válido' }, 'startRepresentationSigning');
@@ -197,6 +221,17 @@ describe('Representation', () => {
 
       const [sent] = mailer.to(email);
       expect(sent!.text).toContain(started.body.signingUrl);
+    });
+
+    it('does not resend a link it cannot confirm is still pending', async () => {
+      const { agent, email } = await onboardedUser(app);
+      await agent.post('/issuer/representation/signing').send(signer).expect(200);
+      connector.failNext({ kind: 'server-error' }, 'representationStatus');
+
+      const response = await agent.post('/issuer/representation/resend').expect(503);
+
+      expect(response.body.code).toBe('CONNECTOR_UNAVAILABLE');
+      expect(mailer.to(email)).toHaveLength(0);
     });
 
     it('needs a pending signing', async () => {
@@ -247,16 +282,24 @@ describe('Representation in an environment that needs none', () => {
     expect(connector.calls).toContainEqual(expect.objectContaining({ operation: 'createIssuerKey', input: expect.objectContaining({ taxId }) }));
   });
 
+  it('cannot issue until the issuer key exists, retrying it', async () => {
+    const { agent } = await activeUser(app);
+    connector.failNext({ kind: 'server-error' }, 'createIssuerKey');
+    connector.failNext({ kind: 'server-error' }, 'createIssuerKey');
+    const { taxId } = await completeOnboarding(agent);
+
+    const unavailable = await agent.get('/issuer').expect(200);
+    const retried = await agent.get('/issuer/representation').expect(200);
+
+    expect(unavailable.body.canIssue).toBe(false);
+    expect(retried.body).toMatchObject({ state: 'not-required', canIssue: true });
+    expect(connector.calls.filter((call) => call.operation === 'createIssuerKey' && (call.input as { taxId: string }).taxId === taxId)).toHaveLength(3);
+  });
+
   it('never starts a signing', async () => {
     const { agent } = await onboardedUser(app);
 
-    const response = await agent.post('/issuer/representation/signing').send({
-      firstName: 'Lucía',
-      lastNames: 'Ferrer Albiol',
-      street: 'Carrer de Colón',
-      streetNumber: '12',
-      municipality: 'València',
-    }).expect(409);
+    const response = await agent.post('/issuer/representation/signing').send(signer).expect(409);
 
     expect(response.body.code).toBe('REPRESENTATION_NOT_REQUIRED');
     expect(connector.calls.filter((call) => call.operation === 'startRepresentationSigning')).toHaveLength(0);

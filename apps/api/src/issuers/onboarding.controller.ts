@@ -1,7 +1,5 @@
 import {
-  BadRequestException,
   Body,
-  ConflictException,
   Controller,
   Get,
   HttpCode,
@@ -18,7 +16,6 @@ import {
   seriesSchema,
   type Onboarding,
 } from '@verifiq/domain';
-import type { z } from 'zod';
 import { CurrentSession, type AuthSession } from '../auth/session.guard.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import {
@@ -31,30 +28,12 @@ import {
   SeriesAlreadyConfirmedError,
   StepPendingError,
 } from './issuers.js';
+import { conflict, parseBody, withHttpErrors } from './http.js';
 import { OnboardingIssuer } from './issuer-context.js';
 import { RepresentationService } from './representation.js';
 
-function parseBody<T extends z.ZodType>(schema: T, body: unknown): z.output<T> {
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    throw new BadRequestException({
-      code: IssuerErrorCode.ValidationFailed,
-      issues: parsed.error.issues,
-    });
-  }
-  return parsed.data;
-}
-
-const conflict = (code: IssuerErrorCode, message: string) => new ConflictException({ code, message });
-
 /** Runs a step, mapping the errors of issuers.ts to HTTP. */
-async function step<T>(work: Promise<T>): Promise<T> {
-  try {
-    return await work;
-  } catch (error) {
-    throw stepError(error);
-  }
-}
+const step = <T>(work: Promise<T>) => withHttpErrors(work, stepError);
 
 function stepError(error: unknown): unknown {
   if (error instanceof StepPendingError) {

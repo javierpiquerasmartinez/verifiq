@@ -50,7 +50,7 @@ export type Onboarding = z.infer<typeof onboardingSchema>;
 export const issuerSummarySchema = z.object({
   name: z.string(),
   taxId: z.string(),
-  /** Whether Emitir is enabled: needs a valid Representation (see representation.ts). */
+  /** Whether the issuer can issue invoices: needs its connector key and, in production, a signed Representation (representation.ts). */
   canIssue: z.boolean(),
 });
 
