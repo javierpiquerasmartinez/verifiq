@@ -48,11 +48,13 @@ export async function createTestApp({
   mailer = new FakeMailer(),
   storage = new InMemoryObjectStorage(),
   verifactu = new FakeVerifactuConnector(),
+  representationRequired = true,
 }: {
   webOrigins?: string[];
   mailer?: Mailer;
   storage?: ObjectStorage;
   verifactu?: VerifactuConnector;
+  representationRequired?: boolean;
 } = {}): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({
     imports: [
@@ -69,6 +71,7 @@ export async function createTestApp({
         mailer,
         storage,
         verifactu: () => verifactu,
+        representationRequired,
       }),
     ],
   }).compile();

@@ -148,6 +148,16 @@ export const issuers = pgTable(
     seriesConfirmedAt: timestamp('series_confirmed_at', { withTimezone: true }),
     // Step 4: terms accepted, onboarding is complete.
     onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
+    // Step 5: the issuer's key at the VeriFactu connector and its Representation. Set when the
+    // connector registered the issuer; until then a rejection of it (its message) may be kept.
+    connectorRegisteredAt: timestamp('connector_registered_at', { withTimezone: true }),
+    connectorRejection: text('connector_rejection'),
+    // Last Representation state the connector reported (the port's RepresentationState).
+    representationState: text('representation_state'),
+    representationSigningUrl: text('representation_signing_url'),
+    // Where the signing link was sent, to send it again.
+    representationSignerEmail: text('representation_signer_email'),
+    representationCheckedAt: timestamp('representation_checked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

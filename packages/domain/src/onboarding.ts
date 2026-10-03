@@ -2,7 +2,10 @@ import { z } from 'zod';
 import { issuerDefaultsSchema, fiscalDataSchema } from './issuer.js';
 import { seriesSchema } from './series.js';
 
-/** The steps of the issuer onboarding, in order. The representation (issue 06) comes after them. */
+/**
+ * The steps of the issuer onboarding, in order. Signing the Representation comes after them: the
+ * issuer can prepare its data meanwhile, but cannot issue (representation.ts).
+ */
 export const ONBOARDING_STEPS = ['fiscal-data', 'defaults', 'series', 'terms'] as const;
 
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
@@ -47,6 +50,8 @@ export type Onboarding = z.infer<typeof onboardingSchema>;
 export const issuerSummarySchema = z.object({
   name: z.string(),
   taxId: z.string(),
+  /** Whether the issuer can issue invoices: needs its connector key and, in production, a signed Representation (representation.ts). */
+  canIssue: z.boolean(),
 });
 
 export type IssuerSummary = z.infer<typeof issuerSummarySchema>;
@@ -67,6 +72,16 @@ export const IssuerErrorCode = {
   LegalVersionOutdated: 'LEGAL_VERSION_OUTDATED',
   LogoInvalid: 'LOGO_INVALID',
   LogoNotFound: 'LOGO_NOT_FOUND',
+  /** A signing is pending or the Representation is already signed: starting another would duplicate it. */
+  RepresentationInPlace: 'REPRESENTATION_IN_PLACE',
+  /** The connector's environment needs no Representation. */
+  RepresentationNotRequired: 'REPRESENTATION_NOT_REQUIRED',
+  /** There is no pending signing whose link could be resent. */
+  RepresentationNotPending: 'REPRESENTATION_NOT_PENDING',
+  /** The connector refused the request; `message` carries its explanation. */
+  ConnectorRejected: 'CONNECTOR_REJECTED',
+  /** The connector did not answer: try again later. */
+  ConnectorUnavailable: 'CONNECTOR_UNAVAILABLE',
   ValidationFailed: 'VALIDATION_FAILED',
 } as const;
 

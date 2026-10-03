@@ -11,7 +11,6 @@ import {
   LOGO_CONTENT_TYPES,
   LOGO_MAX_BYTES,
   normalizeTaxId,
-  ONBOARDING_STEPS,
   parseTaxId,
   WITHHOLDING_RATES,
   seriesSchema,
@@ -40,14 +39,7 @@ import {
 import { authClient } from '../auth-client';
 import { useSessionExpiry } from '../session';
 import { AccessLayout, Alert, Field, Select, Seg } from '../ui/components';
-import { Icon } from '../ui/icons';
-
-const STEP_LABELS: Record<OnboardingStep, string> = {
-  'fiscal-data': 'Tus datos',
-  defaults: 'Impuestos',
-  series: 'Numeración',
-  terms: 'Condiciones',
-};
+import { Stepper } from '../ui/Stepper';
 
 const STEP_TITLES: Record<OnboardingStep, { title: string; subtitle: string }> = {
   'fiscal-data': {
@@ -64,7 +56,7 @@ const STEP_TITLES: Record<OnboardingStep, { title: string; subtitle: string }> =
   },
   terms: {
     title: 'Condiciones del servicio',
-    subtitle: 'Último paso: acepta las condiciones para empezar a usar Verifiq.',
+    subtitle: 'Acepta las condiciones para empezar a usar Verifiq.',
   },
 };
 
@@ -91,44 +83,10 @@ function errorMessage(error: unknown): string {
   return 'No se ha podido guardar. Vuelve a intentarlo.';
 }
 
-function Stepper({
-  current,
-  reached,
-  onSelect,
-}: {
-  current: OnboardingStep;
-  reached: Onboarding['step'];
-  onSelect: (step: OnboardingStep) => void;
-}) {
-  const index = ONBOARDING_STEPS.indexOf(current);
-  const reachedIndex = reached === 'completed' ? ONBOARDING_STEPS.length : ONBOARDING_STEPS.indexOf(reached);
-  return (
-    <ol className="steps" aria-label="Pasos del alta">
-      {ONBOARDING_STEPS.map((step, i) => {
-        const className = `step${i < reachedIndex && i !== index ? ' done' : ''}${i === index ? ' on' : ''}`;
-        const content = (
-          <>
-            <span className="n">{i < reachedIndex && i !== index ? <Icon name="check" /> : i + 1}</span>
-            {STEP_LABELS[step]}
-          </>
-        );
-        return (
-          <li key={step} aria-current={i === index ? 'step' : undefined}>
-            {i <= reachedIndex && i !== index ? (
-              <button type="button" className={className} onClick={() => onSelect(step)}>
-                {content}
-              </button>
-            ) : (
-              <span className={className}>{content}</span>
-            )}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-/** Issuer onboarding: four steps, each saved as it is completed, resumable at any time. */
+/**
+ * Issuer onboarding: four steps, each saved as it is completed, resumable at any time. Step 5,
+ * the Representation, has its own page (RepresentationStep.tsx) since it outlives onboarding.
+ */
 export function OnboardingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -140,7 +98,7 @@ export function OnboardingPage() {
   const step = viewing ?? (data && data.step !== 'completed' ? data.step : undefined);
 
   useEffect(() => {
-    if (data?.step === 'completed') void navigate({ to: '/' });
+    if (data?.step === 'completed') void navigate({ to: '/onboarding/representation' });
   }, [data?.step, navigate]);
 
   function saved(next: Onboarding) {
@@ -587,7 +545,7 @@ function TermsStep({ onSaved, onBack }: StepProps & { onBack: () => void }) {
           Atrás
         </button>
         <button className="btn btn-primary" style={{ flex: 1 }} disabled={pending || !termsAccepted || !agreementAccepted}>
-          {pending ? 'Guardando…' : 'Aceptar y terminar'}
+          {pending ? 'Guardando…' : 'Aceptar y continuar'}
         </button>
       </div>
     </form>

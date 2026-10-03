@@ -17,6 +17,7 @@ import { DATABASE, type Database } from '../database/database.module.js';
 import { OBJECT_STORAGE, type ObjectStorage } from '../storage/object-storage.js';
 import { findLogoKey, findSummary, replaceLogoKey } from './issuers.js';
 import { CurrentIssuer, OnboardingIssuer } from './issuer-context.js';
+import { RepresentationService } from './representation.js';
 
 /** The content type comes from the file's signature, never from what the client claims. */
 function logoContentType(body: unknown): string | null {
@@ -47,11 +48,16 @@ export class IssuerController {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
+    private readonly representation: RepresentationService,
   ) {}
 
   @Get()
-  show(@CurrentIssuer() issuerId: string): Promise<IssuerSummary> {
-    return findSummary(this.db, issuerId);
+  async show(@CurrentIssuer() issuerId: string): Promise<IssuerSummary> {
+    const [summary, canIssue] = await Promise.all([
+      findSummary(this.db, issuerId),
+      this.representation.canIssue(issuerId),
+    ]);
+    return { ...summary, canIssue };
   }
 
   /** Raw PNG or JPEG body (see configureHttp), up to LOGO_MAX_BYTES. */

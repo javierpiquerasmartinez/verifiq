@@ -4,20 +4,28 @@ import { OBJECT_STORAGE, type ObjectStorage } from '../storage/object-storage.js
 import { IssuerController } from './issuer.controller.js';
 import { OnboardingController } from './onboarding.controller.js';
 import { IssuerContextInterceptor } from './issuer-context.js';
+import { RepresentationController } from './representation.controller.js';
+import {
+  REPRESENTATION_OPTIONS,
+  RepresentationService,
+  type RepresentationOptions,
+} from './representation.js';
 
-/** The issuer, its onboarding, and the isolation layer every business module relies on. */
+/** The issuer, its onboarding (Representation included), and the isolation layer every business module relies on. */
 @Module({})
 export class IssuersModule {
-  static forRoot(storage: ObjectStorage): DynamicModule {
+  static forRoot(storage: ObjectStorage, representation: RepresentationOptions): DynamicModule {
     return {
       module: IssuersModule,
       global: true,
-      controllers: [OnboardingController, IssuerController],
+      controllers: [OnboardingController, IssuerController, RepresentationController],
       providers: [
         { provide: OBJECT_STORAGE, useValue: storage },
         { provide: APP_INTERCEPTOR, useClass: IssuerContextInterceptor },
+        { provide: REPRESENTATION_OPTIONS, useValue: representation },
+        RepresentationService,
       ],
-      exports: [OBJECT_STORAGE],
+      exports: [OBJECT_STORAGE, RepresentationService],
     };
   }
 }

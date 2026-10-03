@@ -98,7 +98,7 @@ export async function findOnboarding(db: Database, issuerId: string | null): Pro
   };
 }
 
-export async function findSummary(db: Database, issuerId: string): Promise<IssuerSummary> {
+export async function findSummary(db: Database, issuerId: string): Promise<Omit<IssuerSummary, 'canIssue'>> {
   const [row] = await db
     .select({ name: issuers.name, taxId: issuers.taxId })
     .from(issuers)

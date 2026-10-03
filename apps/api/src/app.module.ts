@@ -18,6 +18,8 @@ export interface AppOptions {
   mailer: Mailer;
   storage: ObjectStorage;
   verifactu: VerifactuConnectorFactory;
+  /** Whether issuers must sign the Representation to issue. The AEAT test environment needs none. */
+  representationRequired: boolean;
 }
 
 @Module({})
@@ -28,7 +30,7 @@ export class AppModule {
       imports: [
         DatabaseModule.forRoot(options.databaseUrl),
         AuthModule.forRoot(options.auth, options.mailer),
-        IssuersModule.forRoot(options.storage),
+        IssuersModule.forRoot(options.storage, { representationRequired: options.representationRequired }),
         VerifactuModule.forRoot(options.verifactu),
       ],
       controllers: [HealthController, InvitationsController],
