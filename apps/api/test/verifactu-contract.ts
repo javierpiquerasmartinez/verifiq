@@ -103,7 +103,8 @@ export function verifactuConnectorContract(
       expect(Buffer.from(queued.qrPng, 'base64').length).toBeGreaterThan(0);
       const url = new URL(queued.verificationUrl);
       expect(url.searchParams.get('nif')).toBe(h.issuer.taxId);
-      expect(url.searchParams.get('numserie')).toBe(`${invoice.series}${invoice.number}`);
+      // Verifacti's free test company is one NIF shared by every account, so it prefixes each account's series.
+      expect(url.searchParams.get('numserie')).toMatch(new RegExp(`^(\\w+_)?${invoice.series}${invoice.number}$`));
       expect(url.searchParams.get('importe')).toMatch(/^342(\.00?)?$/);
 
       const status = ok(await h.connector.recordStatus(h.issuer, { invoiceRecordId: record.invoiceRecordId, ...queued }));
