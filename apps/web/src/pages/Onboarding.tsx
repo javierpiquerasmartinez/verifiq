@@ -42,11 +42,17 @@ import { useSessionExpiry } from '../session';
 import { AccessLayout, Alert, Field, Select, Seg } from '../ui/components';
 import { Icon } from '../ui/icons';
 
-const STEP_LABELS: Record<OnboardingStep, string> = {
+/** The wizard: the onboarding steps, then signing the Representation (its own page). */
+const WIZARD_STEPS = [...ONBOARDING_STEPS, 'representation'] as const;
+
+type WizardStep = (typeof WIZARD_STEPS)[number];
+
+const STEP_LABELS: Record<WizardStep, string> = {
   'fiscal-data': 'Tus datos',
   defaults: 'Impuestos',
   series: 'Numeración',
   terms: 'Condiciones',
+  representation: 'Autorización',
 };
 
 const STEP_TITLES: Record<OnboardingStep, { title: string; subtitle: string }> = {
@@ -64,7 +70,7 @@ const STEP_TITLES: Record<OnboardingStep, { title: string; subtitle: string }> =
   },
   terms: {
     title: 'Condiciones del servicio',
-    subtitle: 'Último paso: acepta las condiciones para empezar a usar Verifiq.',
+    subtitle: 'Acepta las condiciones para empezar a usar Verifiq.',
   },
 };
 
@@ -91,20 +97,21 @@ function errorMessage(error: unknown): string {
   return 'No se ha podido guardar. Vuelve a intentarlo.';
 }
 
-function Stepper({
+export function Stepper({
   current,
   reached,
   onSelect,
 }: {
-  current: OnboardingStep;
+  current: WizardStep;
   reached: Onboarding['step'];
-  onSelect: (step: OnboardingStep) => void;
+  /** Without it, done steps are not links. */
+  onSelect?: (step: OnboardingStep) => void;
 }) {
-  const index = ONBOARDING_STEPS.indexOf(current);
+  const index = WIZARD_STEPS.indexOf(current);
   const reachedIndex = reached === 'completed' ? ONBOARDING_STEPS.length : ONBOARDING_STEPS.indexOf(reached);
   return (
     <ol className="steps" aria-label="Pasos del alta">
-      {ONBOARDING_STEPS.map((step, i) => {
+      {WIZARD_STEPS.map((step, i) => {
         const className = `step${i < reachedIndex && i !== index ? ' done' : ''}${i === index ? ' on' : ''}`;
         const content = (
           <>
@@ -114,7 +121,7 @@ function Stepper({
         );
         return (
           <li key={step} aria-current={i === index ? 'step' : undefined}>
-            {i <= reachedIndex && i !== index ? (
+            {onSelect && step !== 'representation' && i <= reachedIndex && i !== index ? (
               <button type="button" className={className} onClick={() => onSelect(step)}>
                 {content}
               </button>
@@ -128,7 +135,10 @@ function Stepper({
   );
 }
 
-/** Issuer onboarding: four steps, each saved as it is completed, resumable at any time. */
+/**
+ * Issuer onboarding: four steps, each saved as it is completed, resumable at any time. Step 5,
+ * the Representation, has its own page (RepresentationStep.tsx) since it outlives onboarding.
+ */
 export function OnboardingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -140,7 +150,7 @@ export function OnboardingPage() {
   const step = viewing ?? (data && data.step !== 'completed' ? data.step : undefined);
 
   useEffect(() => {
-    if (data?.step === 'completed') void navigate({ to: '/' });
+    if (data?.step === 'completed') void navigate({ to: '/onboarding/representation' });
   }, [data?.step, navigate]);
 
   function saved(next: Onboarding) {
@@ -587,7 +597,7 @@ function TermsStep({ onSaved, onBack }: StepProps & { onBack: () => void }) {
           Atrás
         </button>
         <button className="btn btn-primary" style={{ flex: 1 }} disabled={pending || !termsAccepted || !agreementAccepted}>
-          {pending ? 'Guardando…' : 'Aceptar y terminar'}
+          {pending ? 'Guardando…' : 'Aceptar y continuar'}
         </button>
       </div>
     </form>

@@ -15,6 +15,7 @@ import {
   type RecordRef,
   type RecordStatus,
   type RepresentationSigner,
+  type RepresentationState,
   type RepresentationStatus,
   type VerifactuConnector,
   type VoidingSubmission,
@@ -86,9 +87,9 @@ export class FakeVerifactuConnector implements VerifactuConnector {
     return record.status;
   }
 
-  /** The signer completes the remote signing. */
-  signRepresentation(issuerId: string): void {
-    this.representations.set(issuerId, { state: 'signed' });
+  /** The remote signing ends: the signer completes it (`signed`, the default) or it fails. */
+  signRepresentation(issuerId: string, outcome: Exclude<RepresentationState, 'none' | 'pending'> = 'signed'): void {
+    this.representations.set(issuerId, { state: outcome });
   }
 
   async createIssuerKey(issuer: ConnectorIssuer): Promise<ConnectorResult<void>> {

@@ -32,6 +32,7 @@ import {
   StepPendingError,
 } from './issuers.js';
 import { OnboardingIssuer } from './issuer-context.js';
+import { RepresentationService } from './representation.js';
 
 function parseBody<T extends z.ZodType>(schema: T, body: unknown): z.output<T> {
   const parsed = schema.safeParse(body);
@@ -74,7 +75,10 @@ function stepError(error: unknown): unknown {
  */
 @Controller('onboarding')
 export class OnboardingController {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    private readonly representation: RepresentationService,
+  ) {}
 
   @Get()
   show(@OnboardingIssuer() issuerId: string | null): Promise<Onboarding> {
@@ -128,6 +132,8 @@ export class OnboardingController {
       throw conflict(IssuerErrorCode.LegalVersionOutdated, 'The legal documents have changed: read them again');
     }
     await step(acceptTerms(this.db, { userId: user.id, issuerId }));
+    // Step 5 starts here. If the connector does not answer, GET /issuer/representation retries.
+    await this.representation.ensureIssuerKey(issuerId!);
     return findOnboarding(this.db, issuerId!);
   }
 }

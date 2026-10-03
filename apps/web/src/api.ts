@@ -3,6 +3,7 @@ import {
   healthResponseSchema,
   invitationSchema,
   onboardingSchema,
+  representationSchema,
   type AcceptInvitation,
   type AcceptTerms,
   type IssuerDefaults,
@@ -11,6 +12,8 @@ import {
   type HealthResponse,
   type Invitation,
   type Onboarding,
+  type Representation,
+  type RepresentationSigner,
   type Series,
 } from '@verifiq/domain';
 
@@ -91,4 +94,17 @@ export async function uploadLogo(file: File): Promise<void> {
 
 export async function removeLogo(): Promise<void> {
   await request('/issuer/logo', { method: 'DELETE' });
+}
+
+/** Asks the connector for the current state: the web polls it while a signing is pending. */
+export async function fetchRepresentation(): Promise<Representation> {
+  return representationSchema.parse(await request('/issuer/representation'));
+}
+
+export async function startRepresentationSigning(body: RepresentationSigner): Promise<Representation> {
+  return representationSchema.parse(await request('/issuer/representation/signing', sendJson('POST', body)));
+}
+
+export async function resendRepresentationLink(): Promise<Representation> {
+  return representationSchema.parse(await request('/issuer/representation/resend', { method: 'POST' }));
 }

@@ -24,6 +24,7 @@ const app = await NestFactory.create<NestExpressApplication>(
     mailer: mailerFromEnv(env),
     storage: objectStorageFromEnv(env),
     verifactu: verifactuConnectorFromEnv(env),
+    representationRequired: env.VERIFACTI_ENVIRONMENT === 'prod',
   }),
   { bodyParser: false },
 );

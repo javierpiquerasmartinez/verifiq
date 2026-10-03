@@ -252,12 +252,12 @@ describe('Issuer onboarding', () => {
       expect(response.body.code).toBe('ONBOARDING_INCOMPLETE');
     });
 
-    it('shows its name and tax ID once onboarding is complete', async () => {
+    it('shows its name and tax ID once onboarding is complete, issuing still disabled', async () => {
       const { agent, taxId } = await onboardedUser(app);
 
       const response = await agent.get('/issuer').expect(200);
 
-      expect(response.body).toEqual({ name: 'Lucía Ferrer Albiol', taxId });
+      expect(response.body).toEqual({ name: 'Lucía Ferrer Albiol', taxId, canIssue: false });
     });
   });
 });
