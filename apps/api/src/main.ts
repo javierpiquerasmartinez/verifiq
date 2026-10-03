@@ -6,6 +6,7 @@ import { loadEnv } from './config.js';
 import { configureHttp } from './http.js';
 import { mailerFromEnv } from './mail/from-env.js';
 import { objectStorageFromEnv } from './storage/from-env.js';
+import { verifactuConnectorFromEnv } from './verifactu/from-env.js';
 import { loadBuildVersion } from './version.js';
 
 const env = loadEnv();
@@ -22,6 +23,7 @@ const app = await NestFactory.create<NestExpressApplication>(
     },
     mailer: mailerFromEnv(env),
     storage: objectStorageFromEnv(env),
+    verifactu: verifactuConnectorFromEnv(env),
   }),
   { bodyParser: false },
 );
