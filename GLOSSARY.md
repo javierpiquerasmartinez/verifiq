@@ -107,3 +107,8 @@ _Avoid_: Cancelación, borrado
 Reenvío de un Registro de facturación para corregir datos del registro que no alteran la factura, o tras un rechazo de la AEAT.
 _En código_: `Amendment`
 _Avoid_: Modificación, edición
+
+**Censo**:
+Censo de la AEAT contra el que se comprueba el NIF (y el nombre) de cada Destinatario al guardarlo. Un NIF que no figura, o figura de baja, haría rechazar sus facturas.
+_En código_: `census`
+_Avoid_: Padrón, registro

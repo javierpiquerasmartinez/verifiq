@@ -14,6 +14,14 @@ const paths = {
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   chevron: <path d="M6 9l6 6 6-6" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </>
+  ),
+  plus: <path d="M12 5v14M5 12h14" />,
+  shield: <path d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z" />,
   lock: (
     <>
       <rect x="5" y="11" width="14" height="9" rx="2" />
@@ -22,9 +30,9 @@ const paths = {
   ),
 };
 
-export function Icon({ name }: { name: keyof typeof paths }) {
+export function Icon({ name, size }: { name: keyof typeof paths; size?: 'xs' }) {
   return (
-    <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className={size ? `ic ic-${size}` : 'ic'} viewBox="0 0 24 24" aria-hidden="true">
       {paths[name]}
     </svg>
   );

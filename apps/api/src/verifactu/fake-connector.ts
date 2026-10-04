@@ -63,6 +63,8 @@ function cents(amount: string): number {
 export class FakeVerifactuConnector implements VerifactuConnector {
   /** Tax ID → registered name. Anything else is not identified. */
   readonly census = new Map<string, string>();
+  /** Tax IDs the census has deregistered or revoked, whatever the name. */
+  readonly inactiveTaxIds = new Map<string, 'deregistered' | 'revoked'>();
   /** Every call, in order, for assertions. */
   readonly calls: { operation: FakeOperation; issuerId: string; input: unknown }[] = [];
 
@@ -129,6 +131,8 @@ export class FakeVerifactuConnector implements VerifactuConnector {
     query: { taxId: string; name?: string },
   ): Promise<ConnectorResult<CensusCheck>> {
     return this.call<CensusCheck>('validateTaxId', issuer, query, () => {
+      const inactive = this.inactiveTaxIds.get(query.taxId);
+      if (inactive) return ok({ result: inactive });
       const name = this.census.get(query.taxId);
       if (name === undefined) return ok({ result: 'not-identified' });
       if (query.name && query.name.toUpperCase() !== name.toUpperCase()) return ok({ result: 'name-mismatch' });

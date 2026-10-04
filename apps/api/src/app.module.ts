@@ -6,6 +6,7 @@ import { IssuersModule } from './issuers/issuers.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InvitationsController } from './invitations/invitations.controller.js';
 import type { Mailer } from './mail/mailer.js';
+import { RecipientsModule } from './recipients/recipients.module.js';
 import type { ObjectStorage } from './storage/object-storage.js';
 import type { VerifactuConnectorFactory } from './verifactu/from-env.js';
 import { VerifactuModule } from './verifactu/verifactu.module.js';
@@ -32,6 +33,7 @@ export class AppModule {
         AuthModule.forRoot(options.auth, options.mailer),
         IssuersModule.forRoot(options.storage, { representationRequired: options.representationRequired }),
         VerifactuModule.forRoot(options.verifactu),
+        RecipientsModule,
       ],
       controllers: [HealthController, InvitationsController],
       providers: [{ provide: APP_VERSION, useValue: options.version }],

@@ -17,3 +17,7 @@ Spec: `../spec.md` (historias 53–59, 65, 94) · ADR 0001, 0002
 - [ ] Detalle de la factura emitida: número, fecha, Destinatario, Total a pagar, ambos estados, QR
 - [ ] Auditoría append-only de la Emisión (quién, cuándo, qué)
 - [ ] La copia congelada no admite modificaciones salvo las previstas en la spec
+
+## Comments
+
+- (issue 07) Un Destinatario puede quedar guardado con `censusStatus: 'unchecked'` cuando el censo no respondió al guardarlo. La precondición «Destinatario validado» debe bloquear la Emisión para esos Destinatarios (o volver a consultar el censo antes de emitir); la ficha del cliente ya avisa de que no se le podrá facturar hasta comprobarlo. La tabla `invoices` existe solo con `issuer_id` y `recipient_id` (FK `restrict`, que impide borrar Destinatarios con facturas): esta issue la completa.
