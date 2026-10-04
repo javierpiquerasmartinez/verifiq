@@ -1,3 +1,4 @@
+import { todayInSpain } from '@verifiq/domain';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   REJECTION_CODES,
@@ -21,7 +22,6 @@ import {
   type VoidingSubmission,
   type RecordSubmission,
 } from './connector.js';
-import { todayInSpain } from './dates.js';
 
 export type FakeOperation = Exclude<keyof VerifactuConnector, symbol>;
 

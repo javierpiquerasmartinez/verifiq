@@ -1,3 +1,4 @@
+import { todayInSpain } from '@verifiq/domain';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type {
@@ -7,7 +8,6 @@ import type {
   RecordRef,
   VerifactuConnector,
 } from '../src/verifactu/connector.js';
-import { todayInSpain } from '../src/verifactu/dates.js';
 
 export interface ContractHarness {
   connector: VerifactuConnector;

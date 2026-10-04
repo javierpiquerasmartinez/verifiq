@@ -7,6 +7,7 @@ describe('Exemption grounds', () => {
       label: 'Servicios sanitarios — odontología (art. 20.Uno.5º LIVA)',
       mention:
         'Operación exenta de IVA en virtud del artículo 20.Uno.5º de la Ley 37/1992, del Impuesto sobre el Valor Añadido.',
+      services: 'Servicios odontológicos',
       verifactuCode: 'E1',
     });
   });

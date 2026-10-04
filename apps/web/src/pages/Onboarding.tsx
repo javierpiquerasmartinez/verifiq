@@ -37,6 +37,7 @@ import {
   uploadLogo,
 } from '../api';
 import { authClient } from '../auth-client';
+import { WITHHOLDING_LABELS } from '../format';
 import { useSessionExpiry } from '../session';
 import { AccessLayout, Alert, Field, Select, Seg } from '../ui/components';
 import { Stepper } from '../ui/Stepper';
@@ -321,8 +322,6 @@ function FiscalDataStep({ onboarding, onSaved }: StepProps & { onboarding: Onboa
     </form>
   );
 }
-
-const WITHHOLDING_LABELS: Record<WithholdingRate, string> = { 15: '15 %', 7: '7 %', 0: 'Sin retención' };
 
 type VatChoice = 'exempt' | `${(typeof VAT_RATES)[number]}`;
 

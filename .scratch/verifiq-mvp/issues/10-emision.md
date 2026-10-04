@@ -21,3 +21,5 @@ Spec: `../spec.md` (historias 53–59, 65, 94) · ADR 0001, 0002
 ## Comments
 
 - (issue 07) Un Destinatario puede quedar guardado con `censusStatus: 'unchecked'` cuando el censo no respondió al guardarlo. La precondición «Destinatario validado» debe bloquear la Emisión para esos Destinatarios (o volver a consultar el censo antes de emitir); la ficha del cliente ya avisa de que no se le podrá facturar hasta comprobarlo. La tabla `invoices` existe solo con `issuer_id` y `recipient_id` (FK `restrict`, que impide borrar Destinatarios con facturas): esta issue la completa.
+- (issue 08) Los Borradores viven en su propia tabla `drafts`. La precondición «Borrador válido» es que `findDraftProblems` (dominio) no devuelva nada para la fecha de expedición: ya cubre cliente ausente, archivado o sin comprobar en el censo, periodo que aún no ha terminado, descripción vacía, sin líneas y líneas sin concepto. La respuesta de `GET /drafts/:id` ya trae `problems` y el `breakdown` calculado en servidor. El editor deja hueco para el botón Emitir en la columna del resumen.
+

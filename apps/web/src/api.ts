@@ -1,4 +1,6 @@
 import {
+  draftSchema,
+  draftSummarySchema,
   issuerSummarySchema,
   healthResponseSchema,
   invitationSchema,
@@ -7,6 +9,9 @@ import {
   representationSchema,
   type AcceptInvitation,
   type AcceptTerms,
+  type Draft,
+  type DraftDataInput,
+  type DraftSummary,
   type IssuerDefaults,
   type IssuerSummary,
   type FiscalDataInput,
@@ -143,4 +148,28 @@ export async function deleteRecipient(id: string): Promise<void> {
 export async function setRecipientArchived(id: string, archived: boolean): Promise<Recipient> {
   const action = archived ? 'archive' : 'restore';
   return recipientSchema.parse(await request(`/recipients/${encodeURIComponent(id)}/${action}`, { method: 'POST' }));
+}
+
+const draftListSchema = draftSummarySchema.array();
+
+/** Most recently edited first. */
+export async function fetchDrafts(): Promise<DraftSummary[]> {
+  return draftListSchema.parse(await request('/drafts'));
+}
+
+/** The api computes the amounts and the problems that still keep it from being issued. */
+export async function fetchDraft(id: string): Promise<Draft> {
+  return draftSchema.parse(await request(`/drafts/${encodeURIComponent(id)}`));
+}
+
+export async function createDraft(body: DraftDataInput): Promise<Draft> {
+  return draftSchema.parse(await request('/drafts', sendJson('POST', body)));
+}
+
+export async function updateDraft(id: string, body: DraftDataInput): Promise<Draft> {
+  return draftSchema.parse(await request(`/drafts/${encodeURIComponent(id)}`, sendJson('PUT', body)));
+}
+
+export async function deleteDraft(id: string): Promise<void> {
+  await request(`/drafts/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

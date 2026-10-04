@@ -14,6 +14,23 @@ const paths = {
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   chevron: <path d="M6 9l6 6 6-6" />,
+  chevronRight: <path d="M9 6l6 6-6 6" />,
+  close: <path d="M6 6l12 12M18 6L6 18" />,
+  hash: <path d="M5 9h14M9 4v16M15 4v16M5 15h14" />,
+  eye: (
+    <>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
+  print: (
+    <>
+      <path d="M7 9V4h10v5" />
+      <rect x="4" y="9" width="16" height="8" rx="2" />
+      <path d="M7 14h10v6H7z" />
+    </>
+  ),
   search: (
     <>
       <circle cx="11" cy="11" r="7" />
