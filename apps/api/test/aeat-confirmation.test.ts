@@ -135,6 +135,17 @@ describe('AEAT confirmation', () => {
       expect((await recordOf(agent, second.invoiceId)).status).toBe('rejected');
     });
 
+    it('reads a delivery whatever content type it declares', async () => {
+      const { agent } = await issuingUser();
+      const { invoiceId, connectorRecordId } = await submittedInvoice(agent);
+      connector.settle(connectorRecordId, 'accepted');
+      const delivery = connector.resultsDelivery([connectorRecordId]);
+
+      await deliver({ ...delivery, headers: { ...delivery.headers, 'content-type': 'text/plain' } }).expect(204);
+
+      expect((await recordOf(agent, invoiceId)).status).toBe('accepted');
+    });
+
     it('leaves a record still pending at the AEAT as it was', async () => {
       const { agent } = await issuingUser();
       const { invoiceId, connectorRecordId } = await submittedInvoice(agent);

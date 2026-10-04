@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
-import { invoiceNumberIn, UNCONFIRMED_RECORD_HOURS } from '@verifiq/domain';
+import { AWAITING_VERDICT_STATUSES, invoiceNumberIn, UNCONFIRMED_RECORD_HOURS, unconfirmedBefore } from '@verifiq/domain';
 import { and, eq, inArray, isNull, lte } from 'drizzle-orm';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { invoiceRecords, invoices, issuers } from '../database/schema.js';
@@ -12,7 +12,6 @@ import { SUBMISSION_OPTIONS, SubmissionQueue, type SubmissionOptions } from './s
 const MINUTE = 60_000;
 /** The webhook usually brings the verdict within minutes: only records sent before this are asked about. */
 const POLL_AFTER_MS = 10 * MINUTE;
-const UNCONFIRMED_AFTER_MS = UNCONFIRMED_RECORD_HOURS * 60 * MINUTE;
 
 /**
  * Backs up the results webhook (every 15 minutes, in the worker): asks the connector for the status
@@ -34,7 +33,7 @@ export class RecordStatusPoller implements OnApplicationBootstrap {
 
   async onApplicationBootstrap(): Promise<void> {
     if (!this.options.work) return;
-    await this.queue.every15Minutes(() => this.pollOnce());
+    await this.queue.scheduleStatusPoll(() => this.pollOnce());
     this.logger.log('Polling the status of submitted records every 15 minutes');
   }
 
@@ -86,8 +85,8 @@ export class RecordStatusPoller implements OnApplicationBootstrap {
         .set({ unconfirmedAlertedAt: now })
         .where(
           and(
-            inArray(invoiceRecords.status, ['pending-submission', 'submitted']),
-            lte(invoiceRecords.createdAt, new Date(now.getTime() - UNCONFIRMED_AFTER_MS)),
+            inArray(invoiceRecords.status, [...AWAITING_VERDICT_STATUSES]),
+            lte(invoiceRecords.createdAt, unconfirmedBefore(now)),
             isNull(invoiceRecords.unconfirmedAlertedAt),
           ),
         )

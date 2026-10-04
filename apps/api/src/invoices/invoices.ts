@@ -12,7 +12,7 @@ import {
   type InvoiceRecordStatus,
   type InvoiceSnapshot,
   type InvoiceStatus,
-  UNCONFIRMED_RECORD_HOURS,
+  isRecordUnconfirmed,
 } from '@verifiq/domain';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
@@ -38,8 +38,6 @@ const HISTORY_EVENTS: Record<AuditAction, InvoiceEvent> = {
   'invoice-record-accepted-with-errors': 'accepted-with-errors',
   'invoice-record-rejected': 'rejected',
 };
-
-const AWAITING_VERDICT: InvoiceRecordStatus[] = ['pending-submission', 'submitted'];
 
 /** Without its key at the connector and a valid Representation, the issuer cannot issue. */
 export class CannotIssueError extends Error {}
@@ -172,7 +170,6 @@ export class InvoicesService {
     const snapshot = invoice.snapshot as InvoiceSnapshot;
     const pdfVersion = await this.pdfs.currentVersion(invoice.id);
     const recordStatus = record.status as InvoiceRecordStatus;
-    const unconfirmedSince = Date.now() - UNCONFIRMED_RECORD_HOURS * 3_600_000;
     return {
       id: invoice.id,
       number: invoiceNumberIn(invoice.series, invoice.number),
@@ -189,7 +186,7 @@ export class InvoicesService {
         registrationCode: record.registrationCode,
         aeatError:
           record.aeatErrorCode !== null ? { code: record.aeatErrorCode, message: record.aeatErrorMessage ?? '' } : null,
-        unconfirmed: AWAITING_VERDICT.includes(recordStatus) && record.createdAt.getTime() < unconfirmedSince,
+        unconfirmed: isRecordUnconfirmed(recordStatus, record.createdAt),
       },
       history: await this.history(issuerId, invoice.id),
       pdf: pdfVersion === null ? null : { version: pdfVersion },

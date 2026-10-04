@@ -69,8 +69,8 @@ export class SubmissionQueue implements OnModuleInit, OnApplicationShutdown {
     });
   }
 
-  /** Runs `handler` every 15 minutes, one round at a time; a round that throws is not retried. */
-  async every15Minutes(handler: () => Promise<void>): Promise<void> {
+  /** Runs the status poll every 15 minutes, one round at a time; a round that throws is not retried. */
+  async scheduleStatusPoll(handler: () => Promise<void>): Promise<void> {
     const name = `${this.options.queueName}-status-poll`;
     await this.boss.createQueue(name, { policy: 'exclusive', retryLimit: 0 });
     await this.boss.schedule(name, '*/15 * * * *');

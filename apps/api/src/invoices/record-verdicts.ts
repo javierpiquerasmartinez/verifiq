@@ -37,8 +37,8 @@ function verdictOf({ state, aeatError }: RecordStatus): { verdict: Verdict; aeat
 }
 
 /**
- * Applies the AEAT's verdicts on submitted InvoiceRecords: Aceptado, Aceptado con errores or
- * Rechazado. They arrive through the connector's results webhook, backed up by a periodic poll.
+ * Applies the AEAT's verdicts on submitted InvoiceRecords: accepted, accepted with errors or
+ * rejected. They arrive through the connector's results webhook, backed up by a periodic poll.
  * Only a record still waiting for its verdict takes one, so repeating a verdict changes nothing.
  */
 @Injectable()

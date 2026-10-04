@@ -31,6 +31,20 @@ export type InvoiceRecordStatus = (typeof INVOICE_RECORD_STATUSES)[number];
 /** Records unconfirmed this long after the Issuance warn the user and alert the operator. */
 export const UNCONFIRMED_RECORD_HOURS = 24;
 
+/** Record statuses still waiting for the AEAT's verdict. */
+export const AWAITING_VERDICT_STATUSES = ['pending-submission', 'submitted'] as const satisfies InvoiceRecordStatus[];
+
+/** Whether a record issued at `createdAt` is, as of `now`, still unconfirmed after UNCONFIRMED_RECORD_HOURS. */
+export function isRecordUnconfirmed(status: InvoiceRecordStatus, createdAt: Date, now = new Date()): boolean {
+  const awaiting: readonly InvoiceRecordStatus[] = AWAITING_VERDICT_STATUSES;
+  return awaiting.includes(status) && createdAt.getTime() <= unconfirmedBefore(now).getTime();
+}
+
+/** Records issued before this instant and still awaiting their verdict are unconfirmed. */
+export function unconfirmedBefore(now: Date): Date {
+  return new Date(now.getTime() - UNCONFIRMED_RECORD_HOURS * 3_600_000);
+}
+
 export const INVOICE_EVENTS = [
   'issued',
   'submitted',
@@ -44,14 +58,14 @@ export const INVOICE_EVENTS = [
 export type InvoiceEvent = (typeof INVOICE_EVENTS)[number];
 
 /** An entry of the invoice's history (its timeline). */
-export const invoiceEventSchema = z.object({
+export const invoiceHistoryEntrySchema = z.object({
   event: z.enum(INVOICE_EVENTS),
   occurredAt: z.iso.datetime({ offset: true }),
   /** The user's name; null when the system acted. */
   actor: z.string().nullable(),
 });
 
-export type InvoiceHistoryEntry = z.infer<typeof invoiceEventSchema>;
+export type InvoiceHistoryEntry = z.infer<typeof invoiceHistoryEntrySchema>;
 
 /** Response of GET /invoices/:id. */
 export const invoiceSchema = z.object({
@@ -72,11 +86,11 @@ export const invoiceSchema = z.object({
     registrationCode: z.string().nullable(),
     /** The AEAT's error, exactly as it returned it: accepted with errors, or the reason it rejected the record. */
     aeatError: z.object({ code: z.string(), message: z.string() }).nullable(),
-    /** Still without the AEAT's verdict more than 24 h after the Issuance (`sin_confirmar`). */
+    /** Still without the AEAT's verdict more than 24 h after the Issuance. */
     unconfirmed: z.boolean(),
   }),
   /** What happened to the invoice, oldest first. */
-  history: z.array(invoiceEventSchema),
+  history: z.array(invoiceHistoryEntrySchema),
   /** The current version of its PDF: there is none until the record has its QR. */
   pdf: z.object({ version: z.number().int().positive() }).nullable(),
   /** The recipient it was issued to, whose data may have changed since. */
