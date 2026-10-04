@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { breakdownInputSchema, computeBreakdown, type BreakdownInput, type BreakdownLine } from './amounts.js';
+import { breakdownInputSchema, computeBreakdown, sumAmounts, type BreakdownInput, type BreakdownLine } from './amounts.js';
 
 const exempt = { kind: 'exempt', ground: 'dentistry' } as const;
 const mention =
@@ -218,5 +218,17 @@ describe('breakdownInputSchema', () => {
 
   it.each([19, 2, '15'])('rejects a %j withholding', (withholding) => {
     expect(breakdownInputSchema.safeParse({ ...valid, withholding }).success).toBe(false);
+  });
+});
+
+describe('sumAmounts', () => {
+  it.each([
+    [[], '0.00'],
+    [['2340.00'], '2340.00'],
+    [['0.10', '0.20'], '0.30'],
+    [['100.00', '-100.00'], '0.00'],
+    [['-0.01', '-0.02'], '-0.03'],
+  ])('%j → %s', (amounts, sum) => {
+    expect(sumAmounts(amounts)).toBe(sum);
   });
 });

@@ -13,6 +13,7 @@ import {
   smallint,
   text,
   timestamp,
+  unique,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -235,7 +236,8 @@ export const connectorExchanges = pgTable(
     issuerId: uuid('issuer_id')
       .notNull()
       .references(() => issuers.id),
-    // The InvoiceRecord the exchange belongs to. The foreign key arrives with the invoice_records table.
+    // The InvoiceRecord the exchange belongs to. No foreign key: the contract tests exchange records
+    // that only exist at the connector.
     invoiceRecordId: uuid('invoice_record_id'),
     operation: text('operation').notNull(),
     method: text('method').notNull(),
@@ -334,8 +336,26 @@ export const drafts = pgTable(
   ],
 );
 
-// --- Invoices. Issuance (issue 10) completes this table; for now it only ties invoices to their recipient.
+// --- Invoices: what the Issuance (ADR 0002) makes of a draft. Frozen once issued.
 
+/** The last number assigned in each series of the issuer. Its row is the lock that serialises Issuances. */
+export const seriesCounters = pgTable(
+  'series_counters',
+  {
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    // The domain's seriesCode, e.g. F2026-.
+    series: text('series').notNull(),
+    lastNumber: integer('last_number').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.issuerId, table.series] })],
+);
+
+/**
+ * Issued invoices. Never deleted, and their frozen columns never change (trigger in migration 0008):
+ * only `status` moves on, with the corrections of the spec.
+ */
 export const invoices = pgTable(
   'invoices',
   {
@@ -347,10 +367,81 @@ export const invoices = pgTable(
     recipientId: uuid('recipient_id')
       .notNull()
       .references(() => recipients.id, { onDelete: 'restrict' }),
+    series: text('series').notNull(),
+    number: integer('number').notNull(),
+    issueDate: date('issue_date').notNull(),
+    // The domain's InvoiceStatus.
+    status: text('status').notNull(),
+    // The frozen copy: issuer, recipient, period, description, lines, withholding and breakdown (InvoiceSnapshot).
+    snapshot: jsonb('snapshot').notNull(),
+    issuedBy: text('issued_by')
+      .notNull()
+      .references(() => users.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('invoices_issuer_id_idx').on(table.issuerId),
     index('invoices_recipient_id_idx').on(table.recipientId),
+    unique('invoices_number_unique').on(table.issuerId, table.series, table.number),
+  ],
+);
+
+/** InvoiceRecords: what is sent to the AEAT through the connector for each invoice. Never deleted. */
+export const invoiceRecords = pgTable(
+  'invoice_records',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoices.id),
+    // The domain's InvoiceRecordStatus.
+    status: text('status').notNull(),
+    // Sent with every attempt: the connector never registers the same key twice.
+    idempotencyKey: text('idempotency_key').notNull().unique(),
+    // Once the connector queued it.
+    connectorRecordId: text('connector_record_id'),
+    fingerprint: text('fingerprint'),
+    verificationUrl: text('verification_url'),
+    // Base64 PNG, as the connector draws it.
+    qrPng: text('qr_png'),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    // While blocked: the connector's synchronous refusal.
+    rejectionCode: text('rejection_code'),
+    rejectionMessage: text('rejection_message'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('invoice_records_issuer_id_idx').on(table.issuerId),
+    index('invoice_records_invoice_id_idx').on(table.invoiceId),
+  ],
+);
+
+// --- Audit: append-only (trigger in migration 0008) log of every action with fiscal effect.
+
+export const auditEvents = pgTable(
+  'audit_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    // Null when the system acted (e.g. the worker).
+    actorUserId: text('actor_user_id').references(() => users.id),
+    action: text('action').notNull(),
+    subjectType: text('subject_type').notNull(),
+    subjectId: uuid('subject_id').notNull(),
+    details: jsonb('details').notNull(),
+    // The clock, not the transaction start: orders the events of one transaction.
+    occurredAt: timestamp('occurred_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    index('audit_events_issuer_id_idx').on(table.issuerId, table.occurredAt),
+    index('audit_events_subject_id_idx').on(table.subjectId),
   ],
 );

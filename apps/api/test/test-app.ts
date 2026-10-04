@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
+import { randomUUID } from 'node:crypto';
 import { inject } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttp } from '../src/http.js';
@@ -72,6 +73,8 @@ export async function createTestApp({
         storage,
         verifactu: () => verifactu,
         representationRequired,
+        // Its own queue: test files share the database, and each drives its worker by hand.
+        submission: { queueName: `submission-${randomUUID()}`, work: false },
       }),
     ],
   }).compile();

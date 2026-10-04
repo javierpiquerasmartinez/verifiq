@@ -34,7 +34,17 @@ export function seriesCode(prefix: string, year: number): string {
   return `${prefix}${year}-`;
 }
 
-/** Correlative number within the series, padded to 4 digits: F2026-0001. */
+/** Correlative number within its series, padded to 4 digits: the 0001 of F2026-0001. */
+export function serialNumber(number: number): string {
+  return String(number).padStart(4, '0');
+}
+
+/** Series and correlative number: F2026-0001. */
 export function invoiceNumber(prefix: string, year: number, number: number): string {
-  return `${seriesCode(prefix, year)}${String(number).padStart(4, '0')}`;
+  return invoiceNumberIn(seriesCode(prefix, year), number);
+}
+
+/** The number of an invoice of a series code: F2026- and 1 → F2026-0001. */
+export function invoiceNumberIn(series: string, number: number): string {
+  return `${series}${serialNumber(number)}`;
 }

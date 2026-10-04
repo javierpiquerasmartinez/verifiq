@@ -6,6 +6,7 @@ import { loadEnv } from './config.js';
 import { configureHttp } from './http.js';
 import { mailerFromEnv } from './mail/from-env.js';
 import { objectStorageFromEnv } from './storage/from-env.js';
+import { SUBMISSION_QUEUE_NAME } from './invoices/submission-queue.js';
 import { representationRequiredFromEnv, verifactuConnectorFromEnv } from './verifactu/from-env.js';
 import { loadBuildVersion } from './version.js';
 
@@ -25,6 +26,8 @@ const app = await NestFactory.create<NestExpressApplication>(
     storage: objectStorageFromEnv(env),
     verifactu: verifactuConnectorFromEnv(env),
     representationRequired: representationRequiredFromEnv(env),
+    // The in-memory fake connector lives in this process: so must the worker that talks to it.
+    submission: { queueName: SUBMISSION_QUEUE_NAME, work: !env.VERIFACTI_API_KEY },
   }),
   { bodyParser: false },
 );

@@ -15,6 +15,7 @@ import { DraftPreviewPage } from './pages/DraftPreview';
 import { ForgotPasswordPage } from './pages/ForgotPassword';
 import { HomePage } from './pages/Home';
 import { InvitationPage } from './pages/Invitation';
+import { InvoicePage } from './pages/Invoice';
 import { LoginPage } from './pages/Login';
 import { OnboardingPage } from './pages/Onboarding';
 import { NewRecipientPage, RecipientPage } from './pages/Recipient';
@@ -68,6 +69,13 @@ const draftPreviewRoute = createRoute({
   path: '/drafts/$draftId/preview',
   beforeLoad: requireOnboardedUser,
   component: DraftPreviewPage,
+});
+
+const invoiceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/invoices/$invoiceId',
+  beforeLoad: requireOnboardedUser,
+  component: InvoicePage,
 });
 
 const recipientsRoute = createRoute({
@@ -181,6 +189,7 @@ const routeTree = rootRoute.addChildren([
   newDraftRoute,
   draftRoute,
   draftPreviewRoute,
+  invoiceRoute,
   recipientsRoute,
   newRecipientRoute,
   recipientRoute,

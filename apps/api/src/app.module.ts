@@ -7,6 +7,7 @@ import { DraftsModule } from './drafts/drafts.module.js';
 import { IssuersModule } from './issuers/issuers.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InvitationsController } from './invitations/invitations.controller.js';
+import { InvoicesModule, SubmissionModule } from './invoices/invoices.module.js';
 import type { Mailer } from './mail/mailer.js';
 import { RecipientsModule } from './recipients/recipients.module.js';
 import type { ObjectStorage } from './storage/object-storage.js';
@@ -23,6 +24,8 @@ export interface AppOptions {
   verifactu: VerifactuConnectorFactory;
   /** Whether issuers must sign the Representation to issue. The AEAT test environment needs none. */
   representationRequired: boolean;
+  /** The outbox of InvoiceRecords; the worker service sends them, unless `work` has this process do it. */
+  submission: { queueName: string; work: boolean };
 }
 
 @Module({})
@@ -38,6 +41,8 @@ export class AppModule {
         RecipientsModule,
         DraftsModule,
         CatalogItemsModule,
+        SubmissionModule.forRoot({ databaseUrl: options.databaseUrl, ...options.submission }),
+        InvoicesModule,
       ],
       controllers: [HealthController, InvitationsController],
       providers: [{ provide: APP_VERSION, useValue: options.version }],

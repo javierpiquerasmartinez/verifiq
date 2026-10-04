@@ -128,3 +128,8 @@ export function computeBreakdown(input: BreakdownInput): Breakdown {
     amountDue: formatCents(totalAmount.minus(withheld)),
   };
 }
+
+/** Exact sum of amounts with 2 decimals (e.g. the bases of several breakdown rows). */
+export function sumAmounts(amounts: string[]): string {
+  return formatCents(amounts.reduce((sum, amount) => sum.plus(amount), new Big(0)));
+}
