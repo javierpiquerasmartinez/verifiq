@@ -14,3 +14,7 @@ Spec: `../spec.md` (historias 61, 64, 70)
 - [ ] >24 h sin confirmar: aviso visible al Usuario y alerta (email) al operador
 - [ ] Línea de tiempo de eventos de la factura con fecha, hora y actor
 - [ ] Tests de API con el fake: cada resultado, webhook duplicado, firma inválida, respaldo por sondeo
+
+## Comments
+
+- (revisión de la 10 con `design.html`) En el detalle de la factura, la línea de tiempo es la tarjeta «Historial» del lateral (por encima de «Registro en la AEAT»), con fecha · hora · actor («Sistema» si actuó el sistema) y punto verde para Aceptada. La tarjeta «Registro en la AEAT» ya existe con Estado; esta issue añade «Confirmado» (fecha y hora) y «Código de registro» (CSV de la AEAT).

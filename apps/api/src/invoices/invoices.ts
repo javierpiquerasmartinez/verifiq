@@ -169,6 +169,7 @@ export class InvoicesService {
             : null,
       },
       pdf: pdfVersion === null ? null : { version: pdfVersion },
+      recipientId: invoice.recipientId,
       ...snapshot,
       issuedAt: invoice.createdAt.toISOString(),
     };

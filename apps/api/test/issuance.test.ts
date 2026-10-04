@@ -100,6 +100,7 @@ describe('Issuance', () => {
       status: 'issued',
       record: { status: 'pending-submission', verificationUrl: null, rejection: null },
       pdf: null,
+      recipientId: recipient.id,
       issuer: {
         name: 'Lucía Ferrer Albiol',
         taxId,
