@@ -5,6 +5,7 @@ export * from './corrective-invoice.js';
 export * from './dates.js';
 export * from './draft.js';
 export * from './exemptions.js';
+export * from './format.js';
 export * from './health.js';
 export * from './iban.js';
 export * from './invoice.js';

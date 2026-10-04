@@ -21,17 +21,8 @@ export function parseDecimalInput(input: string, maxDecimals: number): string | 
 /** A decimal string as an input shows it: "2340.5" → "2340,5". */
 export const decimalInputOf = (value: string) => value.replace('.', ',');
 
-/** "5140.00" → "5.140,00 €", grouped even under 10 000 (Intl's es-ES does not); at least 2 decimals. */
-export function formatAmount(amount: string): string {
-  const negative = amount.startsWith('-');
-  const [units = '0', decimals = ''] = amount.replace('-', '').split('.');
-  const cents = decimals.padEnd(2, '0');
-  const grouped = units.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return `${negative ? '−' : ''}${grouped},${cents} €`;
-}
-
-/** The withholding is subtracted from the total amount: shown negative. */
-export const formatWithheld = (amount: string) => formatAmount(amount === '0.00' ? amount : `-${amount}`);
+// Shared with the PDF of the invoice.
+export { formatAmount, formatWithheld } from '@verifiq/domain';
 
 export const WITHHOLDING_LABELS: Record<WithholdingRate, string> = { 15: '15 %', 7: '7 %', 0: 'Sin retención' };
 

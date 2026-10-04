@@ -420,6 +420,32 @@ export const invoiceRecords = pgTable(
   ],
 );
 
+/**
+ * The PDFs of each invoice, generated from its frozen copy once its record has the QR. Each new
+ * version keeps the previous ones (spec: Corregir retención). Never changed or deleted (migration 0009).
+ */
+export const invoicePdfs = pgTable(
+  'invoice_pdfs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoices.id),
+    // From 1, per invoice.
+    version: integer('version').notNull(),
+    // Object storage key of the file.
+    storageKey: text('storage_key').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('invoice_pdfs_issuer_id_idx').on(table.issuerId),
+    unique('invoice_pdfs_version_unique').on(table.invoiceId, table.version),
+  ],
+);
+
 // --- Audit: append-only (trigger in migration 0008) log of every action with fiscal effect.
 
 export const auditEvents = pgTable(

@@ -7,6 +7,7 @@ import { useInvoice } from '../use-invoice';
 import { formatAmount } from '../format';
 import { Alert } from './components';
 import { Icon } from './icons';
+import { InvoicePdfLinks } from './InvoicePdfLinks';
 import { InvoiceStates, TaxQr } from './InvoiceStates';
 
 function issueError(cause: unknown): string {
@@ -168,6 +169,7 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
                 <div className="stack" style={{ gap: 10 }}>
                   <InvoiceStates invoice={invoice} />
                   <p className="small ink2">Hacienda suele confirmar el registro en 1–2 minutos.</p>
+                  <InvoicePdfLinks invoice={invoice} />
                 </div>
               </div>
             ) : (

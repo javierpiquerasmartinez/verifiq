@@ -38,6 +38,7 @@ const paths = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  download: <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />,
   list: <path d="M4 6h16M4 12h16M4 18h10" />,
   shield: <path d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z" />,
   lock: (

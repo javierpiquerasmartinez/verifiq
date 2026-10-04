@@ -42,6 +42,8 @@ export const invoiceSchema = z.object({
     /** Why the connector refused the record, while it is blocked. */
     rejection: z.object({ code: z.string(), message: z.string() }).nullable(),
   }),
+  /** The current version of its PDF: there is none until the record has its QR. */
+  pdf: z.object({ version: z.number().int().positive() }).nullable(),
   /** The issuer and the recipient as they were when the invoice was issued. */
   issuer: fiscalDataSchema,
   recipient: recipientDataSchema,
@@ -85,6 +87,8 @@ export const InvoiceErrorCode = {
   DraftNotReady: 'DRAFT_NOT_READY',
   /** Without its key at the connector and a valid Representation, the issuer cannot issue. */
   CannotIssue: 'CANNOT_ISSUE',
+  /** The invoice has no PDF yet: its record has no QR. */
+  PdfNotAvailable: 'INVOICE_PDF_NOT_AVAILABLE',
 } as const;
 
 export type InvoiceErrorCode = (typeof InvoiceErrorCode)[keyof typeof InvoiceErrorCode];

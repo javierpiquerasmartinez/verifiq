@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decimalInputOf, formatAmount, parseDecimalInput } from './format';
+import { decimalInputOf, parseDecimalInput } from './format';
 
 describe('parseDecimalInput', () => {
   it.each([
@@ -30,21 +30,5 @@ describe('decimalInputOf', () => {
   it('shows a decimal string the way it is typed in Spain', () => {
     expect(decimalInputOf('2340.5000')).toBe('2340,5000');
     expect(decimalInputOf('1')).toBe('1');
-  });
-});
-
-describe('formatAmount', () => {
-  it.each([
-    ['5140.00', '5.140,00 €'],
-    ['4369.00', '4.369,00 €'],
-    ['1234567.89', '1.234.567,89 €'],
-    ['999.99', '999,99 €'],
-    ['0.00', '0,00 €'],
-    ['-771.00', '−771,00 €'],
-    ['2340', '2.340,00 €'],
-    ['2340.5', '2.340,50 €'],
-    ['33.3333', '33,3333 €'],
-  ])('formats %s as %s', (amount, expected) => {
-    expect(formatAmount(amount)).toBe(expected);
   });
 });

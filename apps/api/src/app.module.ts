@@ -11,6 +11,7 @@ import { InvoicesModule, SubmissionModule } from './invoices/invoices.module.js'
 import type { Mailer } from './mail/mailer.js';
 import { RecipientsModule } from './recipients/recipients.module.js';
 import type { ObjectStorage } from './storage/object-storage.js';
+import { StorageModule } from './storage/storage.module.js';
 import type { VerifactuConnectorFactory } from './verifactu/from-env.js';
 import { VerifactuModule } from './verifactu/verifactu.module.js';
 import { APP_VERSION } from './version.js';
@@ -36,7 +37,8 @@ export class AppModule {
       imports: [
         DatabaseModule.forRoot(options.databaseUrl),
         AuthModule.forRoot(options.auth, options.mailer),
-        IssuersModule.forRoot(options.storage, { representationRequired: options.representationRequired }),
+        StorageModule.forRoot(options.storage),
+        IssuersModule.forRoot({ representationRequired: options.representationRequired }),
         VerifactuModule.forRoot(options.verifactu),
         RecipientsModule,
         DraftsModule,
