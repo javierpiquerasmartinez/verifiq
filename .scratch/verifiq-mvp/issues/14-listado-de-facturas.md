@@ -12,5 +12,7 @@ Spec: `../spec.md` (historias 81–84, 86)
 - [ ] Búsqueda por número, Destinatario o importe
 - [ ] Filtros: Borradores, Pendientes, Aceptadas, Con incidencias, Rectificadas, Anuladas
 - [ ] Incidencias (Bloqueado, Rechazado, Aceptado con errores, Sin confirmar, Representación sin firmar) destacadas arriba con llamada a la acción
+- [ ] Pulsar en cualquier parte de la fila abre el Borrador (su editor, `/drafts/:id`) o la factura emitida (su detalle), no solo un enlace en una columna; también con teclado
 - [ ] Estado vacío con acceso a "Nueva factura"
+- [ ] Sustituye la lista provisional de Borradores de la pantalla «Facturas» (issue 08)
 - [ ] Paginación en servidor; tests de API de filtros y búsqueda
