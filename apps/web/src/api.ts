@@ -5,6 +5,8 @@ import {
   issuerSummarySchema,
   healthResponseSchema,
   invitationSchema,
+  invoiceSchema,
+  nextInvoiceNumberSchema,
   onboardingSchema,
   recipientSchema,
   representationSchema,
@@ -20,6 +22,7 @@ import {
   type FiscalDataInput,
   type HealthResponse,
   type Invitation,
+  type Invoice,
   type Onboarding,
   type Recipient,
   type RecipientDataInput,
@@ -199,4 +202,18 @@ export async function updateCatalogItem(id: string, body: CatalogItemDataInput):
 /** Lines copied from it keep their values. */
 export async function deleteCatalogItem(id: string): Promise<void> {
   await request(`/catalog-items/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/** Issues the draft (irreversible): it gets its number and becomes the invoice; its record is sent to the AEAT. */
+export async function issueInvoice(draftId: string): Promise<Invoice> {
+  return invoiceSchema.parse(await request('/invoices', sendJson('POST', { draftId })));
+}
+
+export async function fetchInvoice(id: string): Promise<Invoice> {
+  return invoiceSchema.parse(await request(`/invoices/${encodeURIComponent(id)}`));
+}
+
+/** The number the next Issuance assigns, unless another one comes first. */
+export async function fetchNextInvoiceNumber(): Promise<string> {
+  return nextInvoiceNumberSchema.parse(await request('/invoices/next-number')).number;
 }

@@ -19,7 +19,7 @@ import {
   type WithholdingRate,
 } from '@verifiq/domain';
 import { useState } from 'react';
-import { ApiError, createDraft, deleteDraft, fetchDraft, fetchOnboarding, updateDraft } from '../api';
+import { ApiError, createDraft, deleteDraft, fetchDraft, fetchIssuer, fetchOnboarding, updateDraft } from '../api';
 import { emptyLine, lineStateOf, parseLine, type LineState } from '../draft-lines';
 import { WITHHOLDING_LABELS } from '../format';
 import { useSessionExpiry } from '../session';
@@ -29,6 +29,7 @@ import { Alert, Seg } from '../ui/components';
 import { DraftLineRow } from '../ui/DraftLineRow';
 import { DraftSummary } from '../ui/DraftSummary';
 import { Icon } from '../ui/icons';
+import { IssueDialog } from '../ui/IssueDialog';
 import { RecipientPicker } from '../ui/RecipientPicker';
 
 /** A new Draft, prefilled with the issuer's defaults. Nothing is stored until it is saved. */
@@ -115,6 +116,10 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  // The saved draft being issued, while the issue dialog is open.
+  const [issuing, setIssuing] = useState<Draft>();
+  const issuer = useQuery({ queryKey: ['issuer'], queryFn: fetchIssuer, retry: false });
+  const canIssue = issuer.data?.canIssue === true;
 
   const periodError =
     (periodStart === '') !== (periodEnd === '')
@@ -196,12 +201,25 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
 
   async function saveDraft() {
     const saved = await save();
-    if (saved && !draft) await navigate({ to: '/drafts/$draftId', params: { draftId: saved.id }, replace: true });
+    if (saved) await showSaved(saved);
   }
 
   async function preview() {
     const saved = await save();
     if (saved) await navigate({ to: '/drafts/$draftId/preview', params: { draftId: saved.id } });
+  }
+
+  /** Saves the draft and, when nothing is missing, asks to confirm the Issuance. */
+  async function startIssuing() {
+    const saved = await save();
+    if (!saved) return;
+    if (saved.problems.length === 0) setIssuing(saved);
+    else await showSaved(saved);
+  }
+
+  /** A new draft, once saved, lives at its own address. */
+  async function showSaved(saved: Draft) {
+    if (!draft) await navigate({ to: '/drafts/$draftId', params: { draftId: saved.id }, replace: true });
   }
 
   async function remove() {
@@ -422,8 +440,22 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
           {error && <Alert tone="danger">{error}</Alert>}
           {notice && <Alert tone="ok">{notice}</Alert>}
 
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            onClick={startIssuing}
+            disabled={pending || !canIssue}
+            aria-describedby={issuer.data && !canIssue ? 'issue-unavailable' : undefined}
+          >
+            Emitir factura
+          </button>
+          {issuer.data && !canIssue && (
+            <p className="xs muted" id="issue-unavailable" style={{ textAlign: 'center' }}>
+              Podrás emitir cuando firmes la autorización ante la AEAT.
+            </p>
+          )}
           <div className="grid2">
-            <button type="button" className="btn btn-primary" onClick={saveDraft} disabled={pending}>
+            <button type="button" className="btn btn-secondary" onClick={saveDraft} disabled={pending}>
               {pending ? 'Guardando…' : 'Guardar borrador'}
             </button>
             <button type="button" className="btn btn-secondary" onClick={preview} disabled={pending}>
@@ -443,6 +475,15 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
           </button>
         </aside>
       </div>
+      {issuing && (
+        <IssueDialog
+          draft={issuing}
+          onClose={() => {
+            setIssuing(undefined);
+            void showSaved(issuing);
+          }}
+        />
+      )}
     </>
   );
 }

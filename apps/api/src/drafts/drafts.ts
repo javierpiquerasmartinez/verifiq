@@ -13,7 +13,7 @@ import {
   type WithholdingRate,
 } from '@verifiq/domain';
 import { and, desc, eq, type SQL } from 'drizzle-orm';
-import { DATABASE, type Database } from '../database/database.module.js';
+import { DATABASE, type Database, type Queryable } from '../database/database.module.js';
 import { drafts, recipients } from '../database/schema.js';
 
 // Every method takes the issuer id resolved by the isolation layer (issuer-context.ts) and filters by it.
@@ -54,8 +54,12 @@ export class DraftsService {
     }));
   }
 
-  async find(issuerId: string, id: string): Promise<Draft> {
-    const [row] = await this.db
+  /**
+   * With `lock`, inside the transaction `db`, the draft stays locked until it ends: no one else can
+   * edit, delete or issue it meanwhile.
+   */
+  async find(issuerId: string, id: string, { db = this.db, lock = false }: { db?: Queryable; lock?: boolean } = {}): Promise<Draft> {
+    const query = db
       .select({
         draft: drafts,
         recipient: {
@@ -73,6 +77,7 @@ export class DraftsService {
       .from(drafts)
       .leftJoin(recipients, eq(recipients.id, drafts.recipientId))
       .where(this.owned(issuerId, id));
+    const [row] = await (lock ? query.for('update', { of: drafts }) : query);
     if (!row) throw new DraftNotFoundError();
 
     const { draft } = row;
@@ -131,8 +136,8 @@ export class DraftsService {
     return this.find(issuerId, id);
   }
 
-  async delete(issuerId: string, id: string): Promise<void> {
-    const deleted = await this.db.delete(drafts).where(this.owned(issuerId, id)).returning({ id: drafts.id });
+  async delete(issuerId: string, id: string, { db = this.db }: { db?: Queryable } = {}): Promise<void> {
+    const deleted = await db.delete(drafts).where(this.owned(issuerId, id)).returning({ id: drafts.id });
     if (deleted.length === 0) throw new DraftNotFoundError();
   }
 

@@ -816,6 +816,183 @@ button.step:hover {
   color: var(--ink-2);
   background: transparent;
 }
+.sf-issued {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: #fff;
+}
+
+/* InvoiceRecord status at the AEAT (pill with the AEAT key) */
+.sr {
+  display: inline-flex;
+  align-items: stretch;
+  height: 24px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.sr-k {
+  display: flex;
+  align-items: center;
+  padding: 0 7px 0 9px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  border-right: 1px solid;
+  opacity: 0.9;
+}
+.sr-v {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px 0 7px;
+}
+.sr-accepted {
+  border-color: var(--ok-line);
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+.sr-accepted .sr-k {
+  border-color: var(--ok-line);
+}
+.sr-pending {
+  border-color: var(--line-strong);
+  color: var(--ink-2);
+  background: var(--surface-2);
+}
+.sr-pending .sr-k {
+  border-color: var(--line-strong);
+}
+.sr-sending {
+  border-color: var(--info-line);
+  color: var(--info);
+  background: var(--info-soft);
+}
+.sr-sending .sr-k {
+  border-color: var(--info-line);
+}
+.sr-blocked {
+  border-color: var(--danger);
+  color: #fff;
+  background: var(--danger);
+}
+.sr-blocked .sr-k {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.sr-warn {
+  border-color: var(--warn-line);
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+.sr-warn .sr-k {
+  border-color: var(--warn-line);
+}
+.states {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* modal dialog */
+.modal {
+  border: 0;
+  padding: 0;
+  background: #fff;
+  border-radius: var(--r-xl);
+  box-shadow: 0 24px 64px rgba(20, 30, 38, 0.28);
+  width: 560px;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  color: var(--ink);
+}
+.modal::backdrop {
+  background: rgba(20, 30, 38, 0.52);
+}
+.modal-head {
+  padding: 26px 28px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.modal-body {
+  padding: 18px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.modal-foot {
+  padding: 16px 28px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--surface-2);
+}
+@media (max-width: 560px) {
+  .modal-head,
+  .modal-body,
+  .modal-foot {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+.irr {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.progress {
+  width: 100%;
+  height: 6px;
+  background: var(--surface-3);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progress > span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--info);
+  border-radius: 99px;
+  animation: progress 1.4s ease-in-out infinite;
+}
+@keyframes progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress > span {
+    animation: none;
+    width: 100%;
+  }
+}
+
+/* the QR tributario: the label above, VERI*FACTU below (Orden HAC/1177/2024) */
+.tax-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.tax-qr-label {
+  font-size: 12px;
+  font-weight: 600;
+}
 
 /* draft editor */
 .editor {

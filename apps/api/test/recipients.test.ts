@@ -2,7 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DATABASE, type Database } from '../src/database/database.module.js';
-import { invoices, recipients } from '../src/database/schema.js';
+import { recipients } from '../src/database/schema.js';
 import { FakeVerifactuConnector } from '../src/verifactu/fake-connector.js';
 import { activeUser, type Agent } from './access.js';
 import { onboardedUser, uniqueTaxId } from './issuer.js';
@@ -45,10 +45,22 @@ describe('Recipients', () => {
       (call) => call.operation === 'validateTaxId' && (call.input as { taxId: string }).taxId === taxId,
     );
 
-  /** Issuance arrives with issue 10: until then, an invoice row is enough to tie a recipient to it. */
-  async function issueInvoiceTo(recipientId: string) {
+  /** Signs the issuer's Representation and issues it an invoice to the recipient. */
+  async function issueInvoiceTo(agent: Agent, recipientId: string) {
     const [recipient] = await db.select().from(recipients).where(eq(recipients.id, recipientId));
-    await db.insert(invoices).values({ issuerId: recipient!.issuerId, recipientId });
+    await agent.get('/issuer/representation').expect(200);
+    connector.signRepresentation(recipient!.issuerId);
+    const { body: draft } = await agent
+      .post('/drafts')
+      .send({
+        recipientId,
+        billingPeriod: null,
+        operationDescription: 'Servicios odontológicos',
+        lines: [{ concept: 'Endodoncias', quantity: '1', unitPrice: '100', vat: { kind: 'exempt', ground: 'dentistry' } }],
+        withholding: 15,
+      })
+      .expect(201);
+    await agent.post('/invoices').send({ draftId: draft.id }).expect(201);
   }
 
   it('creates a recipient whose tax ID the census has under its name', async () => {
@@ -190,7 +202,7 @@ describe('Recipients', () => {
   it('only archives a recipient with issued invoices: it leaves the list but can be restored', async () => {
     const { agent } = await onboardedUser(app);
     const { id } = await create(agent);
-    await issueInvoiceTo(id);
+    await issueInvoiceTo(agent, id);
 
     const refused = await agent.delete(`/recipients/${id}`).expect(409);
     expect(refused.body).toMatchObject({ code: 'RECIPIENT_HAS_INVOICES' });
