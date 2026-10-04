@@ -1,17 +1,16 @@
 import { Link, useParams } from '@tanstack/react-router';
 import { formatSpanishDate, type Invoice } from '@verifiq/domain';
 import { ApiError } from '../api';
-import { decimalInputOf, formatAmount, formatWithheld } from '../format';
+import { formatAmount, formatWithheld } from '../format';
 import { useSessionExpiry } from '../session';
 import { useInvoice } from '../use-invoice';
 import { AppShell } from '../ui/AppShell';
 import { Alert } from '../ui/components';
-import { DraftSummary } from '../ui/DraftSummary';
 import { Icon } from '../ui/icons';
-import { InvoicePdfLinks } from '../ui/InvoicePdfLinks';
-import { InvoiceStates, TaxQr } from '../ui/InvoiceStates';
+import { DownloadPdfButton, InvoiceDocument } from '../ui/InvoicePdf';
+import { InvoiceStates, RecordState } from '../ui/InvoiceStates';
 
-/** An issued invoice: its legal situation at a glance (both states, QR) and its frozen copy. */
+/** An issued invoice: its legal situation at a glance (both states) and the PDF made from its frozen copy. */
 export function InvoicePage() {
   const { invoiceId } = useParams({ from: '/invoices/$invoiceId' });
   const invoice = useInvoice(invoiceId);
@@ -33,8 +32,6 @@ export function InvoicePage() {
   );
 }
 
-const vatLabel = ({ vat }: Invoice['lines'][number]) => (vat.kind === 'exempt' ? 'Exenta' : `${vat.rate} %`);
-
 function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const { breakdown, recipient, record } = invoice;
   return (
@@ -50,7 +47,10 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
           <dl className="kv" style={{ gridTemplateColumns: '150px 1fr', gap: '8px 24px' }}>
             <dt>Cliente</dt>
             <dd>
-              {recipient.name} <span className="mono xs muted">{recipient.taxId}</span>
+              <Link to="/recipients/$recipientId" params={{ recipientId: invoice.recipientId }} className="lnk">
+                {recipient.name}
+              </Link>{' '}
+              <span className="mono xs muted">{recipient.taxId}</span>
             </dd>
             <dt>Fecha de expedición</dt>
             <dd>{formatSpanishDate(invoice.issueDate)}</dd>
@@ -66,16 +66,19 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
             <dd className="num">{formatAmount(breakdown.totalAmount)}</dd>
           </dl>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <span className="eyebrow">Total a pagar</span>
-          <p className="num" style={{ fontSize: 40, fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.1, color: 'var(--primary)' }}>
-            {formatAmount(breakdown.amountDue)}
-          </p>
-          {breakdown.withholding.rate > 0 && (
-            <span className="xs muted">
-              Retención IRPF {breakdown.withholding.rate} %: {formatWithheld(breakdown.withholding.amount)}
-            </span>
-          )}
+        <div className="stack" style={{ alignItems: 'flex-end', gap: 18 }}>
+          <div style={{ textAlign: 'right' }}>
+            <span className="eyebrow">Total a pagar</span>
+            <p className="num" style={{ fontSize: 40, fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.1, color: 'var(--primary)' }}>
+              {formatAmount(breakdown.amountDue)}
+            </p>
+            {breakdown.withholding.rate > 0 && (
+              <span className="xs muted">
+                Retención IRPF {breakdown.withholding.rate} %: {formatWithheld(breakdown.withholding.amount)}
+              </span>
+            )}
+          </div>
+          <DownloadPdfButton invoice={invoice} />
         </div>
       </section>
 
@@ -88,53 +91,20 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
         </Alert>
       )}
 
-      <div className="editor">
-        <section className="card editor-main" style={{ overflow: 'hidden', gap: 0 }} aria-labelledby="invoice-lines">
-          <div className="card-head">
-            <h2 className="h3" id="invoice-lines">
-              Líneas
+      <div className="invoice-layout">
+        <InvoiceDocument invoice={invoice} />
+        <aside className="invoice-side">
+          <section className="card card-pad stack" style={{ gap: 12 }} aria-labelledby="invoice-record">
+            <h2 className="h3" id="invoice-record">
+              Registro en la AEAT
             </h2>
-            <span className="small muted">{invoice.operationDescription}</span>
-          </div>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Concepto</th>
-                <th className="r">Cant.</th>
-                <th className="r">Precio unit.</th>
-                <th className="r">Dto.</th>
-                <th>IVA</th>
-                <th className="r">Importe</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoice.lines.map((line, i) => (
-                <tr key={i}>
-                  <td>{line.concept}</td>
-                  <td className="r num">{decimalInputOf(line.quantity)}</td>
-                  <td className="r num">{formatAmount(line.unitPrice)}</td>
-                  <td className="r num">{line.discountPercent ? `${decimalInputOf(line.discountPercent)} %` : '—'}</td>
-                  <td>{vatLabel(line)}</td>
-                  <td className="r num">{formatAmount(breakdown.lines[i]!.base)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-
-        <aside className="editor-side">
-          {record.verificationUrl && (
-            <section className="card card-pad stack" style={{ gap: 16 }} aria-label="QR tributario">
-              <div className="row" style={{ gap: 20, flexWrap: 'nowrap' }}>
-                <TaxQr url={record.verificationUrl} number={invoice.number} />
-                <p className="small ink2">
-                  Cualquiera puede comprobar en la AEAT que esta factura está registrada escaneando el código.
-                </p>
-              </div>
-              <InvoicePdfLinks invoice={invoice} />
-            </section>
-          )}
-          <DraftSummary breakdown={breakdown} recipientName={recipient.name} />
+            <dl className="kv" style={{ gridTemplateColumns: '130px 1fr', gap: '8px 16px', fontSize: 14 }}>
+              <dt>Estado</dt>
+              <dd>
+                <RecordState status={record.status} />
+              </dd>
+            </dl>
+          </section>
         </aside>
       </div>
     </div>

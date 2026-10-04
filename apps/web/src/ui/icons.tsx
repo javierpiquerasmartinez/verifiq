@@ -16,6 +16,15 @@ const paths = {
   chevron: <path d="M6 9l6 6 6-6" />,
   chevronRight: <path d="M9 6l6 6-6 6" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
+  closeSmall: <path d="M7 7l10 10M17 7L7 17" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  mark: <path d="M12 7v6M12 16.5v.5" />,
+  spinner: <path d="M12 3a9 9 0 1 0 9 9" />,
   hash: <path d="M5 9h14M9 4v16M15 4v16M5 15h14" />,
   eye: (
     <>
@@ -49,9 +58,12 @@ const paths = {
   ),
 };
 
-export function Icon({ name, size }: { name: keyof typeof paths; size?: 'xs' }) {
+export type IconName = keyof typeof paths;
+
+export function Icon({ name, size, spin }: { name: IconName; size?: 'xs' | 'lg'; spin?: boolean }) {
+  const className = ['ic', size && `ic-${size}`, spin && 'spin'].filter(Boolean).join(' ');
   return (
-    <svg className={size ? `ic ic-${size}` : 'ic'} viewBox="0 0 24 24" aria-hidden="true">
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
       {paths[name]}
     </svg>
   );

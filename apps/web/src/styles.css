@@ -30,6 +30,7 @@
   --r-lg: 10px;
   --r-xl: 14px;
   --shadow-1: 0 1px 2px rgba(20, 30, 38, 0.06), 0 1px 1px rgba(20, 30, 38, 0.04);
+  --shadow-2: 0 8px 24px rgba(20, 30, 38, 0.1), 0 2px 6px rgba(20, 30, 38, 0.06);
   --font: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 }
@@ -125,6 +126,23 @@ ul {
   width: 14px;
   height: 14px;
   stroke-width: 2;
+}
+.ic-lg {
+  width: 22px;
+  height: 22px;
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
 }
 
 /* shell */
@@ -309,6 +327,11 @@ ul {
   transition:
     background 0.12s,
     border-color 0.12s;
+}
+.btn-lg {
+  height: 52px;
+  padding: 0 24px;
+  font-size: 16px;
 }
 .btn-sm {
   height: 40px;
@@ -510,6 +533,11 @@ ul {
 }
 .alert > .ic {
   margin-top: 2px;
+}
+.alert-neutral {
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--ink);
 }
 .alert-danger {
   background: var(--danger-soft);
@@ -981,6 +1009,37 @@ button.step:hover {
   }
 }
 
+/* the round badge that heads a dialog with its outcome */
+.dialog-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.dialog-badge-lg {
+  width: 64px;
+  height: 64px;
+}
+.dialog-badge-lg .ic {
+  width: 30px;
+  height: 30px;
+  stroke-width: 2;
+}
+.dialog-badge-info {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.dialog-badge-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.dialog-badge-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 /* the QR tributario: the label above, VERI*FACTU below (Orden HAC/1177/2024) */
 .tax-qr {
   display: flex;
@@ -992,6 +1051,46 @@ button.step:hover {
 .tax-qr-label {
   font-size: 12px;
   font-weight: 600;
+}
+
+/* issued invoice */
+.invoice-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.invoice-document {
+  flex: 1 1 640px;
+  min-width: 0;
+  overflow: hidden;
+}
+.invoice-document-body {
+  background: var(--surface-3);
+  padding: 32px;
+  display: flex;
+  justify-content: center;
+}
+.invoice-document-pdf {
+  display: block;
+  width: 100%;
+  max-width: 680px;
+  aspect-ratio: 210 / 297;
+  border: 0;
+  background: #fff;
+  box-shadow: var(--shadow-2);
+}
+.invoice-side {
+  flex: 0 1 420px;
+  min-width: min(320px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+@media (max-width: 680px) {
+  .invoice-document-body {
+    padding: 16px;
+  }
 }
 
 /* draft editor */

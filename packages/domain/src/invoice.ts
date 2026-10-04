@@ -44,6 +44,8 @@ export const invoiceSchema = z.object({
   }),
   /** The current version of its PDF: there is none until the record has its QR. */
   pdf: z.object({ version: z.number().int().positive() }).nullable(),
+  /** The recipient it was issued to, whose data may have changed since. */
+  recipientId: z.uuid(),
   /** The issuer and the recipient as they were when the invoice was issued. */
   issuer: fiscalDataSchema,
   recipient: recipientDataSchema,

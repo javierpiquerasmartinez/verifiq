@@ -7,8 +7,8 @@ import { useInvoice } from '../use-invoice';
 import { formatAmount } from '../format';
 import { Alert } from './components';
 import { Icon } from './icons';
-import { InvoicePdfLinks } from './InvoicePdfLinks';
-import { InvoiceStates, TaxQr } from './InvoiceStates';
+import { DownloadPdfButton } from './InvoicePdf';
+import { InvoiceStates, RecordState, TaxQr } from './InvoiceStates';
 
 function issueError(cause: unknown): string {
   if (cause instanceof ApiError && cause.code === InvoiceErrorCode.CannotIssue) {
@@ -74,7 +74,10 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
       {!invoice ? (
         <>
           <div className="modal-head">
-            <span className="irr ink2">No se puede deshacer</span>
+            <span className="irr ink2">
+              <Icon name="lock" size="xs" />
+              No se puede deshacer
+            </span>
             <h2 className="h2" id="issue-title">
               ¿Emitir esta factura?
             </h2>
@@ -103,7 +106,8 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
                 {formatAmount(breakdown.amountDue)}
               </dd>
             </dl>
-            <div className="alert" style={{ background: '#fff', borderColor: 'var(--line-strong)' }}>
+            <div className="alert alert-neutral" style={{ background: '#fff', borderColor: 'var(--line-strong)' }}>
+              <Icon name="lock" />
               <p>
                 <b>Una vez emitida, la factura se registra en la AEAT y no se puede modificar ni borrar.</b> Si después hay
                 que cambiar algo, se hará con una factura rectificativa.
@@ -116,12 +120,16 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
               Volver al borrador
             </button>
             <button type="button" className="btn btn-primary" onClick={issue} disabled={pending || !nextNumber.data}>
+              <Icon name={pending ? 'spinner' : 'lock'} spin={pending} />
               {pending ? 'Emitiendo…' : `Emitir factura ${nextNumber.data ?? ''}`}
             </button>
           </div>
         </>
       ) : invoice.record.status === 'pending-submission' ? (
         <div className="modal-body" style={{ padding: '48px 32px', alignItems: 'center', textAlign: 'center', gap: 18 }}>
+          <div className="dialog-badge dialog-badge-lg dialog-badge-info">
+            <Icon name="spinner" size="lg" spin />
+          </div>
           <div className="stack" style={{ gap: 6 }}>
             <h2 className="h2" id="issue-title">
               Enviando…
@@ -134,24 +142,13 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
           <div className="progress" role="progressbar" aria-label="Enviando a la AEAT">
             <span />
           </div>
-          <InvoiceStates invoice={invoice} />
+          <RecordState status={invoice.record.status} />
         </div>
       ) : (
         <>
           <div className="modal-head" style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: '50%',
-                background: invoice.record.status === 'blocked' ? 'var(--danger-soft)' : 'var(--ok-soft)',
-                color: invoice.record.status === 'blocked' ? 'var(--danger)' : 'var(--ok)',
-                display: 'grid',
-                placeItems: 'center',
-                flex: 'none',
-              }}
-            >
-              <Icon name={invoice.record.status === 'blocked' ? 'alert' : 'check'} />
+            <div className={`dialog-badge dialog-badge-${invoice.record.status === 'blocked' ? 'danger' : 'ok'}`}>
+              <Icon name={invoice.record.status === 'blocked' ? 'alert' : 'check'} size="lg" />
             </div>
             <div>
               <h2 className="h2" id="issue-title">
@@ -168,8 +165,10 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
                 <TaxQr url={invoice.record.verificationUrl} number={invoice.number} />
                 <div className="stack" style={{ gap: 10 }}>
                   <InvoiceStates invoice={invoice} />
-                  <p className="small ink2">Hacienda suele confirmar el registro en 1–2 minutos.</p>
-                  <InvoicePdfLinks invoice={invoice} />
+                  <p className="small ink2">
+                    Hacienda suele confirmar el registro en 1–2 minutos. El PDF ya es válido y puedes descargarlo y
+                    enviarlo.
+                  </p>
                 </div>
               </div>
             ) : (
@@ -185,9 +184,16 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
             <Link to="/" className="btn btn-ghost">
               Volver a facturas
             </Link>
-            <Link to="/invoices/$invoiceId" params={{ invoiceId: invoice.id }} className="btn btn-primary">
-              Ver factura
-            </Link>
+            <div className="row" style={{ gap: 10 }}>
+              <Link
+                to="/invoices/$invoiceId"
+                params={{ invoiceId: invoice.id }}
+                className={`btn ${invoice.record.verificationUrl ? 'btn-secondary' : 'btn-primary'}`}
+              >
+                Ver factura
+              </Link>
+              <DownloadPdfButton invoice={invoice} />
+            </div>
           </div>
         </>
       )}

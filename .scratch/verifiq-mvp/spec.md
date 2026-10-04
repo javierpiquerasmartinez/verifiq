@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 
-Referencias: `GLOSSARY.md`, `docs/adr/0001`–`0005`, `docs/research/verifactu-verifacti.md`, `docs/research/dentista.md`, `docs/research/rectificativas-y-fechas.md`. Diseño: `design.html` (pendiente) y el brief de diseño del MVP.
+Referencias: `GLOSSARY.md`, `docs/adr/0001`–`0005`, `docs/research/verifactu-verifacti.md`, `docs/research/dentista.md`, `docs/research/rectificativas-y-fechas.md`. Diseño: `design.html` y el brief de diseño del MVP.
 
 ## Problem Statement
 
@@ -225,6 +225,6 @@ El operador del SaaS (yo) invita a los Usuarios y vigila la salud operativa desd
 - Fechas: VeriFactu obligatorio para autónomos el 1 jul 2027; el productor del SIF debe cumplir desde la primera factura emitida con Verifiq. Revisar antes del lanzamiento que no haya nuevos aplazamientos.
 - Pendiente de validación por un asesor fiscal (no bloquea la implementación; son configuración): tabla motivo → R1/R4, criterio de Anulación cuando la factura no se entregó, fecha de operación de facturas mensuales (último día del Periodo facturado).
 - Pendiente con Verifacti: cómo se identifica nuestro SIF en el XML, si exponen el CSV de la AEAT, precio para integradores.
-- Pendiente del operador: textos legales (términos, contrato de encargo, privacidad, declaración responsable), contratos de subencargo con proveedores, `design.html`.
+- Pendiente del operador: textos legales (términos, contrato de encargo, privacidad, declaración responsable), contratos de subencargo con proveedores.
 - El Usuario es responsable de elegir el tratamiento de IVA de cada línea; Verifiq ofrece todas las opciones del alcance.
 - Se espera un volumen bajo (1 Emisor piloto, pocas facturas al mes), pero el diseño no debe impedir crecer a muchos Emisores.

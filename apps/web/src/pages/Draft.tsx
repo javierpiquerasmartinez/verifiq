@@ -442,11 +442,12 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
 
           <button
             type="button"
-            className="btn btn-primary btn-block"
+            className="btn btn-primary btn-lg btn-block"
             onClick={startIssuing}
             disabled={pending || !canIssue}
             aria-describedby={issuer.data && !canIssue ? 'issue-unavailable' : undefined}
           >
+            <Icon name="lock" />
             Emitir factura
           </button>
           {issuer.data && !canIssue && (
