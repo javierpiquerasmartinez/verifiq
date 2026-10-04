@@ -100,7 +100,7 @@ export class InvoicesController {
     @Query('download') download: string | undefined,
     @Res() response: Response,
   ): Promise<void> {
-    const pdf = await run(this.pdfs.current(issuerId, invoiceId(id)));
+    const pdf = await run(this.pdfs.currentFile(issuerId, invoiceId(id)));
     response
       .set({
         'Content-Type': 'application/pdf',

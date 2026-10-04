@@ -11,8 +11,9 @@ import { createRequire } from 'node:module';
 import type { ReactNode } from 'react';
 
 // The PDF of an issued invoice, drawn from its frozen copy. Its content is the one the Reglamento de
-// facturación requires; the QR tributario goes at the top of the first page, as the VeriFactu order
-// (HAC/1177/2024) asks: 30–40 mm, with a quiet zone, "QR tributario:" above and "VERI*FACTU" below.
+// facturación requires; the QR tributario goes at the top of the first page, centred, as the VeriFactu
+// order (HAC/1177/2024) asks: 30–40 mm, with a quiet zone, "QR tributario:" above and "VERI*FACTU"
+// below in type no smaller than the invoice's data.
 
 const require = createRequire(import.meta.url);
 const FONT = 'IBM Plex Sans';
@@ -45,11 +46,11 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 },
   logo: { maxHeight: 44, maxWidth: 160, objectFit: 'contain', marginBottom: 8 },
   partyName: { fontSize: 11, fontWeight: 600, marginBottom: 2 },
-  qr: { alignItems: 'center' },
-  qrCaption: { fontSize: 8, fontWeight: 600 },
+  qr: { alignItems: 'center', marginBottom: 6 },
+  qrCaption: { fontSize: 10, fontWeight: 600 },
   // 35 mm, inside a white margin of 3 mm: the quiet zone.
   qrImage: { width: '35mm', height: '35mm', margin: '3mm' },
-  title: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 },
+  title: { marginBottom: 10 },
   h1: { fontSize: 20, fontWeight: 600 },
   kv: { flexDirection: 'row', gap: 8 },
   kvLabel: { width: 100, color: MUTED },
@@ -94,6 +95,20 @@ function Sum({ label, amount, strong = false }: { label: string; amount: string;
   );
 }
 
+/** Who issues or receives the invoice: name, tax ID and address. */
+function Party({ party }: { party: InvoiceSnapshot['recipient'] }) {
+  return (
+    <>
+      <Text style={styles.partyName}>{party.name}</Text>
+      <Text>NIF {party.taxId}</Text>
+      <Text>{party.address}</Text>
+      <Text>
+        {party.postalCode} {party.municipality} ({party.province})
+      </Text>
+    </>
+  );
+}
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View style={styles.kv}>
@@ -108,27 +123,19 @@ export function InvoicePdf({ number, issueDate, snapshot, qrPng, logo }: Invoice
   return (
     <Document title={`Factura ${number}`} author={issuer.name} language="es">
       <Page size="A4" style={styles.page}>
+        <View style={styles.qr}>
+          <Text style={styles.qrCaption}>QR tributario:</Text>
+          <Image style={styles.qrImage} src={{ data: qrPng, format: 'png' }} />
+          <Text style={styles.qrCaption}>VERI*FACTU</Text>
+        </View>
+
         <View style={styles.head}>
           <View>
             {logo && <Image style={styles.logo} src={logo} />}
-            <Text style={styles.partyName}>{issuer.name}</Text>
-            <Text>NIF {issuer.taxId}</Text>
-            <Text>{issuer.address}</Text>
-            <Text>
-              {issuer.postalCode} {issuer.municipality} ({issuer.province})
-            </Text>
+            <Party party={issuer} />
             {issuer.email && <Text>{issuer.email}</Text>}
             {issuer.phone && <Text>{issuer.phone}</Text>}
           </View>
-          <View style={styles.qr}>
-            <Text style={styles.qrCaption}>QR tributario:</Text>
-            <Image style={styles.qrImage} src={{ data: qrPng, format: 'png' }} />
-            <Text style={styles.qrCaption}>VERI*FACTU</Text>
-          </View>
-        </View>
-
-        <View style={styles.title}>
-          <Text style={styles.h1}>Factura {number}</Text>
           <View>
             <Field label="Fecha de expedición">{formatSpanishDate(issueDate)}</Field>
             {billingPeriod && (
@@ -142,14 +149,11 @@ export function InvoicePdf({ number, issueDate, snapshot, qrPng, logo }: Invoice
           </View>
         </View>
 
+        <Text style={[styles.h1, styles.title]}>Factura {number}</Text>
+
         <View style={styles.recipient}>
           <Text style={styles.eyebrow}>Facturar a</Text>
-          <Text style={styles.partyName}>{recipient.name}</Text>
-          <Text>NIF {recipient.taxId}</Text>
-          <Text>{recipient.address}</Text>
-          <Text>
-            {recipient.postalCode} {recipient.municipality} ({recipient.province})
-          </Text>
+          <Party party={recipient} />
         </View>
 
         {snapshot.operationDescription && <Text style={styles.description}>{snapshot.operationDescription}</Text>}

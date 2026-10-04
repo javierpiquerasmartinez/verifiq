@@ -170,6 +170,7 @@ describe('Invoice PDF', () => {
       formatSpanishDate(todayInSpain()),
       'Periodo facturado',
       `${formatSpanishDate('2026-08-01')} – ${formatSpanishDate('2026-08-31')}`,
+      `Fecha de operación ${formatSpanishDate('2026-08-31')}`,
       // Lines.
       'Servicios odontológicos agosto 2026',
       'Odontología conservadora',

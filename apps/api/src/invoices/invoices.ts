@@ -17,8 +17,8 @@ import { recordAuditEvent } from '../audit/audit.js';
 import { DATABASE, inTransaction, type Database, type Queryable } from '../database/database.module.js';
 import { invoiceRecords, invoices, issuers, seriesCounters } from '../database/schema.js';
 import { DraftsService } from '../drafts/drafts.js';
-import { InvoicePdfsService } from './invoice-pdfs.js';
 import { RepresentationService } from '../issuers/representation.js';
+import { InvoicePdfsService } from './invoice-pdfs.js';
 import { SubmissionQueue } from './submission-queue.js';
 
 // Every method takes the issuer id resolved by the isolation layer (issuer-context.ts) and filters by it.

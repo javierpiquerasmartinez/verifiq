@@ -88,7 +88,7 @@ export class InvoicePdfsService {
   }
 
   /** The stored file of the invoice's current PDF version. */
-  async current(issuerId: string, invoiceId: string): Promise<InvoicePdfFile> {
+  async currentFile(issuerId: string, invoiceId: string): Promise<InvoicePdfFile> {
     const [row] = await this.db
       .select({ storageKey: invoicePdfs.storageKey, series: invoices.series, number: invoices.number })
       .from(invoicePdfs)
