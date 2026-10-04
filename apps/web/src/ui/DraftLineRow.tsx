@@ -1,15 +1,7 @@
 import { EXEMPTION_GROUND_IDS, exemptionGround, VAT_RATES, type ExemptionGroundId, type VatTreatment } from '@verifiq/domain';
-import { vatChoiceOf, type LineErrors, type LineState, type VatChoice } from '../draft-lines';
+import { vatChoiceOf, vatFor, type LineErrors, type LineState, type VatChoice } from '../draft-lines';
 import { formatAmount } from '../format';
 import { Icon } from './icons';
-
-/** The treatment a line takes when its VAT choice changes; an exempt line keeps or inherits a ground. */
-function vatFor(choice: VatChoice, current: VatTreatment, defaultVat: VatTreatment): VatTreatment {
-  if (choice !== 'exempt') return { kind: 'taxed', rate: Number(choice) as (typeof VAT_RATES)[number] };
-  const ground: ExemptionGroundId =
-    current.kind === 'exempt' ? current.ground : defaultVat.kind === 'exempt' ? defaultVat.ground : EXEMPTION_GROUND_IDS[0];
-  return { kind: 'exempt', ground };
-}
 
 /** One line of the draft editor: concept, quantity, unit price, discount, VAT and its base. */
 export function DraftLineRow({

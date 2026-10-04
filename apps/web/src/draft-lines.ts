@@ -1,4 +1,4 @@
-import type { DraftLine, DraftLineInput, VAT_RATES, VatTreatment } from '@verifiq/domain';
+import { EXEMPTION_GROUND_IDS, type DraftLine, type DraftLineInput, type ExemptionGroundId, type VAT_RATES, type VatTreatment } from '@verifiq/domain';
 import { decimalInputOf, parseDecimalInput } from './format';
 
 // Draft lines in the editor: kept as typed (Spanish style), parsed on every render.
@@ -57,3 +57,11 @@ export function parseLine(state: LineState): { line: DraftLineInput | null; erro
 export type VatChoice = 'exempt' | `${(typeof VAT_RATES)[number]}`;
 
 export const vatChoiceOf = (vat: VatTreatment): VatChoice => (vat.kind === 'exempt' ? 'exempt' : `${vat.rate}`);
+
+/** The treatment a line (or catalog item) takes when its VAT choice changes; an exempt line keeps or inherits a ground. */
+export function vatFor(choice: VatChoice, current: VatTreatment, defaultVat: VatTreatment): VatTreatment {
+  if (choice !== 'exempt') return { kind: 'taxed', rate: Number(choice) as (typeof VAT_RATES)[number] };
+  const ground: ExemptionGroundId =
+    current.kind === 'exempt' ? current.ground : defaultVat.kind === 'exempt' ? defaultVat.ground : EXEMPTION_GROUND_IDS[0];
+  return { kind: 'exempt', ground };
+}

@@ -8,6 +8,8 @@ import {
 import { z } from 'zod';
 import { fetchOnboarding } from './api';
 import { currentUser } from './auth-client';
+import { CatalogItemPage, NewCatalogItemPage } from './pages/CatalogItem';
+import { CatalogItemsPage } from './pages/CatalogItems';
 import { DraftPage, NewDraftPage } from './pages/Draft';
 import { DraftPreviewPage } from './pages/DraftPreview';
 import { ForgotPasswordPage } from './pages/ForgotPassword';
@@ -89,6 +91,27 @@ const recipientRoute = createRoute({
   component: RecipientPage,
 });
 
+const catalogItemsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/catalog-items',
+  beforeLoad: requireOnboardedUser,
+  component: CatalogItemsPage,
+});
+
+const newCatalogItemRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/catalog-items/new',
+  beforeLoad: requireOnboardedUser,
+  component: NewCatalogItemPage,
+});
+
+const catalogItemRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/catalog-items/$catalogItemId',
+  beforeLoad: requireOnboardedUser,
+  component: CatalogItemPage,
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',
@@ -161,6 +184,9 @@ const routeTree = rootRoute.addChildren([
   recipientsRoute,
   newRecipientRoute,
   recipientRoute,
+  catalogItemsRoute,
+  newCatalogItemRoute,
+  catalogItemRoute,
   settingsRoute,
   onboardingRoute,
   representationStepRoute,

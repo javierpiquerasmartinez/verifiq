@@ -35,6 +35,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Link to="/recipients" activeProps={{ className: 'on' }}>
               Clientes
             </Link>
+            <Link to="/catalog-items" activeProps={{ className: 'on' }}>
+              Artículos
+            </Link>
             <Link to="/settings" activeProps={{ className: 'on' }}>
               Ajustes
             </Link>

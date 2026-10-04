@@ -1,4 +1,5 @@
 import {
+  catalogItemSchema,
   draftSchema,
   draftSummarySchema,
   issuerSummarySchema,
@@ -9,6 +10,8 @@ import {
   representationSchema,
   type AcceptInvitation,
   type AcceptTerms,
+  type CatalogItem,
+  type CatalogItemDataInput,
   type Draft,
   type DraftDataInput,
   type DraftSummary,
@@ -172,4 +175,28 @@ export async function updateDraft(id: string, body: DraftDataInput): Promise<Dra
 
 export async function deleteDraft(id: string): Promise<void> {
   await request(`/drafts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+const catalogItemListSchema = catalogItemSchema.array();
+
+/** Sorted by name. */
+export async function fetchCatalogItems(): Promise<CatalogItem[]> {
+  return catalogItemListSchema.parse(await request('/catalog-items'));
+}
+
+export async function fetchCatalogItem(id: string): Promise<CatalogItem> {
+  return catalogItemSchema.parse(await request(`/catalog-items/${encodeURIComponent(id)}`));
+}
+
+export async function createCatalogItem(body: CatalogItemDataInput): Promise<CatalogItem> {
+  return catalogItemSchema.parse(await request('/catalog-items', sendJson('POST', body)));
+}
+
+export async function updateCatalogItem(id: string, body: CatalogItemDataInput): Promise<CatalogItem> {
+  return catalogItemSchema.parse(await request(`/catalog-items/${encodeURIComponent(id)}`, sendJson('PUT', body)));
+}
+
+/** Lines copied from it keep their values. */
+export async function deleteCatalogItem(id: string): Promise<void> {
+  await request(`/catalog-items/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
