@@ -5,11 +5,13 @@ import { loadEnv, type Env } from './config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { SubmissionModule } from './invoices/invoices.module.js';
 import { SUBMISSION_QUEUE_NAME } from './invoices/submission-queue.js';
+import { objectStorageFromEnv } from './storage/from-env.js';
+import { StorageModule } from './storage/storage.module.js';
 import { verifactuConnectorFromEnv } from './verifactu/from-env.js';
 import { VerifactuModule } from './verifactu/verifactu.module.js';
 import { loadBuildVersion } from './version.js';
 
-/** Background worker (Render): sends the InvoiceRecords of the outbox to the VeriFactu connector. */
+/** Background worker (Render): sends the InvoiceRecords of the outbox to the VeriFactu connector and draws their PDFs. */
 @Module({})
 class WorkerModule {
   static forRoot(env: Env): DynamicModule {
@@ -18,6 +20,7 @@ class WorkerModule {
       imports: [
         DatabaseModule.forRoot(env.DATABASE_URL),
         VerifactuModule.forRoot(verifactuConnectorFromEnv(env)),
+        StorageModule.forRoot(objectStorageFromEnv(env)),
         SubmissionModule.forRoot({ databaseUrl: env.DATABASE_URL, queueName: SUBMISSION_QUEUE_NAME, work: true }),
       ],
     };

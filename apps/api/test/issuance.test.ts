@@ -99,6 +99,7 @@ describe('Issuance', () => {
       issueDate: todayInSpain(),
       status: 'issued',
       record: { status: 'pending-submission', verificationUrl: null, rejection: null },
+      pdf: null,
       issuer: {
         name: 'Lucía Ferrer Albiol',
         taxId,
@@ -374,7 +375,7 @@ describe('Issuance', () => {
     });
   });
 
-  it('records the issuance and its submission in the audit log', async () => {
+  it('records the issuance, its submission and its PDF in the audit log', async () => {
     const { agent, issuerId } = await issuingUser();
     const { invoice } = await issue(agent);
     await worker.runPending();
@@ -394,6 +395,7 @@ describe('Issuance', () => {
         subjectId: invoice.id,
         details: expect.objectContaining({ fingerprint: expect.any(String) }),
       }),
+      expect.objectContaining({ action: 'invoice-pdf-generated', actorUserId: null, subjectId: invoice.id }),
     ]);
     await expect(db.$client.query('DELETE FROM audit_events WHERE issuer_id = $1', [issuerId])).rejects.toThrow();
   });

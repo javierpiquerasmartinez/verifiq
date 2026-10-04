@@ -213,6 +213,10 @@ export async function fetchInvoice(id: string): Promise<Invoice> {
   return invoiceSchema.parse(await request(`/invoices/${encodeURIComponent(id)}`));
 }
 
+/** The stored PDF of the invoice, served to the signed-in user only: shown in the browser, or saved. */
+export const invoicePdfUrl = (id: string, { download = false } = {}) =>
+  `${apiUrl}/invoices/${encodeURIComponent(id)}/pdf${download ? '?download' : ''}`;
+
 /** The number the next Issuance assigns, unless another one comes first. */
 export async function fetchNextInvoiceNumber(): Promise<string> {
   return nextInvoiceNumberSchema.parse(await request('/invoices/next-number')).number;

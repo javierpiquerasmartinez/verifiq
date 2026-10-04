@@ -15,7 +15,7 @@ export interface StoredObject {
   contentType: string;
 }
 
-/** Port for private files (logos, later the PDFs). Nothing outside the adapters knows the provider. */
+/** Port for private files (logos, invoice PDFs). Nothing outside the adapters knows the provider. */
 export interface ObjectStorage {
   put(key: string, object: StoredObject): Promise<void>;
   /** null when there is no object under the key. */

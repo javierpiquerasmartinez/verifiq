@@ -3,7 +3,11 @@ import type { Queryable } from '../database/database.module.js';
 import { auditEvents } from '../database/schema.js';
 
 /** Every action with fiscal effect. */
-export type AuditAction = 'invoice-issued' | 'invoice-record-submitted' | 'invoice-record-blocked';
+export type AuditAction =
+  | 'invoice-issued'
+  | 'invoice-record-submitted'
+  | 'invoice-record-blocked'
+  | 'invoice-pdf-generated';
 
 export type AuditEvent = Omit<typeof auditEvents.$inferSelect, 'action'> & { action: AuditAction };
 

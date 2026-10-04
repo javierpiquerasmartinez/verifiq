@@ -17,6 +17,7 @@ import { recordAuditEvent } from '../audit/audit.js';
 import { DATABASE, inTransaction, type Database, type Queryable } from '../database/database.module.js';
 import { invoiceRecords, invoices, issuers, seriesCounters } from '../database/schema.js';
 import { DraftsService } from '../drafts/drafts.js';
+import { InvoicePdfsService } from './invoice-pdfs.js';
 import { RepresentationService } from '../issuers/representation.js';
 import { SubmissionQueue } from './submission-queue.js';
 
@@ -68,6 +69,7 @@ export class InvoicesService {
     private readonly drafts: DraftsService,
     private readonly representation: RepresentationService,
     private readonly queue: SubmissionQueue,
+    private readonly pdfs: InvoicePdfsService,
   ) {}
 
   /** Issues the draft, which becomes the invoice. Returns the invoice. */
@@ -152,6 +154,7 @@ export class InvoicesService {
     if (!row) throw new InvoiceNotFoundError();
     const { invoice, record } = row;
     const snapshot = invoice.snapshot as InvoiceSnapshot;
+    const pdfVersion = await this.pdfs.currentVersion(invoice.id);
     return {
       id: invoice.id,
       number: invoiceNumberIn(invoice.series, invoice.number),
@@ -165,6 +168,7 @@ export class InvoicesService {
             ? { code: record.rejectionCode, message: record.rejectionMessage ?? '' }
             : null,
       },
+      pdf: pdfVersion === null ? null : { version: pdfVersion },
       ...snapshot,
       issuedAt: invoice.createdAt.toISOString(),
     };

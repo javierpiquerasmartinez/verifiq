@@ -5,6 +5,7 @@ import { recordAuditEvent } from '../audit/audit.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { invoiceRecords, invoices } from '../database/schema.js';
 import { VERIFACTU_CONNECTOR, type RecordInvoice, type RecordLine, type VerifactuConnector } from '../verifactu/connector.js';
+import { InvoicePdfsService } from './invoice-pdfs.js';
 import { SUBMISSION_OPTIONS, SubmissionQueue, type SubmissionOptions } from './submission-queue.js';
 
 /** The connector did not answer: the record is still to be sent, with the same idempotency key. */
@@ -46,8 +47,9 @@ export function recordInvoiceOf(
 }
 
 /**
- * Sends InvoiceRecords to the VeriFactu connector (the worker service). Each record is sent with its
- * idempotency key, so retrying after a timeout never registers an invoice twice.
+ * Sends InvoiceRecords to the VeriFactu connector (the worker service), then draws the invoice's PDF
+ * with the QR it answered. Each record is sent with its idempotency key, so retrying after a timeout
+ * never registers an invoice twice; a job is done only once its invoice has its PDF.
  */
 @Injectable()
 export class SubmissionWorker implements OnApplicationBootstrap {
@@ -58,6 +60,7 @@ export class SubmissionWorker implements OnApplicationBootstrap {
     @Inject(VERIFACTU_CONNECTOR) private readonly connector: VerifactuConnector,
     @Inject(SUBMISSION_OPTIONS) private readonly options: SubmissionOptions,
     private readonly queue: SubmissionQueue,
+    private readonly pdfs: InvoicePdfsService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -81,8 +84,8 @@ export class SubmissionWorker implements OnApplicationBootstrap {
   }
 
   /**
-   * Sends the record if it is still pending. Keeps the fingerprint, QR and verification URL the
-   * connector answers, or blocks the record if it refuses it. Throws when it has to be retried.
+   * Sends the record if it is still pending, then generates the invoice's PDF once the record has its
+   * QR. Throws when it has to be retried.
    */
   async submit(invoiceRecordId: string): Promise<void> {
     const [row] = await this.db
@@ -90,8 +93,23 @@ export class SubmissionWorker implements OnApplicationBootstrap {
       .from(invoiceRecords)
       .innerJoin(invoices, eq(invoices.id, invoiceRecords.invoiceId))
       .where(eq(invoiceRecords.id, invoiceRecordId));
-    if (!row || row.record.status !== 'pending-submission') return;
-    const { record, invoice } = row;
+    if (!row) return;
+    if (row.record.status === 'pending-submission') await this.send(row);
+    // Does nothing without QR (blocked) or when the PDF exists: a retry only draws what is missing.
+    await this.pdfs.generateFirstVersion(row.invoice.id);
+  }
+
+  /**
+   * Keeps the fingerprint, QR and verification URL the connector answers, or blocks the record if it
+   * refuses it. Throws when it has to be retried.
+   */
+  private async send({
+    record,
+    invoice,
+  }: {
+    record: typeof invoiceRecords.$inferSelect;
+    invoice: typeof invoices.$inferSelect;
+  }): Promise<void> {
     const snapshot = invoice.snapshot as InvoiceSnapshot;
 
     const result = await this.connector.submitRecord(

@@ -8,6 +8,7 @@ import { AppShell } from '../ui/AppShell';
 import { Alert } from '../ui/components';
 import { DraftSummary } from '../ui/DraftSummary';
 import { Icon } from '../ui/icons';
+import { InvoicePdfLinks } from '../ui/InvoicePdfLinks';
 import { InvoiceStates, TaxQr } from '../ui/InvoiceStates';
 
 /** An issued invoice: its legal situation at a glance (both states, QR) and its frozen copy. */
@@ -123,11 +124,14 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
 
         <aside className="editor-side">
           {record.verificationUrl && (
-            <section className="card card-pad row" style={{ gap: 20, flexWrap: 'nowrap' }} aria-label="QR tributario">
-              <TaxQr url={record.verificationUrl} number={invoice.number} />
-              <p className="small ink2">
-                Cualquiera puede comprobar en la AEAT que esta factura está registrada escaneando el código.
-              </p>
+            <section className="card card-pad stack" style={{ gap: 16 }} aria-label="QR tributario">
+              <div className="row" style={{ gap: 20, flexWrap: 'nowrap' }}>
+                <TaxQr url={record.verificationUrl} number={invoice.number} />
+                <p className="small ink2">
+                  Cualquiera puede comprobar en la AEAT que esta factura está registrada escaneando el código.
+                </p>
+              </div>
+              <InvoicePdfLinks invoice={invoice} />
             </section>
           )}
           <DraftSummary breakdown={breakdown} recipientName={recipient.name} />

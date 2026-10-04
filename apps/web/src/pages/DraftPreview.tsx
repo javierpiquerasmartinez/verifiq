@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import { exemptionGround, formatSpanishDate, type Draft, type DraftLine, type FiscalData } from '@verifiq/domain';
+import { exemptionGround, formatIban, formatSpanishDate, type Draft, type DraftLine, type FiscalData } from '@verifiq/domain';
 import { ApiError, fetchDraft, fetchOnboarding, logoUrl } from '../api';
 import { decimalInputOf, formatAmount, formatWithheld } from '../format';
 import { useSessionExpiry } from '../session';
@@ -137,7 +137,7 @@ function InvoiceSheet({ draft, issuer, hasLogo }: { draft: Draft; issuer: Fiscal
           ))}
           {issuer.iban && (
             <p className="small">
-              Forma de pago: transferencia a <span className="mono">{issuer.iban.replace(/(.{4})(?!$)/g, '$1 ')}</span>
+              Forma de pago: transferencia a <span className="mono">{formatIban(issuer.iban)}</span>
             </p>
           )}
         </div>
