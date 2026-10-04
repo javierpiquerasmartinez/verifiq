@@ -7,7 +7,10 @@ export type AuditAction =
   | 'invoice-issued'
   | 'invoice-record-submitted'
   | 'invoice-record-blocked'
-  | 'invoice-pdf-generated';
+  | 'invoice-pdf-generated'
+  | 'invoice-record-accepted'
+  | 'invoice-record-accepted-with-errors'
+  | 'invoice-record-rejected';
 
 export type AuditEvent = Omit<typeof auditEvents.$inferSelect, 'action'> & { action: AuditAction };
 

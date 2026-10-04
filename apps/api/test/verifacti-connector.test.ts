@@ -11,6 +11,7 @@ import type { ConnectorIssuer, RecordInvoice } from '../src/verifactu/connector.
 import { findConnectorExchanges } from '../src/verifactu/exchanges.js';
 import { SecretBox } from '../src/verifactu/secret-box.js';
 import { VerifactiConnector } from '../src/verifactu/verifacti-connector.js';
+import { signWebhookBody } from '../src/verifactu/webhook-signature.js';
 import { fiscalData } from './issuer.js';
 import { VerifactiStub } from './verifacti-stub.js';
 
@@ -407,5 +408,66 @@ describe('VerifactiConnector: representation and census', () => {
     const stub = new VerifactiStub().on('POST /nifs/validar', { status: 200, body: { nif: 'B12345674', resultado: 'ERROR' } });
     const result = await connectorFor(stub).validateTaxId(await newIssuer(), { taxId: 'B12345674' });
     expect(result).toMatchObject({ outcome: 'transient' });
+  });
+});
+
+describe('VerifactiConnector: results webhook', () => {
+  const SECRET = 'whsec_test';
+  const connector = (webhookSecret: string | null = SECRET) =>
+    new VerifactiConnector({
+      accountApiKey: ACCOUNT_KEY,
+      environment: 'test',
+      db,
+      secretBox: new SecretBox(randomBytes(32).toString('base64')),
+      ...(webhookSecret !== null && { webhookSecret }),
+    });
+  const status = (overrides: Record<string, unknown>) => ({
+    nif: 'B12345678',
+    serie: 'F2026-',
+    numero: '0007',
+    fecha_expedicion: '04-10-2026',
+    operacion: 'Alta',
+    estado: 'Correcto',
+    url: 'https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR?x',
+    qr: 'iVBOR',
+    codigo_error: null,
+    mensaje_error: null,
+    ...overrides,
+  });
+  const delivery = (items: unknown[], secret = SECRET) => {
+    const body = Buffer.from(JSON.stringify(items));
+    return {
+      headers: { 'x-webhook-id': 'f1b1c9d4-2b0a-4f0e-9a51-0c6f7e2a9d10', 'x-webhook-signature': signWebhookBody(secret, body) },
+      body,
+    };
+  };
+
+  it('translates each status of the delivery, keyed by issuer and invoice', () => {
+    const result = connector().readResultsDelivery(
+      delivery([
+        status({}),
+        status({ numero: '0008', estado: 'Incorrecto', codigo_error: 1100, mensaje_error: 'NIF no identificado' }),
+      ]),
+    );
+    const key = { series: 'F2026-', issueDate: '2026-10-04' };
+    expect(result).toEqual({
+      id: 'f1b1c9d4-2b0a-4f0e-9a51-0c6f7e2a9d10',
+      results: [
+        { issuerTaxId: 'B12345678', invoice: { ...key, number: '0007' }, status: { state: 'accepted' } },
+        {
+          issuerTaxId: 'B12345678',
+          invoice: { ...key, number: '0008' },
+          status: { state: 'rejected', aeatError: { code: '1100', message: 'NIF no identificado' } },
+        },
+      ],
+    });
+  });
+
+  it('trusts nothing without a valid signature, or without a secret to check it', () => {
+    const signed = delivery([status({})]);
+    expect(connector().readResultsDelivery(delivery([status({})], 'another'))).toBeNull();
+    expect(connector().readResultsDelivery({ ...signed, headers: { 'x-webhook-id': 'x' } })).toBeNull();
+    expect(connector().readResultsDelivery({ ...signed, headers: { ...signed.headers, 'x-webhook-id': undefined } })).toBeNull();
+    expect(connector(null).readResultsDelivery(signed)).toBeNull();
   });
 });

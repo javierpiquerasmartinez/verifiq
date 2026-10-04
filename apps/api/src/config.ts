@@ -22,6 +22,9 @@ const envSchema = z
     // Without a key, emails are written to the log (local development only).
     RESEND_API_KEY: z.string().min(1).optional(),
     EMAIL_FROM: z.string().default('Verifiq <no-reply@verifiq.app>'),
+    // Gets the alerts of invoice records the AEAT has not confirmed 24 h after their Issuance.
+    // Without it they are only logged.
+    OPERATOR_EMAIL: z.email().optional(),
     // Comma-separated CIDRs of the proxies in front of the API, to read the client IP for rate limiting.
     TRUSTED_PROXIES: z.string().default('').transform(commaSeparated),
     // Cloudflare R2 (EU jurisdiction) for logos and PDFs. Without them, files go to apps/api/.storage
@@ -36,6 +39,9 @@ const envSchema = z
     // `test` sends to the AEAT test environment (no Representation needed); `prod` registers real
     // invoices. Required with VERIFACTI_API_KEY: a missing value must never pass for `test` in production.
     VERIFACTI_ENVIRONMENT: z.enum(['test', 'prod']).optional(),
+    // The `secret` the results webhook (POST /webhooks/verifactu) was registered with at Verifacti.
+    // Without it every delivery is refused and the AEAT's verdicts arrive only by the 15-minute poll.
+    VERIFACTI_WEBHOOK_SECRET: z.string().min(1).optional(),
     // Seals the issuers' connector API keys in the database (AES-256-GCM). 32 random bytes in base64.
     CONNECTOR_MASTER_KEY: z
       .string()

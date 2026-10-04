@@ -8,6 +8,7 @@ import { IssuersModule } from './issuers/issuers.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InvitationsController } from './invitations/invitations.controller.js';
 import { InvoicesModule, SubmissionModule } from './invoices/invoices.module.js';
+import { MailModule } from './mail/mail.module.js';
 import type { Mailer } from './mail/mailer.js';
 import { RecipientsModule } from './recipients/recipients.module.js';
 import type { ObjectStorage } from './storage/object-storage.js';
@@ -25,8 +26,11 @@ export interface AppOptions {
   verifactu: VerifactuConnectorFactory;
   /** Whether issuers must sign the Representation to issue. The AEAT test environment needs none. */
   representationRequired: boolean;
-  /** The outbox of InvoiceRecords; the worker service sends them, unless `work` has this process do it. */
-  submission: { queueName: string; work: boolean };
+  /**
+   * The outbox of InvoiceRecords; the worker service sends them and polls their status, unless
+   * `work` has this process do it. `operatorEmail` gets the alerts of records left unconfirmed.
+   */
+  submission: { queueName: string; work: boolean; operatorEmail?: string };
 }
 
 @Module({})
@@ -36,7 +40,8 @@ export class AppModule {
       module: AppModule,
       imports: [
         DatabaseModule.forRoot(options.databaseUrl),
-        AuthModule.forRoot(options.auth, options.mailer),
+        MailModule.forRoot(options.mailer),
+        AuthModule.forRoot(options.auth),
         StorageModule.forRoot(options.storage),
         IssuersModule.forRoot({ representationRequired: options.representationRequired }),
         VerifactuModule.forRoot(options.verifactu),

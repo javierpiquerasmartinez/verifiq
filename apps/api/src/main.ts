@@ -27,9 +27,10 @@ const app = await NestFactory.create<NestExpressApplication>(
     verifactu: verifactuConnectorFromEnv(env),
     representationRequired: representationRequiredFromEnv(env),
     // The in-memory fake connector lives in this process: so must the worker that talks to it.
-    submission: { queueName: SUBMISSION_QUEUE_NAME, work: !env.VERIFACTI_API_KEY },
+    submission: { queueName: SUBMISSION_QUEUE_NAME, work: !env.VERIFACTI_API_KEY, operatorEmail: env.OPERATOR_EMAIL },
   }),
-  { bodyParser: false },
+  // The results webhook checks its signature against the raw body.
+  { bodyParser: false, rawBody: true },
 );
 configureHttp(app, { webOrigins: env.WEB_ORIGIN });
 app.enableShutdownHooks();

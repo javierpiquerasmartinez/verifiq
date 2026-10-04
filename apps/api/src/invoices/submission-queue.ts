@@ -8,8 +8,10 @@ export interface SubmissionOptions {
   databaseUrl: string;
   /** The pg-boss queue; tests give each app its own. */
   queueName: string;
-  /** Whether this process sends the records: the worker service does (and maintains the queue). */
+  /** Whether this process sends the records and polls their status: the worker service does (and maintains the queue). */
   work: boolean;
+  /** Where to alert the operator of records the AEAT has not confirmed in 24 h. */
+  operatorEmail?: string;
 }
 
 export const SUBMISSION_QUEUE_NAME = 'invoice-record-submission';
@@ -31,9 +33,9 @@ export class SubmissionQueue implements OnModuleInit, OnApplicationShutdown {
     this.boss = new PgBoss({
       connectionString: options.databaseUrl,
       max: 3,
-      // Maintenance runs in the worker only.
+      // Maintenance and schedules run in the worker only.
       supervise: options.work,
-      schedule: false,
+      schedule: options.work,
     });
     this.boss.on('error', (error) => this.logger.error(error));
   }
@@ -65,6 +67,14 @@ export class SubmissionQueue implements OnModuleInit, OnApplicationShutdown {
     await this.boss.work<SubmissionJob>(this.options.queueName, async (jobs) => {
       for (const job of jobs) await handler(job.data);
     });
+  }
+
+  /** Runs `handler` every 15 minutes, one round at a time; a round that throws is not retried. */
+  async every15Minutes(handler: () => Promise<void>): Promise<void> {
+    const name = `${this.options.queueName}-status-poll`;
+    await this.boss.createQueue(name, { policy: 'exclusive', retryLimit: 0 });
+    await this.boss.schedule(name, '*/15 * * * *');
+    await this.boss.work(name, () => handler());
   }
 
   /** The jobs ready to run now, claimed for this caller. */

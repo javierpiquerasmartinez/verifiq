@@ -98,7 +98,16 @@ describe('Issuance', () => {
       number: numbered(1),
       issueDate: todayInSpain(),
       status: 'issued',
-      record: { status: 'pending-submission', verificationUrl: null, rejection: null },
+      record: {
+        status: 'pending-submission',
+        verificationUrl: null,
+        rejection: null,
+        confirmedAt: null,
+        registrationCode: null,
+        aeatError: null,
+        unconfirmed: false,
+      },
+      history: [{ event: 'issued', occurredAt: expect.any(String), actor: 'Lucía Ferrer' }],
       pdf: null,
       recipientId: recipient.id,
       issuer: {

@@ -12,12 +12,16 @@ export type VerifactuConnectorFactory = (db: Database) => VerifactuConnector;
 export function verifactuConnectorFromEnv(env: Env): VerifactuConnectorFactory {
   if (env.VERIFACTI_API_KEY && env.VERIFACTI_ENVIRONMENT && env.CONNECTOR_MASTER_KEY) {
     const secretBox = new SecretBox(env.CONNECTOR_MASTER_KEY);
+    if (!env.VERIFACTI_WEBHOOK_SECRET) {
+      new Logger('VeriFactu').warn('VERIFACTI_WEBHOOK_SECRET is not set: AEAT verdicts arrive only by polling');
+    }
     return (db) =>
       new VerifactiConnector({
         accountApiKey: env.VERIFACTI_API_KEY!,
         environment: env.VERIFACTI_ENVIRONMENT!,
         db,
         secretBox,
+        webhookSecret: env.VERIFACTI_WEBHOOK_SECRET,
       });
   }
   new Logger('VeriFactu').warn('VERIFACTI_API_KEY is not set: an in-memory fake connector stands in for VeriFactu');

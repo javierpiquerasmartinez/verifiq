@@ -56,7 +56,7 @@ describe('FakeVerifactuConnector programming', () => {
     ['accepted-with-errors', { state: 'accepted-with-errors', aeatError: { code: '2000', message: 'Aviso' } }],
   ] as const)('hands down an AEAT verdict: %s', async (verdict, expected) => {
     const queued = ok(await fake.submitRecord(issuer, submission()));
-    fake.settle(queued.connectorRecordId, verdict, 'aeatError' in expected ? expected.aeatError : undefined);
+    fake.settle(queued.connectorRecordId, verdict, 'aeatError' in expected ? { aeatError: expected.aeatError } : {});
     expect(
       ok(await fake.recordStatus(issuer, { invoiceRecordId: randomUUID(), connectorRecordId: queued.connectorRecordId })),
     ).toEqual(expected);

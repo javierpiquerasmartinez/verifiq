@@ -411,14 +411,32 @@ export const invoiceRecords = pgTable(
     // While blocked: the connector's synchronous refusal.
     rejectionCode: text('rejection_code'),
     rejectionMessage: text('rejection_message'),
+    // The AEAT's verdict (accepted, accepted with errors, rejected): when it arrived, its error and,
+    // if the connector passes it on, the AEAT's registration code (CSV).
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    aeatErrorCode: text('aeat_error_code'),
+    aeatErrorMessage: text('aeat_error_message'),
+    registrationCode: text('registration_code'),
+    // When the operator was alerted that the record had no verdict after 24 h: alerted once.
+    unconfirmedAlertedAt: timestamp('unconfirmed_alerted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('invoice_records_issuer_id_idx').on(table.issuerId),
     index('invoice_records_invoice_id_idx').on(table.invoiceId),
+    index('invoice_records_status_idx').on(table.status, table.createdAt),
   ],
 );
+
+/** Deliveries of the connector's results webhook already applied: a retry with the same id is ignored. */
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  // The connector's id of the delivery, the same across its retries.
+  id: text('id').primaryKey(),
+  // The raw body, as evidence of what the connector said.
+  body: text('body').notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 /**
  * The PDFs of each invoice, generated from its frozen copy once its record has the QR. Each new

@@ -15,18 +15,22 @@ import {
   type RecordInvoice,
   type RecordLine,
   type RecordRef,
+  type RecordResult,
   type RecordState,
   type RecordStatus,
   type RecordSubmission,
   type RepresentationSigner,
   type RepresentationState,
   type RepresentationStatus,
+  type ResultsDelivery,
   type VerifactuConnector,
   type VoidingSubmission,
+  type WebhookDelivery,
 } from './connector.js';
 import { loadIssuerApiKey, saveIssuerApiKey } from './credentials.js';
 import { recordExchange } from './exchanges.js';
 import type { SecretBox } from './secret-box.js';
+import { isWebhookSignatureValid } from './webhook-signature.js';
 
 export type VerifactiEnvironment = 'test' | 'prod';
 
@@ -39,6 +43,8 @@ export interface VerifactiOptions {
   db: Database;
   /** Seals the per-issuer API keys stored in the database. */
   secretBox: SecretBox;
+  /** The `secret` the results webhook was registered with. Without it no delivery is trusted. */
+  webhookSecret?: string;
   fetch?: typeof fetch;
 }
 
@@ -282,12 +288,34 @@ export class VerifactiConnector implements VerifactuConnector {
         path: `/verifactu/status?uuid=${encodeURIComponent(record.connectorRecordId)}`,
         apiKey,
       });
-      if (!isSuccess(response)) return failure(response);
-      const state = translate(RECORD_STATES, response.body?.estado, 'record state');
-      const code = response.body?.codigo_error;
-      if (code === undefined || code === null || code === '') return ok({ state });
-      return ok({ state, aeatError: { code: String(code), message: String(response.body?.mensaje_error ?? '') } });
+      return isSuccess(response) ? ok(recordStatusOf(response.body)) : failure(response);
     });
+  }
+
+  /**
+   * Verifacti signs each delivery with HMAC-SHA256 (hex, `X-Webhook-Signature`) over the raw body,
+   * which is an array of objects shaped like GET /verifactu/status; `X-Webhook-Id` survives retries.
+   */
+  readResultsDelivery({ headers, body }: WebhookDelivery): ResultsDelivery | null {
+    const { webhookSecret } = this.options;
+    const id = headers['x-webhook-id'];
+    if (!webhookSecret || !id || !isWebhookSignatureValid(webhookSecret, body, headers['x-webhook-signature'])) {
+      return null;
+    }
+    const items: unknown = JSON.parse(body.toString('utf8'));
+    if (!Array.isArray(items)) throw new Error('Verifacti webhook body is not an array');
+    return {
+      id,
+      results: items.map((item: Body): RecordResult => ({
+        issuerTaxId: requiredString(item, 'nif'),
+        invoice: {
+          series: requiredString(item, 'serie'),
+          number: requiredString(item, 'numero'),
+          issueDate: isoDate(requiredString(item, 'fecha_expedicion')),
+        },
+        status: recordStatusOf(item),
+      })),
+    };
   }
 
   private async withIssuerKey<T>(
@@ -407,6 +435,21 @@ function queuedRecord(body: Body | null): QueuedRecord {
     verificationUrl: requiredString(body, 'url'),
     qrPng: requiredString(body, 'qr'),
   };
+}
+
+// Verifacti does not document passing on the AEAT's CSV (docs/research/verifactu-verifacti.md §2): no
+// registrationCode until it does.
+function recordStatusOf(body: Body | null): RecordStatus {
+  const state = translate(RECORD_STATES, body?.estado, 'record state');
+  const code = body?.codigo_error;
+  if (code === undefined || code === null || code === '') return { state };
+  return { state, aeatError: { code: String(code), message: String(body?.mensaje_error ?? '') } };
+}
+
+/** DD-MM-YYYY → YYYY-MM-DD. */
+function isoDate(date: string): string {
+  const [day, month, year] = date.split('-');
+  return `${year}-${month}-${day}`;
 }
 
 /** YYYY-MM-DD → DD-MM-YYYY. */

@@ -9,19 +9,24 @@ import {
   type CensusCheck,
   type ConnectorIssuer,
   type ConnectorResult,
+  type InvoiceKey,
   type IssuerRef,
   type QueuedRecord,
   type QueuedVoiding,
   type RecordInvoice,
   type RecordRef,
+  type RecordResult,
   type RecordStatus,
   type RepresentationSigner,
   type RepresentationState,
   type RepresentationStatus,
+  type ResultsDelivery,
   type VerifactuConnector,
+  type WebhookDelivery,
   type VoidingSubmission,
   type RecordSubmission,
 } from './connector.js';
+import { isWebhookSignatureValid, signWebhookBody } from './webhook-signature.js';
 
 export type FakeOperation = Exclude<keyof VerifactuConnector, symbol>;
 
@@ -38,6 +43,8 @@ export type FakeVerdict = 'accepted' | 'accepted-with-errors' | 'rejected';
 
 interface FakeRecord {
   issuerId: string;
+  issuerTaxId: string;
+  invoice: InvoiceKey;
   operation: 'submission' | 'amendment' | 'voiding';
   status: RecordStatus;
 }
@@ -65,6 +72,8 @@ export class FakeVerifactuConnector implements VerifactuConnector {
   readonly census = new Map<string, string>();
   /** Tax IDs the census has deregistered or revoked, whatever the name. */
   readonly inactiveTaxIds = new Map<string, 'deregistered' | 'revoked'>();
+  /** Signs the results webhook deliveries (`resultsDelivery`). */
+  readonly webhookSecret = 'fake-webhook-secret';
   /** Every call, in order, for assertions. */
   readonly calls: { operation: FakeOperation; issuerId: string; input: unknown }[] = [];
 
@@ -80,13 +89,44 @@ export class FakeVerifactuConnector implements VerifactuConnector {
     this.failures.push({ operation, failure });
   }
 
-  /** The AEAT's verdict on a queued record. An accepted Voiding becomes `voided`. */
-  settle(connectorRecordId: string, verdict: FakeVerdict, aeatError?: RecordStatus['aeatError']): RecordStatus {
+  /**
+   * The AEAT's verdict on a queued record, with its error and, if the connector passed it on, the
+   * AEAT's registration code. An accepted Voiding becomes `voided`.
+   */
+  settle(
+    connectorRecordId: string,
+    verdict: FakeVerdict,
+    { aeatError, registrationCode }: Pick<RecordStatus, 'aeatError' | 'registrationCode'> = {},
+  ): RecordStatus {
     const record = this.records.get(connectorRecordId);
     if (!record) throw new Error(`Unknown record ${connectorRecordId}`);
     const state = verdict === 'accepted' && record.operation === 'voiding' ? 'voided' : verdict;
-    record.status = aeatError ? { state, aeatError } : { state };
+    record.status = { state, ...(aeatError && { aeatError }), ...(registrationCode && { registrationCode }) };
     return record.status;
+  }
+
+  /**
+   * The webhook delivery the connector would send with the current status of these records, signed
+   * with `webhookSecret` unless another `secret` is given. `webhookId` replays an earlier delivery's id.
+   */
+  resultsDelivery(
+    connectorRecordIds: string[],
+    { webhookId = randomUUID(), secret = this.webhookSecret }: { webhookId?: string; secret?: string } = {},
+  ): { headers: Record<string, string>; body: string } {
+    const results = connectorRecordIds.map((id): RecordResult => {
+      const record = this.records.get(id);
+      if (!record) throw new Error(`Unknown record ${id}`);
+      return { issuerTaxId: record.issuerTaxId, invoice: record.invoice, status: record.status };
+    });
+    const body = JSON.stringify(results);
+    return {
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-id': webhookId,
+        'x-webhook-signature': signWebhookBody(secret, body),
+      },
+      body,
+    };
   }
 
   /** The remote signing ends: the signer completes it (`signed`, the default) or it fails. */
@@ -179,6 +219,12 @@ export class FakeVerifactuConnector implements VerifactuConnector {
     });
   }
 
+  readResultsDelivery({ headers, body }: WebhookDelivery): ResultsDelivery | null {
+    const id = headers['x-webhook-id'];
+    if (!id || !isWebhookSignatureValid(this.webhookSecret, body, headers['x-webhook-signature'])) return null;
+    return { id, results: JSON.parse(body.toString('utf8')) as RecordResult[] };
+  }
+
   private call<T>(
     operation: FakeOperation,
     issuer: IssuerRef,
@@ -265,7 +311,7 @@ export class FakeVerifactuConnector implements VerifactuConnector {
   }
 
   /** Chains the fingerprint to the issuer's previous record, as VeriFactu does. */
-  private addRecord(issuer: IssuerRef, operation: FakeRecord['operation'], content: unknown) {
+  private addRecord(issuer: IssuerRef, operation: FakeRecord['operation'], content: InvoiceKey) {
     const connectorRecordId = randomUUID();
     const previous = this.lastFingerprint.get(issuer.issuerId) ?? '';
     const fingerprint = createHash('sha256')
@@ -273,7 +319,14 @@ export class FakeVerifactuConnector implements VerifactuConnector {
       .digest('hex')
       .toUpperCase();
     this.lastFingerprint.set(issuer.issuerId, fingerprint);
-    this.records.set(connectorRecordId, { issuerId: issuer.issuerId, operation, status: { state: 'pending' } });
+    const invoice = { series: content.series, number: content.number, issueDate: content.issueDate };
+    this.records.set(connectorRecordId, {
+      issuerId: issuer.issuerId,
+      issuerTaxId: issuer.taxId,
+      invoice,
+      operation,
+      status: { state: 'pending' },
+    });
     return { connectorRecordId, fingerprint };
   }
 }

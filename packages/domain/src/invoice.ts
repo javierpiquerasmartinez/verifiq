@@ -28,6 +28,31 @@ export const INVOICE_RECORD_STATUSES = [
 
 export type InvoiceRecordStatus = (typeof INVOICE_RECORD_STATUSES)[number];
 
+/** Records unconfirmed this long after the Issuance warn the user and alert the operator. */
+export const UNCONFIRMED_RECORD_HOURS = 24;
+
+export const INVOICE_EVENTS = [
+  'issued',
+  'submitted',
+  'blocked',
+  'pdf-generated',
+  'accepted',
+  'accepted-with-errors',
+  'rejected',
+] as const;
+
+export type InvoiceEvent = (typeof INVOICE_EVENTS)[number];
+
+/** An entry of the invoice's history (its timeline). */
+export const invoiceEventSchema = z.object({
+  event: z.enum(INVOICE_EVENTS),
+  occurredAt: z.iso.datetime({ offset: true }),
+  /** The user's name; null when the system acted. */
+  actor: z.string().nullable(),
+});
+
+export type InvoiceHistoryEntry = z.infer<typeof invoiceEventSchema>;
+
 /** Response of GET /invoices/:id. */
 export const invoiceSchema = z.object({
   id: z.uuid(),
@@ -41,7 +66,17 @@ export const invoiceSchema = z.object({
     verificationUrl: z.string().nullable(),
     /** Why the connector refused the record, while it is blocked. */
     rejection: z.object({ code: z.string(), message: z.string() }).nullable(),
+    /** When the AEAT's verdict arrived (accepted, with errors or rejected). */
+    confirmedAt: z.iso.datetime({ offset: true }).nullable(),
+    /** The AEAT's code for the accepted record (its CSV), when the connector passes it on. */
+    registrationCode: z.string().nullable(),
+    /** The AEAT's error, exactly as it returned it: accepted with errors, or the reason it rejected the record. */
+    aeatError: z.object({ code: z.string(), message: z.string() }).nullable(),
+    /** Still without the AEAT's verdict more than 24 h after the Issuance (`sin_confirmar`). */
+    unconfirmed: z.boolean(),
   }),
+  /** What happened to the invoice, oldest first. */
+  history: z.array(invoiceEventSchema),
   /** The current version of its PDF: there is none until the record has its QR. */
   pdf: z.object({ version: z.number().int().positive() }).nullable(),
   /** The recipient it was issued to, whose data may have changed since. */

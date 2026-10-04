@@ -50,12 +50,14 @@ export async function createTestApp({
   storage = new InMemoryObjectStorage(),
   verifactu = new FakeVerifactuConnector(),
   representationRequired = true,
+  operatorEmail,
 }: {
   webOrigins?: string[];
   mailer?: Mailer;
   storage?: ObjectStorage;
   verifactu?: VerifactuConnector;
   representationRequired?: boolean;
+  operatorEmail?: string;
 } = {}): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({
     imports: [
@@ -74,11 +76,11 @@ export async function createTestApp({
         verifactu: () => verifactu,
         representationRequired,
         // Its own queue: test files share the database, and each drives its worker by hand.
-        submission: { queueName: `submission-${randomUUID()}`, work: false },
+        submission: { queueName: `submission-${randomUUID()}`, work: false, operatorEmail },
       }),
     ],
   }).compile();
-  const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false });
+  const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false, rawBody: true });
   configureHttp(app, { webOrigins });
   await app.init();
   return app;

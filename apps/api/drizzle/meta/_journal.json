@@ -71,6 +71,13 @@
       "when": 1791126004560,
       "tag": "0009_invoice_pdfs",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791146018382,
+      "tag": "0010_aeat_confirmation",
+      "breakpoints": true
     }
   ]
 }

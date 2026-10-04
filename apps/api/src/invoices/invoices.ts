@@ -7,15 +7,18 @@ import {
   type DraftProblem,
   type FiscalData,
   type Invoice,
+  type InvoiceEvent,
+  type InvoiceHistoryEntry,
   type InvoiceRecordStatus,
   type InvoiceSnapshot,
   type InvoiceStatus,
+  UNCONFIRMED_RECORD_HOURS,
 } from '@verifiq/domain';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { recordAuditEvent } from '../audit/audit.js';
+import { recordAuditEvent, type AuditAction } from '../audit/audit.js';
 import { DATABASE, inTransaction, type Database, type Queryable } from '../database/database.module.js';
-import { invoiceRecords, invoices, issuers, seriesCounters } from '../database/schema.js';
+import { auditEvents, invoiceRecords, invoices, issuers, seriesCounters, users } from '../database/schema.js';
 import { DraftsService } from '../drafts/drafts.js';
 import { RepresentationService } from '../issuers/representation.js';
 import { InvoicePdfsService } from './invoice-pdfs.js';
@@ -24,6 +27,19 @@ import { SubmissionQueue } from './submission-queue.js';
 // Every method takes the issuer id resolved by the isolation layer (issuer-context.ts) and filters by it.
 
 export class InvoiceNotFoundError extends Error {}
+
+/** The audit events an invoice's history shows, as the events of its timeline. */
+const HISTORY_EVENTS: Record<AuditAction, InvoiceEvent> = {
+  'invoice-issued': 'issued',
+  'invoice-record-submitted': 'submitted',
+  'invoice-record-blocked': 'blocked',
+  'invoice-pdf-generated': 'pdf-generated',
+  'invoice-record-accepted': 'accepted',
+  'invoice-record-accepted-with-errors': 'accepted-with-errors',
+  'invoice-record-rejected': 'rejected',
+};
+
+const AWAITING_VERDICT: InvoiceRecordStatus[] = ['pending-submission', 'submitted'];
 
 /** Without its key at the connector and a valid Representation, the issuer cannot issue. */
 export class CannotIssueError extends Error {}
@@ -155,24 +171,52 @@ export class InvoicesService {
     const { invoice, record } = row;
     const snapshot = invoice.snapshot as InvoiceSnapshot;
     const pdfVersion = await this.pdfs.currentVersion(invoice.id);
+    const recordStatus = record.status as InvoiceRecordStatus;
+    const unconfirmedSince = Date.now() - UNCONFIRMED_RECORD_HOURS * 3_600_000;
     return {
       id: invoice.id,
       number: invoiceNumberIn(invoice.series, invoice.number),
       issueDate: invoice.issueDate,
       status: invoice.status as InvoiceStatus,
       record: {
-        status: record.status as InvoiceRecordStatus,
+        status: recordStatus,
         verificationUrl: record.verificationUrl,
         rejection:
           record.status === 'blocked' && record.rejectionCode !== null
             ? { code: record.rejectionCode, message: record.rejectionMessage ?? '' }
             : null,
+        confirmedAt: record.confirmedAt?.toISOString() ?? null,
+        registrationCode: record.registrationCode,
+        aeatError:
+          record.aeatErrorCode !== null ? { code: record.aeatErrorCode, message: record.aeatErrorMessage ?? '' } : null,
+        unconfirmed: AWAITING_VERDICT.includes(recordStatus) && record.createdAt.getTime() < unconfirmedSince,
       },
+      history: await this.history(issuerId, invoice.id),
       pdf: pdfVersion === null ? null : { version: pdfVersion },
       recipientId: invoice.recipientId,
       ...snapshot,
       issuedAt: invoice.createdAt.toISOString(),
     };
+  }
+
+  /** What happened to the invoice, oldest first: its audit events, with who acted (null for the system). */
+  private async history(issuerId: string, invoiceId: string): Promise<InvoiceHistoryEntry[]> {
+    const events = await this.db
+      .select({ action: auditEvents.action, occurredAt: auditEvents.occurredAt, actor: users.name })
+      .from(auditEvents)
+      .leftJoin(users, eq(users.id, auditEvents.actorUserId))
+      .where(
+        and(
+          eq(auditEvents.issuerId, issuerId),
+          eq(auditEvents.subjectType, 'invoice'),
+          eq(auditEvents.subjectId, invoiceId),
+        ),
+      )
+      .orderBy(asc(auditEvents.occurredAt));
+    return events.flatMap(({ action, occurredAt, actor }) => {
+      const event = HISTORY_EVENTS[action as AuditAction];
+      return event ? [{ event, occurredAt: occurredAt.toISOString(), actor }] : [];
+    });
   }
 
   /** The number an Issuance today would assign, unless another one comes first. */
