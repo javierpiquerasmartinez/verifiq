@@ -45,21 +45,25 @@ export const breakdownInputSchema = z.object({
 
 export type BreakdownInput = z.infer<typeof breakdownInputSchema>;
 
+const cents = z.string().regex(/^-?\d+\.\d{2}$/);
+
 /** Every amount is a decimal string with exactly 2 decimals. */
-export interface Breakdown {
-  lines: { base: string }[];
+export const breakdownSchema = z.object({
+  lines: z.array(z.object({ base: cents })),
   /** Highest rate first. */
-  taxed: { rate: VatRate; base: string; taxAmount: string }[];
+  taxed: z.array(z.object({ rate: z.literal(VAT_RATES), base: cents, taxAmount: cents })),
   /** In catalogue order, with the legal mention to print. */
-  exempt: { ground: ExemptionGroundId; base: string; mention: string }[];
+  exempt: z.array(z.object({ ground: exemptionGroundSchema, base: cents, mention: z.string() })),
   /** Sum of every line base, taxed and exempt. */
-  taxBase: string;
+  taxBase: cents,
   /** Tax base plus tax amounts: what is declared to the AEAT. */
-  totalAmount: string;
-  withholding: { rate: WithholdingRate; amount: string };
+  totalAmount: cents,
+  withholding: z.object({ rate: z.literal(WITHHOLDING_RATES), amount: cents }),
   /** Total amount minus the withholding: what the recipient pays. */
-  amountDue: string;
-}
+  amountDue: cents,
+});
+
+export type Breakdown = z.infer<typeof breakdownSchema>;
 
 const HUNDRED = new Big(100);
 

@@ -8,6 +8,8 @@ import {
 import { z } from 'zod';
 import { fetchOnboarding } from './api';
 import { currentUser } from './auth-client';
+import { DraftPage, NewDraftPage } from './pages/Draft';
+import { DraftPreviewPage } from './pages/DraftPreview';
 import { ForgotPasswordPage } from './pages/ForgotPassword';
 import { HomePage } from './pages/Home';
 import { InvitationPage } from './pages/Invitation';
@@ -43,6 +45,27 @@ const homeRoute = createRoute({
   path: '/',
   beforeLoad: requireOnboardedUser,
   component: HomePage,
+});
+
+const newDraftRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/drafts/new',
+  beforeLoad: requireOnboardedUser,
+  component: NewDraftPage,
+});
+
+const draftRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/drafts/$draftId',
+  beforeLoad: requireOnboardedUser,
+  component: DraftPage,
+});
+
+const draftPreviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/drafts/$draftId/preview',
+  beforeLoad: requireOnboardedUser,
+  component: DraftPreviewPage,
 });
 
 const recipientsRoute = createRoute({
@@ -132,6 +155,9 @@ const resetPasswordRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   homeRoute,
+  newDraftRoute,
+  draftRoute,
+  draftPreviewRoute,
   recipientsRoute,
   newRecipientRoute,
   recipientRoute,

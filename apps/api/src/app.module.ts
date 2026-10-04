@@ -2,6 +2,7 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module.js';
 import type { AuthOptions } from './auth/auth.js';
 import { DatabaseModule } from './database/database.module.js';
+import { DraftsModule } from './drafts/drafts.module.js';
 import { IssuersModule } from './issuers/issuers.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InvitationsController } from './invitations/invitations.controller.js';
@@ -34,6 +35,7 @@ export class AppModule {
         IssuersModule.forRoot(options.storage, { representationRequired: options.representationRequired }),
         VerifactuModule.forRoot(options.verifactu),
         RecipientsModule,
+        DraftsModule,
       ],
       controllers: [HealthController, InvitationsController],
       providers: [{ provide: APP_VERSION, useValue: options.version }],

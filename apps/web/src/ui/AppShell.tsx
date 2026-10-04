@@ -45,6 +45,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span>NIF {issuer.data.taxId}</span>
             </div>
           )}
+          <Link to="/drafts/new" className="btn btn-primary">
+            <Icon name="plus" />
+            Nueva factura
+          </Link>
           <button type="button" className="btn btn-ghost" onClick={signOut}>
             Cerrar sesión
           </button>

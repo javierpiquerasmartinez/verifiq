@@ -4,6 +4,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -281,6 +282,36 @@ export const recipients = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('recipients_issuer_id_idx').on(table.issuerId, table.name)],
+);
+
+// --- Drafts: invoices in preparation, without number (ADR 0002) or fiscal effect.
+
+export const drafts = pgTable(
+  'drafts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    // Deleting a recipient leaves its drafts without one: drafts never stop a recipient being deleted.
+    recipientId: uuid('recipient_id').references(() => recipients.id, { onDelete: 'set null' }),
+    billingPeriodStart: date('billing_period_start'),
+    billingPeriodEnd: date('billing_period_end'),
+    operationDescription: text('operation_description').notNull(),
+    withholding: smallint('withholding').notNull(),
+    // The domain's DraftLine[]: a draft is always saved and read whole.
+    lines: jsonb('lines').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('drafts_issuer_id_idx').on(table.issuerId, table.updatedAt),
+    index('drafts_recipient_id_idx').on(table.recipientId),
+    check(
+      'drafts_billing_period_check',
+      sql`(${table.billingPeriodStart} IS NULL) = (${table.billingPeriodEnd} IS NULL) AND ${table.billingPeriodStart} <= ${table.billingPeriodEnd}`,
+    ),
+  ],
 );
 
 // --- Invoices. Issuance (issue 10) completes this table; for now it only ties invoices to their recipient.
