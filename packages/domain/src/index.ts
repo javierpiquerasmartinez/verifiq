@@ -1,5 +1,6 @@
 export * from './amounts.js';
 export * from './auth.js';
+export * from './catalog-item.js';
 export * from './corrective-invoice.js';
 export * from './dates.js';
 export * from './draft.js';

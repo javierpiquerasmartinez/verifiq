@@ -1,6 +1,7 @@
 import { Module, type DynamicModule } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module.js';
 import type { AuthOptions } from './auth/auth.js';
+import { CatalogItemsModule } from './catalog-items/catalog-items.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DraftsModule } from './drafts/drafts.module.js';
 import { IssuersModule } from './issuers/issuers.module.js';
@@ -36,6 +37,7 @@ export class AppModule {
         VerifactuModule.forRoot(options.verifactu),
         RecipientsModule,
         DraftsModule,
+        CatalogItemsModule,
       ],
       controllers: [HealthController, InvitationsController],
       providers: [{ provide: APP_VERSION, useValue: options.version }],

@@ -3,12 +3,14 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import {
   computeBreakdown,
   defaultOperationDescription,
+  draftLineFromCatalogItem,
   DraftErrorCode,
   findDraftProblems,
   formatSpanishDate,
   todayInSpain,
   WITHHOLDING_RATES,
   type BillingPeriod,
+  type CatalogItem,
   type Draft,
   type DraftDataInput,
   type DraftProblem,
@@ -22,6 +24,7 @@ import { emptyLine, lineStateOf, parseLine, type LineState } from '../draft-line
 import { WITHHOLDING_LABELS } from '../format';
 import { useSessionExpiry } from '../session';
 import { AppShell } from '../ui/AppShell';
+import { CatalogItemPicker } from '../ui/CatalogItemPicker';
 import { Alert, Seg } from '../ui/components';
 import { DraftLineRow } from '../ui/DraftLineRow';
 import { DraftSummary } from '../ui/DraftSummary';
@@ -80,6 +83,8 @@ function problemText(problem: DraftProblem): string {
       return `línea ${problem.line + 1}, concepto vacío`;
   }
 }
+
+const isBlank = (line: LineState) => !line.concept.trim() && !line.unitPrice.trim();
 
 /**
  * The Draft editor. Amounts are computed live with the same domain the api uses; the api
@@ -140,6 +145,13 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
       setOperationDescription(defaultOperationDescription({ start, end }, defaults.vat));
       setDescriptionPrefilled(true);
     }
+  }
+
+  /** A line with a copy of the item's values; it replaces the blank line a new draft starts with. */
+  function addFromCatalog(item: CatalogItem) {
+    const line = lineStateOf(draftLineFromCatalogItem(item));
+    setLines((current) => (current.length === 1 && isBlank(current[0]!) ? [line] : [...current, line]));
+    edited();
   }
 
   function changeLine(key: number, change: Partial<LineState>) {
@@ -359,7 +371,7 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
                   }}
                 />
               ))}
-              <div className="line" style={{ alignItems: 'flex-start' }}>
+              <div className="line" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 10 }}>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
@@ -371,6 +383,7 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
                   <Icon name="plus" />
                   Añadir línea
                 </button>
+                <CatalogItemPicker onPick={addFromCatalog} />
               </div>
             </div>
           </section>

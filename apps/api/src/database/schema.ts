@@ -284,6 +284,26 @@ export const recipients = pgTable(
   (table) => [index('recipients_issuer_id_idx').on(table.issuerId, table.name)],
 );
 
+// --- Catalog items: the issuer's reusable concepts. Lines copy their values and never refer to them.
+
+export const catalogItems = pgTable(
+  'catalog_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    name: text('name').notNull(),
+    // A decimal string, as amounts travel: never through a float.
+    defaultUnitPrice: text('default_unit_price').notNull(),
+    // The domain's VatTreatment.
+    defaultVat: jsonb('default_vat').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('catalog_items_issuer_id_idx').on(table.issuerId, table.name)],
+);
+
 // --- Drafts: invoices in preparation, without number (ADR 0002) or fiscal effect.
 
 export const drafts = pgTable(

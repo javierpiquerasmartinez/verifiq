@@ -1,4 +1,4 @@
-import type { WithholdingRate } from '@verifiq/domain';
+import { exemptionGround, type VatTreatment, type WithholdingRate } from '@verifiq/domain';
 
 // Numbers as Spaniards read and type them; amounts stay decimal strings, never floats.
 
@@ -34,3 +34,7 @@ export function formatAmount(amount: string): string {
 export const formatWithheld = (amount: string) => formatAmount(amount === '0.00' ? amount : `-${amount}`);
 
 export const WITHHOLDING_LABELS: Record<WithholdingRate, string> = { 15: '15 %', 7: '7 %', 0: 'Sin retención' };
+
+/** "21 %", or "Exenta · " and the exemption ground. */
+export const vatLabel = (vat: VatTreatment) =>
+  vat.kind === 'taxed' ? `${vat.rate} %` : `Exenta · ${exemptionGround(vat.ground).label}`;
