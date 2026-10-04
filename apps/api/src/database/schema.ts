@@ -256,3 +256,50 @@ export const connectorExchanges = pgTable(
     index('connector_exchanges_invoice_record_id_idx').on(table.invoiceRecordId),
   ],
 );
+
+// --- Recipients: who the issuer invoices.
+
+export const recipients = pgTable(
+  'recipients',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    name: text('name').notNull(),
+    taxId: text('tax_id').notNull(),
+    address: text('address').notNull(),
+    postalCode: text('postal_code').notNull(),
+    municipality: text('municipality').notNull(),
+    province: text('province').notNull(),
+    // The last AEAT census check of tax_id and name (the domain's CensusStatus).
+    censusStatus: text('census_status').notNull(),
+    censusCheckedAt: timestamp('census_checked_at', { withTimezone: true }),
+    // Archived recipients are left out of the selectors but stay in their invoices.
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('recipients_issuer_id_idx').on(table.issuerId, table.name)],
+);
+
+// --- Invoices. Issuance (issue 10) completes this table; for now it only ties invoices to their recipient.
+
+export const invoices = pgTable(
+  'invoices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    issuerId: uuid('issuer_id')
+      .notNull()
+      .references(() => issuers.id),
+    // Restrict: a recipient with invoices can be archived, never deleted.
+    recipientId: uuid('recipient_id')
+      .notNull()
+      .references(() => recipients.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('invoices_issuer_id_idx').on(table.issuerId),
+    index('invoices_recipient_id_idx').on(table.recipientId),
+  ],
+);

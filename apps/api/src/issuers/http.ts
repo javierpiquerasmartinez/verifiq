@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { IssuerErrorCode } from '@verifiq/domain';
+import { IssuerErrorCode, type RecipientErrorCode } from '@verifiq/domain';
 import type { z } from 'zod';
 
-// HTTP helpers shared by the issuer controllers.
+// HTTP helpers shared by the business controllers (issuer, recipients).
 
 export function parseBody<T extends z.ZodType>(schema: T, body: unknown): z.output<T> {
   const parsed = schema.safeParse(body);
@@ -15,7 +15,7 @@ export function parseBody<T extends z.ZodType>(schema: T, body: unknown): z.outp
   return parsed.data;
 }
 
-export const conflict = (code: IssuerErrorCode, message: string) => new ConflictException({ code, message });
+export const conflict = (code: IssuerErrorCode | RecipientErrorCode, message: string) => new ConflictException({ code, message });
 
 /** Runs `work`, turning the errors `toHttp` knows into HTTP errors. */
 export async function withHttpErrors<T>(work: Promise<T>, toHttp: (error: unknown) => unknown): Promise<T> {

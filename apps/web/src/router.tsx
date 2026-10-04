@@ -13,6 +13,8 @@ import { HomePage } from './pages/Home';
 import { InvitationPage } from './pages/Invitation';
 import { LoginPage } from './pages/Login';
 import { OnboardingPage } from './pages/Onboarding';
+import { NewRecipientPage, RecipientPage } from './pages/Recipient';
+import { RecipientsPage } from './pages/Recipients';
 import { RepresentationStepPage } from './pages/RepresentationStep';
 import { ResetPasswordPage } from './pages/ResetPassword';
 import { SettingsPage } from './pages/Settings';
@@ -41,6 +43,27 @@ const homeRoute = createRoute({
   path: '/',
   beforeLoad: requireOnboardedUser,
   component: HomePage,
+});
+
+const recipientsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipients',
+  beforeLoad: requireOnboardedUser,
+  component: RecipientsPage,
+});
+
+const newRecipientRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipients/new',
+  beforeLoad: requireOnboardedUser,
+  component: NewRecipientPage,
+});
+
+const recipientRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipients/$recipientId',
+  beforeLoad: requireOnboardedUser,
+  component: RecipientPage,
 });
 
 const settingsRoute = createRoute({
@@ -109,6 +132,9 @@ const resetPasswordRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   homeRoute,
+  recipientsRoute,
+  newRecipientRoute,
+  recipientRoute,
   settingsRoute,
   onboardingRoute,
   representationStepRoute,

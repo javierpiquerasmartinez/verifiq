@@ -3,6 +3,7 @@ import {
   healthResponseSchema,
   invitationSchema,
   onboardingSchema,
+  recipientSchema,
   representationSchema,
   type AcceptInvitation,
   type AcceptTerms,
@@ -12,6 +13,9 @@ import {
   type HealthResponse,
   type Invitation,
   type Onboarding,
+  type Recipient,
+  type RecipientDataInput,
+  type RecipientListStatus,
   type Representation,
   type RepresentationSigner,
   type Series,
@@ -25,6 +29,8 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly code?: string,
+    /** The whole response body, for errors that carry more than a code. */
+    readonly body?: unknown,
   ) {
     super(`API responded with ${status}${code ? ` (${code})` : ''}`);
   }
@@ -39,7 +45,7 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
   const body: unknown = await response.json().catch(() => undefined);
   if (!response.ok) {
     const code = (body as { code?: unknown } | undefined)?.code;
-    throw new ApiError(response.status, typeof code === 'string' ? code : undefined);
+    throw new ApiError(response.status, typeof code === 'string' ? code : undefined, body);
   }
   return body;
 }
@@ -107,4 +113,34 @@ export async function startRepresentationSigning(body: RepresentationSigner): Pr
 
 export async function resendRepresentationLink(): Promise<Representation> {
   return representationSchema.parse(await request('/issuer/representation/resend', { method: 'POST' }));
+}
+
+const recipientListSchema = recipientSchema.array();
+
+export async function fetchRecipients(query: { q: string; status: RecipientListStatus }): Promise<Recipient[]> {
+  const search = new URLSearchParams(query);
+  return recipientListSchema.parse(await request(`/recipients?${search}`));
+}
+
+export async function fetchRecipient(id: string): Promise<Recipient> {
+  return recipientSchema.parse(await request(`/recipients/${encodeURIComponent(id)}`));
+}
+
+/** Checks the tax ID against the AEAT census: it fails with the census verdict when it is not there. */
+export async function createRecipient(body: RecipientDataInput): Promise<Recipient> {
+  return recipientSchema.parse(await request('/recipients', sendJson('POST', body)));
+}
+
+export async function updateRecipient(id: string, body: RecipientDataInput): Promise<Recipient> {
+  return recipientSchema.parse(await request(`/recipients/${encodeURIComponent(id)}`, sendJson('PUT', body)));
+}
+
+/** Only for a recipient without issued invoices; the others are archived. */
+export async function deleteRecipient(id: string): Promise<void> {
+  await request(`/recipients/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function setRecipientArchived(id: string, archived: boolean): Promise<Recipient> {
+  const action = archived ? 'archive' : 'restore';
+  return recipientSchema.parse(await request(`/recipients/${encodeURIComponent(id)}/${action}`, { method: 'POST' }));
 }
