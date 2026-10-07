@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import { exemptionGround, formatIban, formatSpanishDate, type Draft, type DraftLine, type FiscalData } from '@verifiq/domain';
+import { formatIban, formatSpanishDate, type Draft, type DraftLine, type FiscalData, type RecipientData } from '@verifiq/domain';
+import { Fragment } from 'react';
 import { ApiError, fetchDraft, fetchOnboarding, logoUrl } from '../api';
 import { decimalInputOf, formatAmount, formatWithheld } from '../format';
 import { useSessionExpiry } from '../session';
-import { AmountRows } from '../ui/AmountRows';
 import { AppShell } from '../ui/AppShell';
 import { Alert } from '../ui/components';
 import { Icon } from '../ui/icons';
@@ -45,70 +45,73 @@ export function DraftPreviewPage() {
 
 const vatLabel = ({ vat }: DraftLine) => (vat.kind === 'exempt' ? 'Exenta' : `${vat.rate} %`);
 
+/** An amount in the lines' table, where the € goes without saying. */
+const amountWithoutCurrency = (amount: string) => formatAmount(amount).replace(/\s*€$/, '');
+
+/** Who issues or receives the invoice: name, tax ID and address. */
+function Party({ heading, party }: { heading: string; party: RecipientData | null }) {
+  return (
+    <div>
+      <p className="sheet-eyebrow">{heading}</p>
+      {party ? (
+        <>
+          <p className="sheet-party-name">{party.name}</p>
+          <p>NIF {party.taxId}</p>
+          <p>
+            {party.address} · {party.postalCode} {party.municipality}
+          </p>
+        </>
+      ) : (
+        <p className="muted">Sin cliente</p>
+      )}
+    </div>
+  );
+}
+
+/** The draft laid out as the PDF it will become: the same sheet, without the QR or the number it gets on issuing. */
 function InvoiceSheet({ draft, issuer, hasLogo }: { draft: Draft; issuer: FiscalData; hasLogo: boolean }) {
-  const { breakdown, recipient } = draft;
+  const { breakdown, billingPeriod } = draft;
+  const operationDate = billingPeriod?.end;
   return (
     <article className="sheet" aria-label="Factura">
       <p className="sheet-watermark" role="note">
         Borrador · sin número ni validez fiscal
       </p>
       <header className="sheet-head">
-        <div>
-          {hasLogo && <img className="sheet-logo" src={logoUrl(0)} alt="" />}
-          <p className="sheet-party-name">{issuer.name}</p>
-          <p>NIF {issuer.taxId}</p>
-          <p>{issuer.address}</p>
-          <p>
-            {issuer.postalCode} {issuer.municipality} ({issuer.province})
-          </p>
-          {issuer.email && <p>{issuer.email}</p>}
-          {issuer.phone && <p>{issuer.phone}</p>}
+        <div className="sheet-qr" role="note">
+          <span className="sheet-qr-caption">QR tributario:</span>
+          <span className="sheet-qr-slot small">Se añade al emitir</span>
+          <span className="sheet-qr-caption mono">VERI*FACTU</span>
         </div>
-        <div className="sheet-meta">
-          <h2 className="h2">Factura</h2>
-          <dl className="kv">
-            <dt>Número</dt>
-            <dd>Se asignará al emitir</dd>
-            <dt>Fecha de expedición</dt>
-            <dd>{formatSpanishDate(draft.issueDate)}</dd>
-            {draft.billingPeriod && (
-              <>
-                <dt>Periodo facturado</dt>
-                <dd>
-                  {formatSpanishDate(draft.billingPeriod.start)} – {formatSpanishDate(draft.billingPeriod.end)}
-                </dd>
-                <dt>Fecha de operación</dt>
-                <dd>{formatSpanishDate(draft.billingPeriod.end)}</dd>
-              </>
-            )}
-          </dl>
+        <div className="sheet-title">
+          {hasLogo && <img className="sheet-logo" src={logoUrl(0)} alt="" />}
+          <h2 className="sheet-h1">Factura</h2>
+          <p className="mono muted">Número al emitir</p>
+          <p>Fecha de expedición: {formatSpanishDate(draft.issueDate)}</p>
+          {billingPeriod && (
+            <p>
+              Periodo: {formatSpanishDate(billingPeriod.start)} – {formatSpanishDate(billingPeriod.end)}
+            </p>
+          )}
+          {operationDate && operationDate !== draft.issueDate && (
+            <p>Fecha de operación: {formatSpanishDate(operationDate)}</p>
+          )}
         </div>
       </header>
 
-      <section className="sheet-recipient" aria-label="Destinatario">
-        <p className="eyebrow">Facturar a</p>
-        {recipient ? (
-          <>
-            <p className="sheet-party-name">{recipient.name}</p>
-            <p>NIF {recipient.taxId}</p>
-            <p>{recipient.address}</p>
-            <p>
-              {recipient.postalCode} {recipient.municipality} ({recipient.province})
-            </p>
-          </>
-        ) : (
-          <p className="muted">Sin cliente</p>
-        )}
-      </section>
+      <div className="sheet-parties">
+        <Party heading="Emisor" party={issuer} />
+        <Party heading="Cliente" party={draft.recipient} />
+      </div>
 
-      {draft.operationDescription && <p className="sheet-description">{draft.operationDescription}</p>}
+      {draft.operationDescription && <p>{draft.operationDescription}</p>}
 
       <table className="tbl sheet-lines">
         <thead>
           <tr>
             <th>Concepto</th>
-            <th className="r">Cantidad</th>
-            <th className="r">Precio unit.</th>
+            <th className="r">Cant.</th>
+            <th className="r">Precio</th>
             <th className="r">Dto.</th>
             <th>IVA</th>
             <th className="r">Importe</th>
@@ -119,47 +122,50 @@ function InvoiceSheet({ draft, issuer, hasLogo }: { draft: Draft; issuer: Fiscal
             <tr key={i}>
               <td>{line.concept || <span className="muted">Sin concepto</span>}</td>
               <td className="r num">{decimalInputOf(line.quantity)}</td>
-              <td className="r num">{formatAmount(line.unitPrice)}</td>
+              <td className="r num">{amountWithoutCurrency(line.unitPrice)}</td>
               <td className="r num">{line.discountPercent ? `${decimalInputOf(line.discountPercent)} %` : '—'}</td>
               <td>{vatLabel(line)}</td>
-              <td className="r num">{formatAmount(breakdown.lines[i]!.base)}</td>
+              <td className="r num">{amountWithoutCurrency(breakdown.lines[i]!.base)}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
       <div className="sheet-totals">
-        <div className="sheet-mentions">
+        <div className="sheet-mentions small">
           {breakdown.exempt.map(({ ground, mention }) => (
-            <p key={ground} className="small">
-              {exemptionGround(ground).label}: {mention}
-            </p>
+            <p key={ground}>{mention}</p>
           ))}
-          {issuer.iban && (
-            <p className="small">
-              Forma de pago: transferencia a <span className="mono">{formatIban(issuer.iban)}</span>
-            </p>
-          )}
         </div>
         <dl className="sum">
-          <dt>Base imponible</dt>
-          <dd>{formatAmount(breakdown.taxBase)}</dd>
           {breakdown.taxed.map(({ rate, base, taxAmount }) => (
-            <AmountRows key={rate} rows={[[`Base imponible ${rate} %`, base], [`Cuota IVA ${rate} %`, taxAmount]]} />
+            <Fragment key={rate}>
+              <dt>Base imponible ({rate} %)</dt>
+              <dd>{formatAmount(base)}</dd>
+              <dt>Cuota IVA ({rate} %)</dt>
+              <dd>{formatAmount(taxAmount)}</dd>
+            </Fragment>
           ))}
           {breakdown.exempt.map(({ ground, base }) => (
-            <AmountRows key={ground} rows={[['Base exenta', base]]} />
+            <Fragment key={ground}>
+              <dt>Base imponible (exenta)</dt>
+              <dd>{formatAmount(base)}</dd>
+            </Fragment>
           ))}
           <dt className="strong">Importe total</dt>
           <dd className="strong">{formatAmount(breakdown.totalAmount)}</dd>
-          <dt>Retención de IRPF ({breakdown.withholding.rate} %)</dt>
+          <dt>Retención IRPF ({breakdown.withholding.rate} %)</dt>
           <dd>{formatWithheld(breakdown.withholding.amount)}</dd>
+          <dt className="sheet-due">Total a pagar</dt>
+          <dd className="sheet-due">{formatAmount(breakdown.amountDue)}</dd>
         </dl>
       </div>
-      <div className="tp sheet-due">
-        <span className="tp-l small">Total a pagar</span>
-        <span className="tp-v">{formatAmount(breakdown.amountDue)}</span>
-      </div>
+
+      {issuer.iban && (
+        <p className="sheet-payment small">
+          Forma de pago: transferencia a <span className="mono">{formatIban(issuer.iban)}</span>
+        </p>
+      )}
     </article>
   );
 }
