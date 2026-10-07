@@ -52,15 +52,14 @@ export class InvoicePdfsService {
     if (latest?.id !== invoiceRecordId) return;
     if (await this.drawnFor(this.db, invoiceRecordId)) return;
     const { invoice } = row;
-    const record = { id: invoiceRecordId, qrPng: row.qrPng };
-    const body = await this.render(this.db, invoice, record.qrPng);
+    const body = await this.render(this.db, invoice, row.qrPng);
 
     await this.db.transaction(async (tx) => {
       // Locked as a correction of the withholding locks it: if one drew this record's version meanwhile,
       // from the corrected copy, that version stays.
       await tx.select({ id: invoices.id }).from(invoices).where(eq(invoices.id, invoice.id)).for('update');
       if (await this.drawnFor(tx, invoiceRecordId)) return;
-      await this.store(tx, invoice, record.id, body, null);
+      await this.store(tx, invoice, invoiceRecordId, body, null);
     });
   }
 

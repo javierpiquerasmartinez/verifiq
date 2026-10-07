@@ -260,8 +260,10 @@ export async function fetchInvoice(id: string): Promise<Invoice> {
   return invoiceSchema.parse(await request(`/invoices/${encodeURIComponent(id)}`));
 }
 
-/** The stored PDF of the invoice, served to the signed-in user only: shown in the browser, or saved. */
-/** The invoice's current PDF, or an earlier `version`; saved with `download`. */
+/**
+ * The stored PDF of the invoice, served to the signed-in user only: its current version, or an earlier
+ * `version`; shown in the browser, or saved with `download`.
+ */
 export function invoicePdfUrl(id: string, { download = false, version }: { download?: boolean; version?: number } = {}): string {
   const query = new URLSearchParams();
   if (version !== undefined) query.set('version', String(version));

@@ -80,7 +80,7 @@ export function WithholdingDialog({ invoice, onClose }: { invoice: Invoice; onCl
           <dl className="kv" style={{ gridTemplateColumns: '1fr auto', gap: '8px 24px' }}>
             <dt>Importe total</dt>
             <dd className="num">{formatAmount(after.totalAmount)}</dd>
-            <dt>Retención de IRPF {withholding ? `(${withholding} %)` : '(sin retención)'}</dt>
+            <dt>Retención de IRPF ({WITHHOLDING_LABELS[withholding].toLowerCase()})</dt>
             <dd className="num">{formatWithheld(after.withholding.amount)}</dd>
             <dt>Total a pagar</dt>
             <dd className="num">
