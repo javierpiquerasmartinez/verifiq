@@ -163,11 +163,16 @@ export class DraftsService {
 
   /**
    * With `correction`, a corrective draft: the caller takes its recipient, billing period and
-   * withholding from the invoice it corrects, and they never change.
+   * withholding from the invoice it corrects, and they never change. With `db`, inside that transaction.
    */
-  async create(issuerId: string, data: DraftData, correction?: NewCorrection): Promise<Draft> {
-    await this.checkRecipient(issuerId, data.recipientId);
-    const [created] = await this.db
+  async create(
+    issuerId: string,
+    data: DraftData,
+    correction?: NewCorrection,
+    { db = this.db }: { db?: Queryable } = {},
+  ): Promise<Draft> {
+    await this.checkRecipient(issuerId, data.recipientId, db);
+    const [created] = await db
       .insert(drafts)
       .values({
         ...columns(data),
@@ -179,7 +184,7 @@ export class DraftsService {
         }),
       })
       .returning({ id: drafts.id });
-    return this.find(issuerId, created!.id);
+    return this.find(issuerId, created!.id, { db });
   }
 
   /** Whether the draft is a corrective one, whose lines may be negative. */
@@ -216,9 +221,9 @@ export class DraftsService {
   }
 
   /** The recipient must be one of the issuer's: another issuer's is as good as none. */
-  private async checkRecipient(issuerId: string, recipientId: string | null): Promise<void> {
+  private async checkRecipient(issuerId: string, recipientId: string | null, db: Queryable = this.db): Promise<void> {
     if (!recipientId) return;
-    const [recipient] = await this.db
+    const [recipient] = await db
       .select({ id: recipients.id })
       .from(recipients)
       .where(and(eq(recipients.issuerId, issuerId), eq(recipients.id, recipientId)));

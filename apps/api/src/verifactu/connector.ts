@@ -147,8 +147,8 @@ export interface RecordSubmission extends Submission {
   invoice: RecordInvoice;
 }
 
-/** How an InvoiceRecord is sent: the invoice's registration, or an Amendment of it. */
-export type RecordOperation = 'submission' | 'amendment';
+/** How an InvoiceRecord is sent: the invoice's registration, an Amendment of it, or its Voiding. */
+export type RecordOperation = 'submission' | 'amendment' | 'voiding';
 
 /** Whether the AEAT rejected the original record, or a previous amendment of it. */
 export type PreviousRejection = 'none' | 'record' | 'amendment';
@@ -159,9 +159,9 @@ export interface AmendmentSubmission extends RecordSubmission {
 
 export interface VoidingSubmission extends Submission {
   invoice: InvoiceKey;
-  /** The AEAT rejected the record being voided. */
+  /** The AEAT rejected the latest Voiding of the invoice it received: this one sends it again. */
   previouslyRejected: boolean;
-  /** The invoice was never registered at the AEAT. */
+  /** The AEAT never registered the invoice (it blocked or rejected every record of it). */
   notRegistered: boolean;
 }
 

@@ -17,7 +17,7 @@ type Verdict = Extract<InvoiceRecordStatus, 'accepted' | 'accepted-with-errors' 
 /** How a verdict reached Verifiq: the results webhook, or the poll that backs it up. */
 export type VerdictSource = 'webhook' | 'poll';
 
-/** The AEAT's verdict in a record status; null while it has none (or it is not about a submission). */
+/** The AEAT's verdict in a record status; null while it has none. */
 function verdictOf({ state, aeatError }: RecordStatus): { verdict: Verdict; aeatError: RecordStatus['aeatError'] } | null {
   switch (state) {
     case 'accepted':
@@ -30,8 +30,10 @@ function verdictOf({ state, aeatError }: RecordStatus): { verdict: Verdict; aeat
         verdict: 'rejected',
         aeatError: aeatError ?? { code: 'duplicate', message: 'La AEAT ya tiene un registro con este número y fecha.' },
       };
-    case 'pending':
+    // An accepted Voiding.
     case 'voided':
+      return { verdict: 'accepted', aeatError };
+    case 'pending':
       return null;
   }
 }

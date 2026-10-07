@@ -54,11 +54,14 @@ export function RecordIncident({
   invoice,
   incident,
   onRectify,
+  onVoidAndReissue,
 }: {
   invoice: Invoice;
   incident: Incident;
   /** Opens the rectification, when the invoice can be rectified. */
   onRectify?: () => void;
+  /** Opens "Anular y volver a emitir", when the invoice can be voided. */
+  onVoidAndReissue?: () => void;
 }) {
   const queryClient = useQueryClient();
   const recipient = useQuery({
@@ -114,10 +117,19 @@ export function RecordIncident({
         </div>
 
         {dayOver ? (
-          <p>
-            Ya ha pasado el día de su fecha de expedición, así que Hacienda no admite registrarla. Habrá que anularla (el
-            número {invoice.number} no se reutiliza) y emitir una factura nueva.
-          </p>
+          <div className="stack" style={{ gap: 12 }}>
+            <p>
+              Ya ha pasado el día de su fecha de expedición, así que Hacienda no admite registrarla. Habrá que anularla (el
+              número {invoice.number} no se reutiliza) y emitir una factura nueva.
+            </p>
+            {onVoidAndReissue && (
+              <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+                <button type="button" className="btn btn-primary" onClick={onVoidAndReissue}>
+                  Anular y volver a emitir
+                </button>
+              </div>
+            )}
+          </div>
         ) : amending ? (
           <form className="stack" style={{ gap: 12 }} onSubmit={resubmit}>
             <ol className="incident-steps">

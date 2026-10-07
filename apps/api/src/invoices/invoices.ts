@@ -1,13 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  canResendVoiding,
   invoiceNumber,
   invoiceNumberIn,
   isRectifiable,
+  isVoidable,
   negatedLines,
   seriesCode,
   todayInSpain,
+  type CorrectedRecipient,
   type CorrectionReason,
   type Draft,
+  type DraftData,
   type DraftProblem,
   type FiscalData,
   type Invoice,
@@ -18,6 +22,8 @@ import {
   type InvoiceSnapshot,
   type InvoiceStatus,
   type NewCorrectiveDraft,
+  type RecipientCorrection,
+  type VoidedInvoice,
   explainRecordRejection,
   INCIDENT_RECORD_STATUSES,
   isRecordUnconfirmed,
@@ -25,9 +31,10 @@ import {
 } from '@verifiq/domain';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
+import type pg from 'pg';
 import { recordAuditEvent, type AuditAction } from '../audit/audit.js';
 import { DATABASE, inTransaction, type Database, type Queryable } from '../database/database.module.js';
-import { auditEvents, invoiceRecords, invoices, issuers, recipients, seriesCounters, users } from '../database/schema.js';
+import { auditEvents, drafts, invoiceRecords, invoices, issuers, recipients, seriesCounters, users } from '../database/schema.js';
 import type { PreviousRejection, RecordOperation } from '../verifactu/connector.js';
 import { DraftsService } from '../drafts/drafts.js';
 import { RepresentationService } from '../issuers/representation.js';
@@ -39,7 +46,7 @@ import { SubmissionQueue } from './submission-queue.js';
 export class InvoiceNotFoundError extends Error {}
 
 /** The audit events an invoice's history shows, as the events of its timeline. */
-const HISTORY_EVENTS: Record<AuditAction, InvoiceEvent> = {
+const HISTORY_EVENTS: Partial<Record<AuditAction, InvoiceEvent>> = {
   'invoice-issued': 'issued',
   'invoice-record-submitted': 'submitted',
   'invoice-record-blocked': 'blocked',
@@ -49,6 +56,7 @@ const HISTORY_EVENTS: Record<AuditAction, InvoiceEvent> = {
   'invoice-record-rejected': 'rejected',
   'invoice-record-resubmitted': 'resubmitted',
   'invoice-rectified': 'rectified',
+  'invoice-voided': 'voided',
 };
 
 /** What the frozen copy keeps of a recipient. */
@@ -77,6 +85,12 @@ export class RetryDayOverError extends Error {}
 
 /** Only an invoice the AEAT has, neither voided nor itself corrective, is rectified (isRectifiable). */
 export class NotRectifiableError extends Error {}
+
+/**
+ * Only an issued invoice, neither rectified nor corrective, without a corrective draft and not waiting
+ * for the AEAT's verdict, is voided (isVoidable); a voided one, only to send its Voiding again.
+ */
+export class NotVoidableError extends Error {}
 
 export class DraftNotReadyError extends Error {
   constructor(readonly problems: DraftProblem[]) {
@@ -142,6 +156,36 @@ const snapshotOf = (invoice: { snapshot: unknown }): InvoiceSnapshot => {
   return { ...snapshot, correction: snapshot.correction ?? null };
 };
 
+/** A draft with the invoice's content, to issue it again with a new number: to `recipientId`, or to none yet. */
+function reissueOf(invoice: typeof invoices.$inferSelect, recipientId: string | null): DraftData {
+  const { billingPeriod, operationDescription, lines, withholding } = snapshotOf(invoice);
+  return { recipientId, billingPeriod, operationDescription, lines, withholding };
+}
+
+/** The data of a corrective draft for the invoice (ADR 0005): in its recipient, period and withholding. */
+function correctiveDraftOf(invoice: typeof invoices.$inferSelect, total: boolean): DraftData {
+  const snapshot = snapshotOf(invoice);
+  const number = invoiceNumberIn(invoice.series, invoice.number);
+  return {
+    recipientId: invoice.recipientId,
+    billingPeriod: snapshot.billingPeriod,
+    operationDescription: `Rectificación de ${number}: ${snapshot.operationDescription}`.slice(0, 500),
+    lines: total ? negatedLines(snapshot.lines) : [],
+    withholding: snapshot.withholding,
+  };
+}
+
+/** Locks the issuer's invoice until the transaction ends. */
+async function lockInvoice(db: Queryable, issuerId: string, invoiceId: string) {
+  const [invoice] = await db
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.issuerId, issuerId), eq(invoices.id, invoiceId)))
+    .for('update');
+  if (!invoice) throw new InvoiceNotFoundError();
+  return invoice;
+}
+
 /**
  * Issuance (ADR 0002) and issued invoices. Issuing is one transaction: it locks the draft and the
  * counter of the series, assigns the next number, freezes a copy of the invoice, creates its
@@ -160,98 +204,107 @@ export class InvoicesService {
   /** Issues the draft, which becomes the invoice. Returns the invoice. */
   async issue(issuerId: string, userId: string, draftId: string): Promise<Invoice> {
     if (!(await this.representation.canIssue(issuerId))) throw new CannotIssueError();
-    const invoiceId = await inTransaction(this.db, async (tx, client) => {
-      const draft = await this.drafts.find(issuerId, draftId, { db: tx, lock: true });
-      if (draft.problems.length > 0 || !draft.recipient) throw new DraftNotReadyError(draft.problems);
-      const { issueDate, recipient, correction } = draft;
-      if (correction) await this.lockRectifiable(tx, issuerId, correction.invoice.id);
-      const { series, fiscalData } = await issuerAndSeries(tx, issuerId, issueDate, { corrective: correction !== null });
+    const invoiceId = await inTransaction(this.db, (tx, client) => this.issueIn(tx, client, issuerId, userId, draftId));
+    return this.find(issuerId, invoiceId);
+  }
 
-      // The counter's row stays locked until the transaction ends: Issuances in a series take turns.
-      const [counter] = await tx
-        .insert(seriesCounters)
-        .values({ issuerId, series, lastNumber: 1 })
-        .onConflictDoUpdate({
-          target: [seriesCounters.issuerId, seriesCounters.series],
-          set: { lastNumber: sql`${seriesCounters.lastNumber} + 1` },
-        })
-        .returning({ number: seriesCounters.lastNumber });
-      const number = counter!.number;
+  /** The Issuance of the draft, inside the transaction `tx` (`client` queues its submission). Returns the invoice's id. */
+  private async issueIn(
+    tx: Queryable,
+    client: pg.PoolClient,
+    issuerId: string,
+    userId: string,
+    draftId: string,
+  ): Promise<string> {
+    const draft = await this.drafts.find(issuerId, draftId, { db: tx, lock: true });
+    if (draft.problems.length > 0 || !draft.recipient) throw new DraftNotReadyError(draft.problems);
+    const { issueDate, recipient, correction } = draft;
+    if (correction) await this.lockRectifiable(tx, issuerId, correction.invoice.id);
+    const { series, fiscalData } = await issuerAndSeries(tx, issuerId, issueDate, { corrective: correction !== null });
 
-      const snapshot: InvoiceSnapshot = {
-        issuer: fiscalData,
-        recipient: recipientDataOf(recipient),
-        billingPeriod: draft.billingPeriod,
-        operationDate: draft.operationDate,
-        operationDescription: draft.operationDescription,
-        lines: draft.lines,
-        withholding: draft.withholding,
-        breakdown: draft.breakdown,
-        correction,
-      };
-      const status: InvoiceStatus = 'issued';
-      const [invoice] = await tx
-        .insert(invoices)
-        .values({
-          issuerId,
-          recipientId: recipient.id,
-          series,
-          number,
-          issueDate,
-          status,
-          snapshot,
-          issuedBy: userId,
-          correctedInvoiceId: correction?.invoice.id ?? null,
-        })
-        .returning({ id: invoices.id });
-      const recordStatus: InvoiceRecordStatus = 'pending-submission';
-      const [record] = await tx
-        .insert(invoiceRecords)
-        .values({ issuerId, invoiceId: invoice!.id, status: recordStatus, snapshot, idempotencyKey: randomUUID() })
-        .returning({ id: invoiceRecords.id });
-      await this.queue.enqueue({ invoiceRecordId: record!.id }, client);
+    // The counter's row stays locked until the transaction ends: Issuances in a series take turns.
+    const [counter] = await tx
+      .insert(seriesCounters)
+      .values({ issuerId, series, lastNumber: 1 })
+      .onConflictDoUpdate({
+        target: [seriesCounters.issuerId, seriesCounters.series],
+        set: { lastNumber: sql`${seriesCounters.lastNumber} + 1` },
+      })
+      .returning({ number: seriesCounters.lastNumber });
+    const number = counter!.number;
 
+    const snapshot: InvoiceSnapshot = {
+      issuer: fiscalData,
+      recipient: recipientDataOf(recipient),
+      billingPeriod: draft.billingPeriod,
+      operationDate: draft.operationDate,
+      operationDescription: draft.operationDescription,
+      lines: draft.lines,
+      withholding: draft.withholding,
+      breakdown: draft.breakdown,
+      correction,
+    };
+    const status: InvoiceStatus = 'issued';
+    const [invoice] = await tx
+      .insert(invoices)
+      .values({
+        issuerId,
+        recipientId: recipient.id,
+        series,
+        number,
+        issueDate,
+        status,
+        snapshot,
+        issuedBy: userId,
+        correctedInvoiceId: correction?.invoice.id ?? null,
+      })
+      .returning({ id: invoices.id });
+    const recordStatus: InvoiceRecordStatus = 'pending-submission';
+    const [record] = await tx
+      .insert(invoiceRecords)
+      .values({ issuerId, invoiceId: invoice!.id, status: recordStatus, snapshot, idempotencyKey: randomUUID() })
+      .returning({ id: invoiceRecords.id });
+    await this.queue.enqueue({ invoiceRecordId: record!.id }, client);
+
+    await recordAuditEvent(tx, {
+      issuerId,
+      actorUserId: userId,
+      action: 'invoice-issued',
+      subjectType: 'invoice',
+      subjectId: invoice!.id,
+      details: {
+        number: invoiceNumberIn(series, number),
+        issueDate,
+        draftId,
+        recipientId: recipient.id,
+        recipientTaxId: recipient.taxId,
+        totalAmount: draft.breakdown.totalAmount,
+        amountDue: draft.breakdown.amountDue,
+        ...(correction && { correction }),
+      },
+    });
+    if (correction) {
+      await tx
+        .update(invoices)
+        .set({ status: 'rectified' satisfies InvoiceStatus })
+        .where(eq(invoices.id, correction.invoice.id));
       await recordAuditEvent(tx, {
         issuerId,
         actorUserId: userId,
-        action: 'invoice-issued',
+        action: 'invoice-rectified',
         subjectType: 'invoice',
-        subjectId: invoice!.id,
+        subjectId: correction.invoice.id,
         details: {
+          correctiveInvoiceId: invoice!.id,
           number: invoiceNumberIn(series, number),
-          issueDate,
-          draftId,
-          recipientId: recipient.id,
-          recipientTaxId: recipient.taxId,
-          totalAmount: draft.breakdown.totalAmount,
-          amountDue: draft.breakdown.amountDue,
-          ...(correction && { correction }),
+          type: correction.type,
+          reason: correction.reason,
+          note: correction.note,
         },
       });
-      if (correction) {
-        await tx
-          .update(invoices)
-          .set({ status: 'rectified' satisfies InvoiceStatus })
-          .where(eq(invoices.id, correction.invoice.id));
-        await recordAuditEvent(tx, {
-          issuerId,
-          actorUserId: userId,
-          action: 'invoice-rectified',
-          subjectType: 'invoice',
-          subjectId: correction.invoice.id,
-          details: {
-            correctiveInvoiceId: invoice!.id,
-            number: invoiceNumberIn(series, number),
-            type: correction.type,
-            reason: correction.reason,
-            note: correction.note,
-          },
-        });
-      }
-      await this.drafts.delete(issuerId, draftId, { db: tx });
-      return invoice!.id;
-    });
-    return this.find(issuerId, invoiceId);
+    }
+    await this.drafts.delete(issuerId, draftId, { db: tx });
+    return invoice!.id;
   }
 
   /**
@@ -266,19 +319,170 @@ export class InvoicesService {
       .where(and(eq(invoices.issuerId, issuerId), eq(invoices.id, invoiceId)));
     if (!invoice) throw new InvoiceNotFoundError();
     if (!(await canRectify(this.db, invoice))) throw new NotRectifiableError();
-    const snapshot = snapshotOf(invoice);
-    const number = invoiceNumberIn(invoice.series, invoice.number);
-    return this.drafts.create(
-      issuerId,
-      {
-        recipientId: invoice.recipientId,
-        billingPeriod: snapshot.billingPeriod,
-        operationDescription: `Rectificación de ${number}: ${snapshot.operationDescription}`.slice(0, 500),
-        lines: request.total ? negatedLines(snapshot.lines) : [],
-        withholding: snapshot.withholding,
+    return this.drafts.create(issuerId, correctiveDraftOf(invoice, request.total), {
+      invoiceId: invoice.id,
+      reason: request.reason,
+      note: request.note,
+    });
+  }
+
+  /**
+   * Voids the invoice (ADR 0005): it stays, voided and read only, its number is never reused, and its
+   * Voiding is queued for the AEAT. With `reissue`, a new draft with its content and recipient, to issue
+   * it again. A voided invoice whose Voiding was blocked or rejected sends it again instead.
+   */
+  async void(issuerId: string, userId: string, invoiceId: string, { reissue }: { reissue: boolean }): Promise<VoidedInvoice> {
+    const draftId = await inTransaction(this.db, async (tx, client) => {
+      const invoice = await lockInvoice(tx, issuerId, invoiceId);
+      const latest = (await latestRecordOf(tx, invoice.id))!;
+      const status = invoice.status as InvoiceStatus;
+      const recordStatus = latest.status as InvoiceRecordStatus;
+      if (canResendVoiding({ status, recordStatus, voiding: latest.operation === 'voiding' })) {
+        const recordId = await this.queueVoiding(tx, client, invoice);
+        await recordAuditEvent(tx, {
+          issuerId,
+          actorUserId: userId,
+          action: 'invoice-record-resubmitted',
+          subjectType: 'invoice',
+          subjectId: invoice.id,
+          details: { invoiceRecordId: recordId, previousInvoiceRecordId: latest.id, previousRecordStatus: recordStatus, operation: 'voiding' },
+        });
+        return null;
+      }
+      await this.checkVoidable(tx, invoice, latest);
+      const draft = reissue ? await this.drafts.create(issuerId, reissueOf(invoice, invoice.recipientId), undefined, { db: tx }) : null;
+      await this.voidIn(tx, client, userId, invoice, { reissueDraftId: draft?.id ?? null });
+      return draft?.id ?? null;
+    });
+    return {
+      invoice: await this.find(issuerId, invoiceId),
+      draft: draftId === null ? null : await this.drafts.find(issuerId, draftId),
+    };
+  }
+
+  /**
+   * "Corregir destinatario" (ADR 0005), in one go: an invoice not sent yet is voided; one already sent is
+   * rectified totally (a corrective invoice R4 with every line negated is issued). Either way, a new draft
+   * with its content and no recipient, for the user to choose the right one.
+   */
+  async correctRecipient(
+    issuerId: string,
+    userId: string,
+    invoiceId: string,
+    { sent }: RecipientCorrection,
+  ): Promise<CorrectedRecipient> {
+    if (sent && !(await this.representation.canIssue(issuerId))) throw new CannotIssueError();
+    const { draftId, correctiveInvoiceId } = await inTransaction(this.db, async (tx, client) => {
+      const invoice = await lockInvoice(tx, issuerId, invoiceId);
+      let correctiveInvoiceId: string | null = null;
+      if (sent) {
+        if (!(await canRectify(tx, invoice))) throw new NotRectifiableError();
+        const { recipient } = snapshotOf(invoice);
+        const corrective = await this.drafts.create(
+          issuerId,
+          correctiveDraftOf(invoice, true),
+          {
+            invoiceId: invoice.id,
+            reason: 'amounts_or_data_error',
+            note: `Destinatario equivocado: se emitió a ${recipient.name} (${recipient.taxId}) por error.`.slice(0, 250),
+          },
+          { db: tx },
+        );
+        correctiveInvoiceId = await this.issueIn(tx, client, issuerId, userId, corrective.id);
+      } else {
+        await this.checkVoidable(tx, invoice, (await latestRecordOf(tx, invoice.id))!);
+      }
+      const draft = await this.drafts.create(issuerId, reissueOf(invoice, null), undefined, { db: tx });
+      if (!sent) await this.voidIn(tx, client, userId, invoice, { reissueDraftId: draft.id });
+      await recordAuditEvent(tx, {
+        issuerId,
+        actorUserId: userId,
+        action: 'invoice-recipient-corrected',
+        subjectType: 'invoice',
+        subjectId: invoice.id,
+        details: {
+          sent,
+          recipientId: invoice.recipientId,
+          recipientTaxId: snapshotOf(invoice).recipient.taxId,
+          draftId: draft.id,
+          correctiveInvoiceId,
+        },
+      });
+      return { draftId: draft.id, correctiveInvoiceId };
+    });
+    return {
+      draft: await this.drafts.find(issuerId, draftId),
+      correctiveInvoice: correctiveInvoiceId === null ? null : await this.find(issuerId, correctiveInvoiceId),
+    };
+  }
+
+  /** Voiding and rectification are never combined: an invoice with a corrective draft open is not voided either. */
+  private async checkVoidable(
+    db: Queryable,
+    invoice: typeof invoices.$inferSelect,
+    latest: typeof invoiceRecords.$inferSelect,
+  ): Promise<void> {
+    const voidable = isVoidable({
+      status: invoice.status as InvoiceStatus,
+      recordStatus: latest.status as InvoiceRecordStatus,
+      corrective: invoice.correctedInvoiceId !== null,
+    });
+    if (!voidable) throw new NotVoidableError();
+    const [correctiveDraft] = await db
+      .select({ id: drafts.id })
+      .from(drafts)
+      .where(and(eq(drafts.issuerId, invoice.issuerId), eq(drafts.correctedInvoiceId, invoice.id)))
+      .limit(1);
+    if (correctiveDraft) throw new NotVoidableError();
+  }
+
+  /** Leaves the invoice voided and queues its Voiding, inside the transaction `db` that locked it. */
+  private async voidIn(
+    db: Queryable,
+    client: pg.PoolClient,
+    userId: string,
+    invoice: typeof invoices.$inferSelect,
+    { reissueDraftId }: { reissueDraftId: string | null },
+  ): Promise<void> {
+    await db
+      .update(invoices)
+      .set({ status: 'voided' satisfies InvoiceStatus })
+      .where(eq(invoices.id, invoice.id));
+    const recordId = await this.queueVoiding(db, client, invoice);
+    await recordAuditEvent(db, {
+      issuerId: invoice.issuerId,
+      actorUserId: userId,
+      action: 'invoice-voided',
+      subjectType: 'invoice',
+      subjectId: invoice.id,
+      details: {
+        invoiceRecordId: recordId,
+        number: invoiceNumberIn(invoice.series, invoice.number),
+        issueDate: invoice.issueDate,
+        reissueDraftId,
       },
-      { invoiceId: invoice.id, reason: request.reason, note: request.note },
-    );
+    });
+  }
+
+  /** A new record with the invoice's Voiding, queued for the worker. Returns its id. */
+  private async queueVoiding(
+    db: Queryable,
+    client: pg.PoolClient,
+    invoice: typeof invoices.$inferSelect,
+  ): Promise<string> {
+    const [record] = await db
+      .insert(invoiceRecords)
+      .values({
+        issuerId: invoice.issuerId,
+        invoiceId: invoice.id,
+        status: 'pending-submission' satisfies InvoiceRecordStatus,
+        operation: 'voiding',
+        snapshot: invoice.snapshot,
+        idempotencyKey: randomUUID(),
+      })
+      .returning({ id: invoiceRecords.id });
+    await this.queue.enqueue({ invoiceRecordId: record!.id }, client);
+    return record!.id;
   }
 
   /** Locks the invoice a corrective draft corrects until the Issuance ends, once sure it can still be rectified. */
@@ -421,6 +625,7 @@ export class InvoicesService {
         status: recordStatus,
         verificationUrl: record.verificationUrl,
         amendment: record.operation === 'amendment',
+        voiding: record.operation === 'voiding',
         rejection:
           record.status === 'blocked' && record.rejectionCode !== null
             ? explainedRejection(record.rejectionCode, record.rejectionMessage)

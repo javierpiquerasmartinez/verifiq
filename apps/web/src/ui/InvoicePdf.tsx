@@ -2,9 +2,12 @@ import type { Invoice } from '@verifiq/domain';
 import { invoicePdfUrl } from '../api';
 import { Icon } from './icons';
 
+/** Whether the invoice has, or will have in a moment, its PDF: once its record has the QR. A voided invoice keeps the one it had. */
+const hasPdf = (invoice: Invoice) => invoice.record.verificationUrl !== null || (invoice.record.voiding && invoice.pdf !== null);
+
 /** Saves the invoice's PDF. It exists only once the record has its QR, a moment after it. */
 export function DownloadPdfButton({ invoice, tone = 'primary' }: { invoice: Invoice; tone?: 'primary' | 'secondary' }) {
-  if (!invoice.record.verificationUrl) return null;
+  if (!hasPdf(invoice)) return null;
   if (!invoice.pdf) {
     return (
       <button type="button" className={`btn btn-${tone}`} disabled>
@@ -23,7 +26,7 @@ export function DownloadPdfButton({ invoice, tone = 'primary' }: { invoice: Invo
 
 /** The stored PDF itself, the document the client receives, with its QR tributario. */
 export function InvoiceDocument({ invoice }: { invoice: Invoice }) {
-  if (!invoice.record.verificationUrl) return null;
+  if (!hasPdf(invoice)) return null;
   return (
     <section className="card invoice-document" aria-labelledby="invoice-document">
       <div className="card-head">
