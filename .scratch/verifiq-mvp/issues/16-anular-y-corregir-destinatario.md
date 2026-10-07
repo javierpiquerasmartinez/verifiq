@@ -13,3 +13,7 @@ Spec: `../spec.md` (historias 76, 78–80) · ADR 0005
 - [ ] Corregir destinatario: "¿Has enviado ya esta factura?" No → Anulación; Sí → rectificativa total R4; en ambos casos Borrador nuevo precargado con otro Destinatario
 - [ ] Prohibido combinar Anulación y rectificativa sobre la misma factura (test en ambos sentidos)
 - [ ] Auditoría de ambas acciones
+
+## Comments
+
+- (issue 13) Un Registro bloqueado (alta rechazada de forma síncrona) solo se puede reintentar el día de su fecha de expedición; pasado ese día la API responde `INVOICE_RETRY_DAY_OVER` y la interfaz dice que hay que anularla y emitir una nueva, sin acción. Esta issue debería ofrecer ahí «Anular y volver a emitir»: Anulación con `sin_registro_previo` (`VoidingSubmission.notRegistered`) y Borrador nuevo precargado.
