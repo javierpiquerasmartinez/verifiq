@@ -4,7 +4,12 @@ import { and, eq } from 'drizzle-orm';
 import { recordAuditEvent } from '../audit/audit.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { invoiceRecords, invoices } from '../database/schema.js';
-import { VERIFACTU_CONNECTOR, type RecordInvoice, type RecordLine, type VerifactuConnector } from '../verifactu/connector.js';
+import {
+  VERIFACTU_CONNECTOR,
+  type RecordInvoice,
+  type RecordLine,
+  type VerifactuConnector,
+} from '../verifactu/connector.js';
 import { InvoicePdfsService } from './invoice-pdfs.js';
 import { SUBMISSION_OPTIONS, SubmissionQueue, type SubmissionOptions } from './submission-queue.js';
 
@@ -95,13 +100,14 @@ export class SubmissionWorker implements OnApplicationBootstrap {
       .where(eq(invoiceRecords.id, invoiceRecordId));
     if (!row) return;
     if (row.record.status === 'pending-submission') await this.send(row);
-    // Does nothing without QR (blocked) or when the PDF exists: a retry only draws what is missing.
-    await this.pdfs.generateFirstVersion(row.invoice.id);
+    // Does nothing without QR (blocked), when the record's PDF exists or once the record was sent again:
+    // a retry only draws what is missing.
+    await this.pdfs.generateForRecord(invoiceRecordId);
   }
 
   /**
-   * Keeps the fingerprint, QR and verification URL the connector answers, or blocks the record if it
-   * refuses it. Throws when it has to be retried.
+   * Sends the record (an Amendment, if it is one) and keeps the fingerprint, QR and verification URL
+   * the connector answers, or blocks the record if it refuses it. Throws when it has to be retried.
    */
   private async send({
     record,
@@ -110,16 +116,19 @@ export class SubmissionWorker implements OnApplicationBootstrap {
     record: typeof invoiceRecords.$inferSelect;
     invoice: typeof invoices.$inferSelect;
   }): Promise<void> {
-    const snapshot = invoice.snapshot as InvoiceSnapshot;
+    // What the record sends is the copy it keeps (records before migration 0011 have none: the invoice's).
+    const snapshot = (record.snapshot ?? invoice.snapshot) as InvoiceSnapshot;
 
-    const result = await this.connector.submitRecord(
-      { issuerId: invoice.issuerId, taxId: snapshot.issuer.taxId },
-      {
-        invoiceRecordId: record.id,
-        idempotencyKey: record.idempotencyKey,
-        invoice: recordInvoiceOf(invoice, snapshot),
-      },
-    );
+    const issuer = { issuerId: invoice.issuerId, taxId: snapshot.issuer.taxId };
+    const submission = {
+      invoiceRecordId: record.id,
+      idempotencyKey: record.idempotencyKey,
+      invoice: recordInvoiceOf(invoice, snapshot),
+    };
+    const result =
+      record.operation === 'amendment'
+        ? await this.connector.amendRecord(issuer, { ...submission, previousRejection: record.previousRejection ?? 'none' })
+        : await this.connector.submitRecord(issuer, submission);
     if (result.outcome === 'transient') {
       throw new SubmissionPostponedError(`${result.reason}: ${result.message}`);
     }
@@ -146,7 +155,7 @@ export class SubmissionWorker implements OnApplicationBootstrap {
         await recordAuditEvent(tx, {
           ...audit,
           action: 'invoice-record-submitted',
-          details: { invoiceRecordId: record.id, connectorRecordId, fingerprint, verificationUrl },
+          details: { invoiceRecordId: record.id, operation: record.operation, connectorRecordId, fingerprint, verificationUrl },
         });
       } else {
         const updated = await tx

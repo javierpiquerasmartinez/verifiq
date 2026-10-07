@@ -32,6 +32,18 @@ export const INVOICE_RECORD_STATUSES = [
 
 export type InvoiceRecordStatus = (typeof INVOICE_RECORD_STATUSES)[number];
 
+/**
+ * Whether a blocked record can no longer be retried as of `today` (YYYY-MM-DD): the AEAT registers a
+ * new invoice on its issue date only. An Amendment keeps its original date, so it is always retried.
+ * Past its day, the invoice is voided (its number is never reused) and issued again.
+ */
+export function isRetryDayOver(
+  invoice: { issueDate: string; record: { status: InvoiceRecordStatus; amendment: boolean } },
+  today: string,
+): boolean {
+  return invoice.record.status === 'blocked' && !invoice.record.amendment && invoice.issueDate < today;
+}
+
 /** Records unconfirmed this long after the Issuance warn the user and alert the operator. */
 export const UNCONFIRMED_RECORD_HOURS = 24;
 
@@ -60,6 +72,8 @@ export const INVOICE_EVENTS = [
   'accepted',
   'accepted-with-errors',
   'rejected',
+  /** The user corrected the copy and sent its record again. */
+  'resubmitted',
 ] as const;
 
 export type InvoiceEvent = (typeof INVOICE_EVENTS)[number];
@@ -85,8 +99,10 @@ export const invoiceSchema = z.object({
     status: z.enum(INVOICE_RECORD_STATUSES),
     /** AEAT URL the QR encodes, once the connector queued the record. */
     verificationUrl: z.string().nullable(),
-    /** Why the connector refused the record, while it is blocked. */
-    rejection: z.object({ code: z.string(), message: z.string() }).nullable(),
+    /** Why the connector refused the record, while it is blocked; `explanation` tells the user in plain language. */
+    rejection: z.object({ code: z.string(), message: z.string(), explanation: z.string() }).nullable(),
+    /** The latest record is an Amendment of the first one (sent after a rejection or errors). */
+    amendment: z.boolean(),
     /** When the AEAT's verdict arrived (accepted, with errors or rejected). */
     confirmedAt: z.iso.datetime({ offset: true }).nullable(),
     /** The AEAT's code for the accepted record (its CSV), when the connector passes it on. */
@@ -138,6 +154,19 @@ export const nextInvoiceNumberSchema = z.object({ number: z.string() });
 
 export type NextInvoiceNumber = z.infer<typeof nextInvoiceNumberSchema>;
 
+/**
+ * Body of POST /invoices/:id/resubmission: corrects the copy of an invoice whose record is blocked,
+ * rejected or accepted with errors, and sends it again with the same number. The description is
+ * corrected here. Blocked or rejected, the recipient's data come again from its profile, where the
+ * user corrects them; accepted with errors, they stay: the invoice exists at the AEAT, and an error in
+ * them is corrected with a corrective invoice.
+ */
+export const invoiceResubmissionSchema = z.object({
+  operationDescription: draftDataSchema.shape.operationDescription.min(1, 'Escribe la descripción de la operación'),
+});
+
+export type InvoiceResubmission = z.infer<typeof invoiceResubmissionSchema>;
+
 /** Stable error codes of the invoice endpoints and of the Issuance, so the web can show a clear message. */
 export const InvoiceErrorCode = {
   NotFound: 'INVOICE_NOT_FOUND',
@@ -147,6 +176,12 @@ export const InvoiceErrorCode = {
   CannotIssue: 'CANNOT_ISSUE',
   /** The invoice has no PDF yet: its record has no QR. */
   PdfNotAvailable: 'INVOICE_PDF_NOT_AVAILABLE',
+  /** Only a blocked, rejected or accepted with errors record is corrected and sent again. */
+  NotResubmittable: 'INVOICE_NOT_RESUBMITTABLE',
+  /** A blocked record is retried on its issue date only (isRetryDayOver). */
+  RetryDayOver: 'INVOICE_RETRY_DAY_OVER',
+  /** The recipient's tax ID is not confirmed in the census: the user corrects it in its profile first. */
+  RecipientNotReady: 'INVOICE_RECIPIENT_NOT_READY',
 } as const;
 
 export type InvoiceErrorCode = (typeof InvoiceErrorCode)[keyof typeof InvoiceErrorCode];

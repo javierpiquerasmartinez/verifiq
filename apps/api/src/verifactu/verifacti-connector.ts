@@ -1,3 +1,4 @@
+import { RECORD_REJECTION_CODES, type RecordRejectionCode } from '@verifiq/domain';
 import type { Database } from '../database/database.module.js';
 import {
   REJECTION_CODES,
@@ -81,6 +82,18 @@ const RECORD_STATES: Record<string, RecordState> = {
 };
 
 const PREVIOUS_REJECTION = { none: 'N', record: 'X', amendment: 'S' } as const;
+
+/** Verifacti's codes for record data the user can correct, as the domain's stable codes. Others pass through. */
+const RECORD_REJECTIONS: Record<string, RecordRejectionCode> = {
+  'vf-verifactu-destinatario_no_censado_aeat': RECORD_REJECTION_CODES.recipientNotInCensus,
+  'vf-verifactu-nif_formato': RECORD_REJECTION_CODES.recipientTaxIdInvalid,
+  'vf-verifactu-nombre_longitud': RECORD_REJECTION_CODES.recipientNameTooLong,
+  'vf-verifactu-caracter_control': RECORD_REJECTION_CODES.invalidCharacter,
+  'vf-verifactu-fecha_expedicion_hoy': RECORD_REJECTION_CODES.issueDateNotToday,
+  'vf-verifactu-lineas_maximo': RECORD_REJECTION_CODES.tooManyLines,
+  'vf-verifactu-importe_total_cuadre': RECORD_REJECTION_CODES.totalMismatch,
+  'vf-verifactu-factura_duplicada': RECORD_REJECTION_CODES.duplicateInvoice,
+};
 
 const yesNo = (value: boolean) => (value ? 'S' : 'N');
 
@@ -419,7 +432,12 @@ function failure(outcome: HttpOutcome): ConnectorResult<never> {
     return { outcome: 'transient', reason: 'in-progress', message };
   }
   if (status === 422) return { outcome: 'rejected', code: REJECTION_CODES.idempotencyKeyReused, message };
-  const code = text('codigo') ?? (status === 404 ? REJECTION_CODES.notFound : `http-${status}`);
+  const connectorCode = text('codigo');
+  const code = connectorCode
+    ? (RECORD_REJECTIONS[connectorCode] ?? connectorCode)
+    : status === 404
+      ? REJECTION_CODES.notFound
+      : `http-${status}`;
   return { outcome: 'rejected', code, message: text('error') ?? message };
 }
 

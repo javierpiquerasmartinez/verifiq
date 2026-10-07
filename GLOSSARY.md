@@ -118,6 +118,11 @@ Reenvío de un Registro de facturación para corregir datos del registro que no 
 _En código_: `Amendment`
 _Avoid_: Modificación, edición
 
+**Reenvío**:
+Nuevo envío del Registro de facturación de una factura con una incidencia (bloqueado, rechazado o aceptado con errores), tras corregir su copia; conserva el número. Si el registro estaba bloqueado se reintenta tal cual se envió, y solo el día de su fecha de expedición; tras el veredicto de la AEAT, es una Subsanación. Aceptada con errores, la factura ya existe en la AEAT: solo se corrige la descripción; los datos del cliente o los importes se corrigen con una Factura rectificativa. Cada Registro conserva la copia que envió.
+_En código_: `Resubmission` (verbo: `resubmit`)
+_Avoid_: Reintento (a secas), reemisión
+
 **Censo**:
 Censo de la AEAT contra el que se comprueba el NIF (y el nombre) de cada Destinatario al guardarlo. Un NIF que no figura, o figura de baja, haría rechazar sus facturas.
 _En código_: `census`

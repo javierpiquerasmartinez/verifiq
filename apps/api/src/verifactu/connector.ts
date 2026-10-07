@@ -1,4 +1,4 @@
-import type { CorrectiveInvoiceType, ExemptionGround, VatRate } from '@verifiq/domain';
+import { RECORD_REJECTION_CODES, type CorrectiveInvoiceType, type ExemptionGround, type VatRate } from '@verifiq/domain';
 
 export const VERIFACTU_CONNECTOR = Symbol('VERIFACTU_CONNECTOR');
 
@@ -43,9 +43,12 @@ export type ConnectorResult<T> =
 
 export type TransientReason = 'server-error' | 'timeout' | 'network' | 'unauthorized' | 'in-progress';
 
-/** Stable rejection codes produced by Verifiq itself; the connector's own codes pass through as they come. */
+/**
+ * Stable rejection codes produced by Verifiq itself. Adapters translate the connector's codes for
+ * record data into the domain's RECORD_REJECTION_CODES; any other code passes through as it comes.
+ */
 export const REJECTION_CODES = {
-  issuerNotRegistered: 'issuer-not-registered',
+  issuerNotRegistered: RECORD_REJECTION_CODES.issuerNotRegistered,
   idempotencyKeyReused: 'idempotency-key-reused',
   notFound: 'not-found',
 } as const;
@@ -144,9 +147,14 @@ export interface RecordSubmission extends Submission {
   invoice: RecordInvoice;
 }
 
+/** How an InvoiceRecord is sent: the invoice's registration, or an Amendment of it. */
+export type RecordOperation = 'submission' | 'amendment';
+
+/** Whether the AEAT rejected the original record, or a previous amendment of it. */
+export type PreviousRejection = 'none' | 'record' | 'amendment';
+
 export interface AmendmentSubmission extends RecordSubmission {
-  /** Whether the AEAT rejected the original record, or a previous amendment of it. */
-  previousRejection: 'none' | 'record' | 'amendment';
+  previousRejection: PreviousRejection;
 }
 
 export interface VoidingSubmission extends Submission {

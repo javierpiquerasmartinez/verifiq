@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { invoiceNumberIn, type InvoiceSnapshot } from '@verifiq/domain';
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import { recordAuditEvent } from '../audit/audit.js';
 import { DATABASE, type Database } from '../database/database.module.js';
@@ -18,9 +18,10 @@ export interface InvoicePdfFile {
 }
 
 /**
- * The PDFs of issued invoices. The first version is generated once, from the frozen copy, when the
- * record has its QR: without QR there is no PDF, so no unregistered invoice leaves Verifiq. The file
- * is stored and every download serves it as it was generated.
+ * The PDFs of issued invoices. A version is generated once per record, from the frozen copy, when the
+ * record has its QR: without QR there is no PDF, so no unregistered invoice leaves Verifiq. Correcting
+ * the copy after an incident sends a new record, and so a new version. Each file is stored and every
+ * download serves the current version as it was generated.
  */
 @Injectable()
 export class InvoicePdfsService {
@@ -29,18 +30,34 @@ export class InvoicePdfsService {
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
   ) {}
 
-  /** Generates the first version of the invoice's PDF, unless it exists or the record has no QR yet. */
-  async generateFirstVersion(invoiceId: string): Promise<void> {
+  /**
+   * Generates the PDF version of the record, with its QR, unless it has one already or is no longer its
+   * invoice's latest record: a record sent again after an incident is drawn from the corrected copy,
+   * which an earlier record's QR never carries. The first record gets version 1; each later one, the next.
+   */
+  async generateForRecord(invoiceRecordId: string): Promise<void> {
     const [row] = await this.db
       .select({ invoice: invoices, qrPng: invoiceRecords.qrPng, logoKey: issuers.logoKey })
-      .from(invoices)
-      .innerJoin(invoiceRecords, eq(invoiceRecords.invoiceId, invoices.id))
+      .from(invoiceRecords)
+      .innerJoin(invoices, eq(invoices.id, invoiceRecords.invoiceId))
       .innerJoin(issuers, eq(issuers.id, invoices.issuerId))
-      .where(and(eq(invoices.id, invoiceId), isNotNull(invoiceRecords.qrPng)))
+      .where(eq(invoiceRecords.id, invoiceRecordId));
+    if (!row?.qrPng) return;
+    const [latest] = await this.db
+      .select({ id: invoiceRecords.id })
+      .from(invoiceRecords)
+      .where(eq(invoiceRecords.invoiceId, row.invoice.id))
       .orderBy(desc(invoiceRecords.createdAt))
       .limit(1);
-    if (!row?.qrPng || (await this.currentVersion(invoiceId)) !== null) return;
+    if (latest?.id !== invoiceRecordId) return;
+    const [drawn] = await this.db
+      .select({ id: invoicePdfs.id })
+      .from(invoicePdfs)
+      .where(eq(invoicePdfs.invoiceRecordId, invoiceRecordId))
+      .limit(1);
+    if (drawn) return;
     const { invoice } = row;
+    const recordId = invoiceRecordId;
 
     // The logo is not part of the frozen copy: the issuer's logo when the PDF is drawn, seconds after issuing.
     const logo = row.logoKey ? await this.storage.get(row.logoKey) : null;
@@ -52,13 +69,13 @@ export class InvoicePdfsService {
       logo: logo && { data: logo.body, format: logo.contentType === 'image/png' ? 'png' : 'jpg' } satisfies InvoicePdfData['logo'],
     });
 
-    const version = 1;
+    const version = ((await this.currentVersion(invoice.id)) ?? 0) + 1;
     const storageKey = `issuers/${invoice.issuerId}/invoices/${invoice.id}/v${version}-${randomUUID()}.pdf`;
     await this.storage.put(storageKey, { body, contentType: 'application/pdf' });
     const created = await this.db.transaction(async (tx) => {
       const inserted = await tx
         .insert(invoicePdfs)
-        .values({ issuerId: invoice.issuerId, invoiceId: invoice.id, version, storageKey })
+        .values({ issuerId: invoice.issuerId, invoiceId: invoice.id, invoiceRecordId: recordId, version, storageKey })
         .onConflictDoNothing({ target: [invoicePdfs.invoiceId, invoicePdfs.version] })
         .returning({ id: invoicePdfs.id });
       if (inserted.length === 0) return false;
@@ -68,7 +85,7 @@ export class InvoicePdfsService {
         action: 'invoice-pdf-generated',
         subjectType: 'invoice',
         subjectId: invoice.id,
-        details: { version, sha256: createHash('sha256').update(body).digest('hex') },
+        details: { version, invoiceRecordId: recordId, sha256: createHash('sha256').update(body).digest('hex') },
       });
       return true;
     });

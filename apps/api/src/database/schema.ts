@@ -16,6 +16,7 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
+import type { PreviousRejection, RecordOperation } from '../verifactu/connector.js';
 
 // --- Better Auth tables (see auth/auth.ts). Property names are the field names Better Auth expects.
 
@@ -399,6 +400,14 @@ export const invoiceRecords = pgTable(
       .references(() => invoices.id),
     // The domain's InvoiceRecordStatus.
     status: text('status').notNull(),
+    // 'submission' (the first record of the invoice, or its retry once blocked) or 'amendment' (an
+    // Amendment, after the AEAT rejected the record or accepted it with errors).
+    operation: text('operation').$type<RecordOperation>().notNull().default('submission'),
+    // Amendments only: what the AEAT rejected before ('none', 'record' or 'amendment').
+    previousRejection: text('previous_rejection').$type<PreviousRejection>(),
+    // The copy of the invoice this record sent (InvoiceSnapshot): the invoice's own copy changes when the
+    // user corrects it after an incident; what each record sent never does.
+    snapshot: jsonb('snapshot'),
     // Sent with every attempt: the connector never registers the same key twice.
     idempotencyKey: text('idempotency_key').notNull().unique(),
     // Once the connector queued it.
@@ -452,6 +461,8 @@ export const invoicePdfs = pgTable(
     invoiceId: uuid('invoice_id')
       .notNull()
       .references(() => invoices.id),
+    // The record whose QR it carries. Null only while a release before migration 0011 still runs.
+    invoiceRecordId: uuid('invoice_record_id').references(() => invoiceRecords.id),
     // From 1, per invoice.
     version: integer('version').notNull(),
     // Object storage key of the file.

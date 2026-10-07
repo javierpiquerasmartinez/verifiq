@@ -22,6 +22,7 @@ import {
   type Invitation,
   type Invoice,
   type InvoiceIncident,
+  type InvoiceResubmission,
   type InvoiceList,
   type InvoiceListQuery,
   type Onboarding,
@@ -197,6 +198,14 @@ export async function deleteCatalogItem(id: string): Promise<void> {
 /** Issues the draft (irreversible): it gets its number and becomes the invoice; its record is sent to the AEAT. */
 export async function issueInvoice(draftId: string): Promise<Invoice> {
   return invoiceSchema.parse(await request('/invoices', sendJson('POST', { draftId })));
+}
+
+/**
+ * Corrects the copy of an invoice whose record has an incident and sends its record again, with the
+ * same number. The recipient's data come again from its profile.
+ */
+export async function resubmitInvoice(id: string, body: InvoiceResubmission): Promise<Invoice> {
+  return invoiceSchema.parse(await request(`/invoices/${encodeURIComponent(id)}/resubmission`, sendJson('POST', body)));
 }
 
 /** A page of drafts and invoices, newest first, with how many match under each filter. */

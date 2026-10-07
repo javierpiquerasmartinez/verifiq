@@ -73,7 +73,7 @@ export const invoiceIncidentSchema = z.object({
   recipientName: z.string(),
   recordStatus: z.enum(INVOICE_RECORD_STATUSES),
   unconfirmed: z.boolean(),
-  /** The connector's refusal or the AEAT's error, exactly as it came; null while unconfirmed. */
+  /** Why the connector refused it (explained in plain language) or the AEAT's error as it came; null while unconfirmed. */
   message: z.string().nullable(),
 });
 

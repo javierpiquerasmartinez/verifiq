@@ -1,4 +1,4 @@
-import { todayInSpain } from '@verifiq/domain';
+import { RECORD_REJECTION_CODES, todayInSpain } from '@verifiq/domain';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   REJECTION_CODES,
@@ -282,17 +282,19 @@ export class FakeVerifactuConnector implements VerifactuConnector {
     // Like Verifacti: a new record is issued today; an amendment keeps its original, earlier date.
     const today = todayInSpain();
     if (operation === 'submission' ? invoice.issueDate !== today : invoice.issueDate > today) {
-      return rejected('issue-date', 'La fecha de expedición debe ser la fecha actual.');
+      return rejected(RECORD_REJECTION_CODES.issueDateNotToday, 'La fecha de expedición debe ser la fecha actual.');
     }
-    if (invoice.lines.length < 1 || invoice.lines.length > 12) {
-      return rejected('lines-count', 'La factura debe tener entre 1 y 12 líneas.');
+    // Verifiq never sends a record without lines: a code of the fake's own, passed through as it comes.
+    if (invoice.lines.length < 1) return rejected('lines-missing', 'La factura debe tener al menos una línea.');
+    if (invoice.lines.length > 12) {
+      return rejected(RECORD_REJECTION_CODES.tooManyLines, 'La factura debe tener como máximo 12 líneas.');
     }
     const sum = invoice.lines.reduce(
       (total, line) => total + cents(line.taxBase) + (line.kind === 'taxed' ? cents(line.taxAmount) : 0),
       0,
     );
     if (Math.abs(sum - cents(invoice.totalAmount)) > TOTAL_TOLERANCE_CENTS) {
-      return rejected('total-mismatch', 'El importe total no coincide con la suma de las líneas.');
+      return rejected(RECORD_REJECTION_CODES.totalMismatch, 'El importe total no coincide con la suma de las líneas.');
     }
     const { connectorRecordId, fingerprint } = this.addRecord(issuer, operation, invoice);
     const [year, month, day] = invoice.issueDate.split('-');
