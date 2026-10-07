@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import { formatIban, formatSpanishDate, type Draft, type DraftLine, type FiscalData, type RecipientData } from '@verifiq/domain';
+import { correctionReasonLabel, formatIban, formatSpanishDate, type Draft, type DraftLine, type FiscalData, type RecipientData } from '@verifiq/domain';
 import { Fragment } from 'react';
 import { ApiError, fetchDraft, fetchOnboarding, logoUrl } from '../api';
 import { decimalInputOf, formatAmount, formatWithheld } from '../format';
@@ -70,8 +70,7 @@ function Party({ heading, party }: { heading: string; party: RecipientData | nul
 
 /** The draft laid out as the PDF it will become: the same sheet, without the QR or the number it gets on issuing. */
 function InvoiceSheet({ draft, issuer, hasLogo }: { draft: Draft; issuer: FiscalData; hasLogo: boolean }) {
-  const { breakdown, billingPeriod } = draft;
-  const operationDate = billingPeriod?.end;
+  const { breakdown, billingPeriod, operationDate, correction } = draft;
   return (
     <article className="sheet" aria-label="Factura">
       <p className="sheet-watermark" role="note">
@@ -85,7 +84,7 @@ function InvoiceSheet({ draft, issuer, hasLogo }: { draft: Draft; issuer: Fiscal
         </div>
         <div className="sheet-title">
           {hasLogo && <img className="sheet-logo" src={logoUrl(0)} alt="" />}
-          <h2 className="sheet-h1">Factura</h2>
+          <h2 className="sheet-h1">{correction ? 'Factura rectificativa' : 'Factura'}</h2>
           <p className="mono muted">Número al emitir</p>
           <p>Fecha de expedición: {formatSpanishDate(draft.issueDate)}</p>
           {billingPeriod && (
@@ -103,6 +102,18 @@ function InvoiceSheet({ draft, issuer, hasLogo }: { draft: Draft; issuer: Fiscal
         <Party heading="Emisor" party={issuer} />
         <Party heading="Cliente" party={draft.recipient} />
       </div>
+
+      {correction && (
+        <div className="sheet-correction">
+          <p style={{ fontWeight: 600 }}>
+            Rectifica la factura <span className="mono">{correction.invoice.number}</span> de{' '}
+            {formatSpanishDate(correction.invoice.issueDate)}
+          </p>
+          <p>
+            Motivo: {correctionReasonLabel(correction.reason)}. {correction.note}
+          </p>
+        </div>
+      )}
 
       {draft.operationDescription && <p>{draft.operationDescription}</p>}
 

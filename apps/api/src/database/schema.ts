@@ -1,6 +1,7 @@
 // Drizzle schema; migrations live in ../../drizzle.
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -324,6 +325,11 @@ export const drafts = pgTable(
     withholding: smallint('withholding').notNull(),
     // The domain's DraftLine[]: a draft is always saved and read whole.
     lines: jsonb('lines').notNull(),
+    // A corrective draft (ADR 0005): the invoice it corrects, the domain's CorrectionReason and the
+    // user's note. Its recipient, billing period and withholding are that invoice's.
+    correctedInvoiceId: uuid('corrected_invoice_id').references(() => invoices.id),
+    correctionReason: text('correction_reason'),
+    correctionNote: text('correction_note'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -333,6 +339,10 @@ export const drafts = pgTable(
     check(
       'drafts_billing_period_check',
       sql`(${table.billingPeriodStart} IS NULL) = (${table.billingPeriodEnd} IS NULL) AND ${table.billingPeriodStart} <= ${table.billingPeriodEnd}`,
+    ),
+    check(
+      'drafts_correction_check',
+      sql`(${table.correctedInvoiceId} IS NULL) = (${table.correctionReason} IS NULL) AND (${table.correctedInvoiceId} IS NULL) = (${table.correctionNote} IS NULL)`,
     ),
   ],
 );
@@ -373,8 +383,11 @@ export const invoices = pgTable(
     issueDate: date('issue_date').notNull(),
     // The domain's InvoiceStatus.
     status: text('status').notNull(),
-    // The frozen copy: issuer, recipient, period, description, lines, withholding and breakdown (InvoiceSnapshot).
+    // The frozen copy: issuer, recipient, period, description, lines, withholding, breakdown and, for a
+    // corrective invoice, its correction (InvoiceSnapshot).
     snapshot: jsonb('snapshot').notNull(),
+    // A corrective invoice: the invoice it corrects (also in its copy), to link both ways.
+    correctedInvoiceId: uuid('corrected_invoice_id').references((): AnyPgColumn => invoices.id),
     issuedBy: text('issued_by')
       .notNull()
       .references(() => users.id),
@@ -383,6 +396,7 @@ export const invoices = pgTable(
   (table) => [
     index('invoices_issuer_id_idx').on(table.issuerId),
     index('invoices_recipient_id_idx').on(table.recipientId),
+    index('invoices_corrected_invoice_id_idx').on(table.correctedInvoiceId),
     unique('invoices_number_unique').on(table.issuerId, table.series, table.number),
   ],
 );

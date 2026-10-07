@@ -16,10 +16,15 @@ const THOUSANDS = /^\d{1,3}(\.\d{3})+$/;
 /**
  * A number typed in Spanish style ("2.340,50", "2340,5", "2.340") as a decimal string ("2340.50"),
  * or null if it is not one or has more than `maxDecimals` decimals. Blank reads as zero. A lone dot
- * is a thousands separator when three digits follow it, a decimal point otherwise.
+ * is a thousands separator when three digits follow it, a decimal point otherwise. With `signed`, it
+ * may start with a minus sign (the lines of a corrective invoice).
  */
-export function parseDecimalInput(input: string, maxDecimals: number): string | null {
+export function parseDecimalInput(input: string, maxDecimals: number, { signed = false } = {}): string | null {
   let text = input.replace(/\s/g, '');
+  if (signed && /^[-−]/.test(text)) {
+    const magnitude = text.length > 1 ? parseDecimalInput(text.slice(1), maxDecimals) : null;
+    return magnitude === null ? null : /^[0.]+$/.test(magnitude) ? magnitude : `-${magnitude}`;
+  }
   if (text === '') return '0';
   if (text.includes(',')) text = text.replace(/\./g, '').replace(',', '.');
   else if (THOUSANDS.test(text)) text = text.replace(/\./g, '');
@@ -27,8 +32,12 @@ export function parseDecimalInput(input: string, maxDecimals: number): string | 
   return new RegExp(`^\\d{1,9}(\\.\\d{1,${maxDecimals}})?$`).test(text) ? text : null;
 }
 
-/** The withholding is subtracted from the total amount: shown negative. */
-export const formatWithheld = (amount: string) => formatAmount(amount === '0.00' ? amount : `-${amount}`);
+/**
+ * The withholding is subtracted from the total amount: shown negative. A corrective invoice that lowers
+ * the amounts withholds less: its negative withholding shows positive.
+ */
+export const formatWithheld = (amount: string) =>
+  formatAmount(amount === '0.00' ? amount : amount.startsWith('-') ? amount.slice(1) : `-${amount}`);
 
 /** A normalised IBAN in groups of four: "ES91 2100 0418 4502 0005 1332". */
 export const formatIban = (iban: string) => iban.replace(/(.{4})(?!$)/g, '$1 ');

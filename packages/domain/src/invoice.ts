@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { breakdownSchema } from './amounts.js';
-import { billingPeriodSchema, draftDataSchema, draftLineSchema } from './draft.js';
+import { correctionReasonSchema, correctionSchema } from './corrective-invoice.js';
+import { billingPeriodSchema, draftDataSchema, invoiceLineSchema } from './draft.js';
 import { fiscalDataSchema } from './issuer.js';
 import { recipientDataSchema } from './recipient.js';
 
@@ -74,6 +75,8 @@ export const INVOICE_EVENTS = [
   'rejected',
   /** The user corrected the copy and sent its record again. */
   'resubmitted',
+  /** A corrective invoice (`invoice` in the entry) corrects it. */
+  'rectified',
 ] as const;
 
 export type InvoiceEvent = (typeof INVOICE_EVENTS)[number];
@@ -84,6 +87,8 @@ export const invoiceHistoryEntrySchema = z.object({
   occurredAt: z.iso.datetime({ offset: true }),
   /** The user's name; null when the system acted. */
   actor: z.string().nullable(),
+  /** The other invoice the event is about: the corrective invoice that rectified this one. */
+  invoice: z.object({ id: z.uuid(), number: z.string() }).nullable(),
 });
 
 export type InvoiceHistoryEntry = z.infer<typeof invoiceHistoryEntrySchema>;
@@ -124,9 +129,21 @@ export const invoiceSchema = z.object({
   billingPeriod: billingPeriodSchema.nullable(),
   operationDate: z.iso.date().nullable(),
   operationDescription: z.string(),
-  lines: z.array(draftLineSchema),
+  lines: z.array(invoiceLineSchema),
   withholding: draftDataSchema.shape.withholding,
   breakdown: breakdownSchema,
+  /** A corrective invoice: the invoice it corrects and why. Null for an ordinary one. */
+  correction: correctionSchema.nullable(),
+  /** The corrective invoices that correct this one, oldest first. */
+  correctedBy: z.array(
+    z.object({
+      id: z.uuid(),
+      number: z.string(),
+      issueDate: z.iso.date(),
+      amountDue: breakdownSchema.shape.amountDue,
+      reason: correctionReasonSchema,
+    }),
+  ),
   issuedAt: z.iso.datetime({ offset: true }),
 });
 
@@ -142,12 +159,16 @@ export const invoiceSnapshotSchema = invoiceSchema.pick({
   lines: true,
   withholding: true,
   breakdown: true,
+  correction: true,
 });
 
 export type InvoiceSnapshot = z.infer<typeof invoiceSnapshotSchema>;
 
 /** Body of POST /invoices: issues the draft, which becomes the invoice. */
 export const issueInvoiceSchema = z.object({ draftId: z.uuid() });
+
+/** Query of GET /invoices/next-number: in the ordinary series, or in the corrective invoices' one. */
+export const nextInvoiceNumberQuerySchema = z.object({ series: z.enum(['ordinary', 'corrective']).default('ordinary') });
 
 /** Response of GET /invoices/next-number: the number the next Issuance assigns, unless another one comes first. */
 export const nextInvoiceNumberSchema = z.object({ number: z.string() });
@@ -182,6 +203,8 @@ export const InvoiceErrorCode = {
   RetryDayOver: 'INVOICE_RETRY_DAY_OVER',
   /** The recipient's tax ID is not confirmed in the census: the user corrects it in its profile first. */
   RecipientNotReady: 'INVOICE_RECIPIENT_NOT_READY',
+  /** Only an invoice the AEAT has, neither voided nor itself corrective, is rectified (isRectifiable). */
+  NotRectifiable: 'INVOICE_NOT_RECTIFIABLE',
 } as const;
 
 export type InvoiceErrorCode = (typeof InvoiceErrorCode)[keyof typeof InvoiceErrorCode];

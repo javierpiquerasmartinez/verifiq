@@ -108,7 +108,7 @@ describe('Issuance', () => {
         aeatError: null,
         unconfirmed: false,
       },
-      history: [{ event: 'issued', occurredAt: expect.any(String), actor: 'Lucía Ferrer' }],
+      history: [{ event: 'issued', occurredAt: expect.any(String), actor: 'Lucía Ferrer', invoice: null }],
       pdf: null,
       recipientId: recipient.id,
       issuer: {
@@ -134,6 +134,8 @@ describe('Issuance', () => {
         withholding: { rate: 15, amount: '613.50' },
         amountDue: '3497.50',
       }),
+      correction: null,
+      correctedBy: [],
       issuedAt: expect.any(String),
     });
     await agent.get(`/invoices/${response.body.id}`).expect(200, response.body);

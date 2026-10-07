@@ -10,7 +10,7 @@ import {
   Put,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { DraftErrorCode, draftDataSchema, type Draft, type DraftSummary } from '@verifiq/domain';
+import { correctiveDraftDataSchema, DraftErrorCode, draftDataSchema, type Draft, type DraftSummary } from '@verifiq/domain';
 import { z } from 'zod';
 import { parseBody, withHttpErrors } from '../issuers/http.js';
 import { CurrentIssuer } from '../issuers/issuer-context.js';
@@ -57,9 +57,11 @@ export class DraftsController {
     return run(this.drafts.find(issuerId, draftId(id)));
   }
 
+  /** Only a corrective draft takes negative lines: its lines are the difference. */
   @Put(':id')
-  update(@CurrentIssuer() issuerId: string, @Param('id') id: string, @Body() body: unknown): Promise<Draft> {
-    const data = parseBody(draftDataSchema, body);
+  async update(@CurrentIssuer() issuerId: string, @Param('id') id: string, @Body() body: unknown): Promise<Draft> {
+    const corrective = await run(this.drafts.isCorrective(issuerId, draftId(id)));
+    const data = parseBody(corrective ? correctiveDraftDataSchema : draftDataSchema, body);
     return run(this.drafts.update(issuerId, draftId(id), data));
   }
 

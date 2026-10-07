@@ -178,6 +178,7 @@ function ListRow({ item }: { item: InvoiceListItem }) {
         ) : (
           <span className="lnk mono">{item.number}</span>
         )}
+        {item.corrects && <div className="xs muted">Rectifica {item.corrects}</div>}
       </td>
       <td className="num">{formatSpanishDate(item.date)}</td>
       <td>{item.recipientName ?? <span className="muted">Sin cliente</span>}</td>

@@ -22,6 +22,10 @@ describe('formatWithheld', () => {
     expect(formatWithheld('613.50')).toBe('−613,50 €');
     expect(formatWithheld('0.00')).toBe('0,00 €');
   });
+
+  it('shows the withholding of a corrective invoice that lowers it positive: less is withheld', () => {
+    expect(formatWithheld('-351.00')).toBe('351,00 €');
+  });
 });
 
 describe('formatIban', () => {

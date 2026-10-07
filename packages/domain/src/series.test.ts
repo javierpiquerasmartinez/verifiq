@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { invoiceNumber, seriesCode, seriesSchema } from './series.js';
+import { invoiceNumber, seriesCode, seriesSchema, splitInvoiceNumber } from './series.js';
 
 describe('seriesCode', () => {
   it('appends the year to the prefix', () => {
@@ -16,6 +16,16 @@ describe('invoiceNumber', () => {
     [10000, 'F2026-10000'],
   ])('numbers invoice %i of the series as %s', (number, expected) => {
     expect(invoiceNumber('F', 2026, number)).toBe(expected);
+  });
+});
+
+describe('splitInvoiceNumber', () => {
+  it.each([
+    ['F2026-0009', { series: 'F2026-', number: '0009' }],
+    ['R2026-10000', { series: 'R2026-', number: '10000' }],
+    ['VQ2R2027-0001', { series: 'VQ2R2027-', number: '0001' }],
+  ])('splits %s into its series and its correlative number', (number, expected) => {
+    expect(splitInvoiceNumber(number)).toEqual(expected);
   });
 });
 

@@ -32,6 +32,8 @@ const listedDraftSchema = z.object({
   /** The day it was last edited: a draft has no issue date. */
   date: z.iso.date(),
   recipientName: z.string().nullable(),
+  /** The number of the invoice a corrective draft corrects. */
+  corrects: z.string().nullable(),
   totalAmount: breakdownSchema.shape.totalAmount,
   amountDue: breakdownSchema.shape.amountDue,
 });
@@ -44,6 +46,8 @@ const listedInvoiceSchema = z.object({
   date: z.iso.date(),
   /** As it was when the invoice was issued. */
   recipientName: z.string(),
+  /** The number of the invoice a corrective invoice corrects. */
+  corrects: z.string().nullable(),
   totalAmount: breakdownSchema.shape.totalAmount,
   amountDue: breakdownSchema.shape.amountDue,
   status: z.enum(INVOICE_STATUSES),

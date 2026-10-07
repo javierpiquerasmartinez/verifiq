@@ -108,6 +108,7 @@ export class InvoiceListService {
             id: draft.id,
             date: todayInSpain(new Date(draft.updatedAt)),
             recipientName: draft.recipientName,
+            corrects: draft.corrects,
             totalAmount: draft.totalAmount,
             amountDue: draft.amountDue,
           },
@@ -161,12 +162,14 @@ export class InvoiceListService {
         .orderBy(desc(sortedAt), desc(invoices.id))
         .limit(limit + 1);
       for (const row of rows) {
-        const { breakdown } = row.snapshot as InvoiceSnapshot;
+        const { breakdown, correction } = row.snapshot as InvoiceSnapshot;
         listedInvoices.push({
           at: row.at,
           item: {
             kind: 'invoice',
             ...invoiceAndRecord(row, now),
+            // Copies issued before corrective invoices existed have no correction.
+            corrects: correction?.invoice.number ?? null,
             date: row.issueDate,
             totalAmount: breakdown.totalAmount,
             amountDue: breakdown.amountDue,

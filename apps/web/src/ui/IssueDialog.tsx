@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { formatSpanishDate, InvoiceErrorCode, type Draft, type Invoice } from '@verifiq/domain';
+import { correctionReasonLabel, formatSpanishDate, InvoiceErrorCode, type Draft, type Invoice } from '@verifiq/domain';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, fetchNextInvoiceNumber, issueInvoice } from '../api';
 import { useInvoice } from '../use-invoice';
@@ -13,6 +13,9 @@ import { InvoiceStates, RecordState, TaxQr } from './InvoiceStates';
 function issueError(cause: unknown): string {
   if (cause instanceof ApiError && cause.code === InvoiceErrorCode.CannotIssue) {
     return 'Aún no puedes emitir: falta firmar la autorización ante la AEAT.';
+  }
+  if (cause instanceof ApiError && cause.code === InvoiceErrorCode.NotRectifiable) {
+    return 'La factura que corrige ya no se puede rectificar. Recarga la página para ver su estado.';
   }
   if (cause instanceof ApiError && cause.code === InvoiceErrorCode.DraftNotReady) {
     return 'Al borrador le falta algo para poder emitirse. Vuelve a él y revisa los campos marcados.';
@@ -32,7 +35,15 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [issued, setIssued] = useState<Invoice>();
-  const nextNumber = useQuery({ queryKey: ['next-invoice-number'], queryFn: fetchNextInvoiceNumber, retry: false, gcTime: 0 });
+  // A corrective draft is numbered in the corrective invoices' series.
+  const series = draft.correction ? 'corrective' : 'ordinary';
+  const nextNumber = useQuery({
+    queryKey: ['next-invoice-number', series],
+    queryFn: () => fetchNextInvoiceNumber(series),
+    retry: false,
+    gcTime: 0,
+  });
+  const kind = draft.correction ? 'rectificativa' : 'factura';
   const invoice = useInvoice(issued?.id, issued).data;
 
   useEffect(() => {
@@ -79,7 +90,7 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
               No se puede deshacer
             </span>
             <h2 className="h2" id="issue-title">
-              ¿Emitir esta factura?
+              ¿Emitir esta {kind}?
             </h2>
           </div>
           <div className="modal-body">
@@ -93,6 +104,16 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
                 <br />
                 <span className="mono xs muted">{recipient?.taxId}</span>
               </dd>
+              {draft.correction && (
+                <>
+                  <dt>Rectifica</dt>
+                  <dd>
+                    <span className="mono">{draft.correction.invoice.number}</span>
+                    <br />
+                    <span className="xs muted">{correctionReasonLabel(draft.correction.reason)}</span>
+                  </dd>
+                </>
+              )}
               <dt>Número que se asignará</dt>
               <dd className="mono" style={{ fontWeight: 600 }}>
                 {nextNumber.data ?? '…'}
@@ -121,7 +142,7 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
             </button>
             <button type="button" className="btn btn-primary" onClick={issue} disabled={pending || !nextNumber.data}>
               <Icon name={pending ? 'spinner' : 'lock'} spin={pending} />
-              {pending ? 'Emitiendo…' : `Emitir factura ${nextNumber.data ?? ''}`}
+              {pending ? 'Emitiendo…' : `Emitir ${kind} ${nextNumber.data ?? ''}`}
             </button>
           </div>
         </>
