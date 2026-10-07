@@ -129,6 +129,19 @@ export function computeBreakdown(input: BreakdownInput): Breakdown {
   };
 }
 
+/**
+ * The breakdown with another withholding, as if it had always had it: the withholding on the tax base,
+ * and the total to pay. "Corregir retención" (ADR 0005): nothing the AEAT has changes.
+ */
+export function withWithholding(breakdown: Breakdown, withholding: WithholdingRate): Breakdown {
+  const withheld = percentOf(new Big(breakdown.taxBase), withholding);
+  return {
+    ...breakdown,
+    withholding: { rate: withholding, amount: formatCents(withheld) },
+    amountDue: formatCents(new Big(breakdown.totalAmount).minus(withheld)),
+  };
+}
+
 /** Exact sum of amounts with 2 decimals (e.g. the bases of several breakdown rows). */
 export function sumAmounts(amounts: string[]): string {
   return formatCents(amounts.reduce((sum, amount) => sum.plus(amount), new Big(0)));

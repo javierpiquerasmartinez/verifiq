@@ -109,7 +109,7 @@ describe('Issuance', () => {
         aeatError: null,
         unconfirmed: false,
       },
-      history: [{ event: 'issued', occurredAt: expect.any(String), actor: 'Lucía Ferrer', invoice: null }],
+      history: [{ event: 'issued', occurredAt: expect.any(String), actor: 'Lucía Ferrer', invoice: null, pdfVersion: null, withholding: null }],
       pdf: null,
       recipientId: recipient.id,
       issuer: {

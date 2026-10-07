@@ -26,6 +26,7 @@ import {
   type Invoice,
   type InvoiceIncident,
   type InvoiceResubmission,
+  type WithholdingCorrection,
   type InvoiceList,
   type InvoiceListQuery,
   type InvoiceVoidingInput,
@@ -220,6 +221,13 @@ export async function startCorrection(invoiceId: string, body: NewCorrectiveDraf
   return draftSchema.parse(await request(`/invoices/${encodeURIComponent(invoiceId)}/corrective-draft`, sendJson('POST', body)));
 }
 
+/** "Corregir retención": the right IRPF withholding, with the same number and record; its PDF gets a new version. */
+export async function correctWithholding(invoiceId: string, body: WithholdingCorrection): Promise<Invoice> {
+  return invoiceSchema.parse(
+    await request(`/invoices/${encodeURIComponent(invoiceId)}/withholding-correction`, sendJson('POST', body)),
+  );
+}
+
 /**
  * Voids the invoice (irreversible: its number is never reused), or sends its Voiding again. With
  * `reissue`, also a new draft with its content.
@@ -253,8 +261,14 @@ export async function fetchInvoice(id: string): Promise<Invoice> {
 }
 
 /** The stored PDF of the invoice, served to the signed-in user only: shown in the browser, or saved. */
-export const invoicePdfUrl = (id: string, { download = false } = {}) =>
-  `${apiUrl}/invoices/${encodeURIComponent(id)}/pdf${download ? '?download' : ''}`;
+/** The invoice's current PDF, or an earlier `version`; saved with `download`. */
+export function invoicePdfUrl(id: string, { download = false, version }: { download?: boolean; version?: number } = {}): string {
+  const query = new URLSearchParams();
+  if (version !== undefined) query.set('version', String(version));
+  if (download) query.set('download', '');
+  const search = query.toString();
+  return `${apiUrl}/invoices/${encodeURIComponent(id)}/pdf${search && `?${search}`}`;
+}
 
 /** The number the next Issuance in the series assigns, unless another one comes first. */
 export async function fetchNextInvoiceNumber(series: 'ordinary' | 'corrective' = 'ordinary'): Promise<string> {

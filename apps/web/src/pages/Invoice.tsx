@@ -6,6 +6,7 @@ import {
   formatSpanishDate,
   isRectifiable,
   isVoidable,
+  isWithholdingCorrectable,
   type Invoice,
 } from '@verifiq/domain';
 import { useEffect, useRef, useState } from 'react';
@@ -23,6 +24,7 @@ import { RecipientCorrectionDialog } from '../ui/RecipientCorrectionDialog';
 import { RectifyDialog } from '../ui/RectifyDialog';
 import { isIncident, RecordIncident } from '../ui/RecordIncident';
 import { VoidDialog, voidingError } from '../ui/VoidDialog';
+import { WithholdingDialog } from '../ui/WithholdingDialog';
 
 /** An issued invoice: its legal situation at a glance (both states) and the PDF made from its frozen copy. */
 export function InvoicePage() {
@@ -52,10 +54,12 @@ type MenuAction = (() => void) | undefined;
 function CorrectMenu({
   onRectify,
   onCorrectRecipient,
+  onCorrectWithholding,
   onVoid,
 }: {
   onRectify: MenuAction;
   onCorrectRecipient: MenuAction;
+  onCorrectWithholding: MenuAction;
   onVoid: MenuAction;
 }) {
   const [open, setOpen] = useState(false);
@@ -111,9 +115,17 @@ function CorrectMenu({
               </span>
             </button>
           )}
+          {onCorrectWithholding && (
+            <button type="button" className="mi" role="menuitem" onClick={choose(onCorrectWithholding)}>
+              <Icon name="file" />
+              <span>
+                Corregir retención<small>Solo el % de IRPF estaba mal: nueva versión del PDF</small>
+              </span>
+            </button>
+          )}
           {onVoid && (
             <>
-              {(onRectify || onCorrectRecipient) && <div className="menu-sep" />}
+              {(onRectify || onCorrectRecipient || onCorrectWithholding) && <div className="menu-sep" />}
               <button type="button" className="mi mi-danger" role="menuitem" onClick={choose(onVoid)}>
                 <Icon name="ban" />
                 <span>
@@ -218,7 +230,7 @@ function VoidedNotice({ invoice }: { invoice: Invoice }) {
 
 function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const { breakdown, recipient, record } = invoice;
-  const [dialog, setDialog] = useState<'rectify' | 'recipient' | 'void' | 'void-reissue'>();
+  const [dialog, setDialog] = useState<'rectify' | 'recipient' | 'withholding' | 'void' | 'void-reissue'>();
   const close = () => setDialog(undefined);
   const corrective = invoice.correction !== null;
   const rectifiable = isRectifiable({ status: invoice.status, recordStatus: record.status, corrective });
@@ -227,6 +239,8 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   // Voided if not sent; rectified totally if sent and the AEAT has it, else voided too.
   const onCorrectRecipient = voidable ? () => setDialog('recipient') : undefined;
   const onVoid = voidable ? () => setDialog('void') : undefined;
+  const withholdingCorrectable = isWithholdingCorrectable({ status: invoice.status, hasQr: record.verificationUrl !== null });
+  const onCorrectWithholding = withholdingCorrectable ? () => setDialog('withholding') : undefined;
   const voided = invoice.status === 'voided';
   return (
     <div className={voided ? 'stack invoice-voided' : 'stack'} style={{ gap: 20 }}>
@@ -277,7 +291,14 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
             )}
           </div>
           <div className="row" style={{ gap: 10 }}>
-            {(onRectify || onVoid) && <CorrectMenu onRectify={onRectify} onCorrectRecipient={onCorrectRecipient} onVoid={onVoid} />}
+            {(onRectify || onVoid || onCorrectWithholding) && (
+              <CorrectMenu
+                onRectify={onRectify}
+                onCorrectRecipient={onCorrectRecipient}
+                onCorrectWithholding={onCorrectWithholding}
+                onVoid={onVoid}
+              />
+            )}
             <DownloadPdfButton invoice={invoice} />
           </div>
         </div>
@@ -308,7 +329,7 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
       <div className="invoice-layout">
         <InvoiceDocument invoice={invoice} />
         <aside className="invoice-side">
-          <InvoiceHistory history={invoice.history} />
+          <InvoiceHistory invoiceId={invoice.id} history={invoice.history} />
           <section className="card card-pad stack" style={{ gap: 12 }} aria-labelledby="invoice-record">
             <h2 className="h3" id="invoice-record">
               Registro en la AEAT
@@ -343,6 +364,7 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
         </aside>
       </div>
       {dialog === 'rectify' && <RectifyDialog invoice={invoice} onClose={close} />}
+      {dialog === 'withholding' && <WithholdingDialog invoice={invoice} onClose={close} />}
       {dialog === 'recipient' && (
         <RecipientCorrectionDialog invoice={invoice} rectifiable={rectifiable} onClose={close} />
       )}

@@ -18,3 +18,4 @@ export * from './representation.js';
 export * from './series.js';
 export * from './tax-id.js';
 export * from './voiding.js';
+export * from './withholding-correction.js';

@@ -3,12 +3,12 @@ import { invoiceNumberIn, type InvoiceSnapshot } from '@verifiq/domain';
 import { and, desc, eq } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import { recordAuditEvent } from '../audit/audit.js';
-import { DATABASE, type Database } from '../database/database.module.js';
+import { DATABASE, type Database, type Queryable } from '../database/database.module.js';
 import { invoicePdfs, invoiceRecords, invoices, issuers } from '../database/schema.js';
 import { OBJECT_STORAGE, type ObjectStorage } from '../storage/object-storage.js';
 import { renderInvoicePdf, type InvoicePdfData } from './invoice-pdf.js';
 
-/** The invoice has no PDF: its record has no QR yet, or never will (blocked). */
+/** The invoice has no PDF (its record has no QR yet, or never will: blocked), or not that version. */
 export class InvoicePdfNotAvailableError extends Error {}
 
 export interface InvoicePdfFile {
@@ -20,8 +20,9 @@ export interface InvoicePdfFile {
 /**
  * The PDFs of issued invoices. A version is generated once per record, from the frozen copy, when the
  * record has its QR: without QR there is no PDF, so no unregistered invoice leaves Verifiq. Correcting
- * the copy after an incident sends a new record, and so a new version. Each file is stored and every
- * download serves the current version as it was generated.
+ * the copy after an incident sends a new record, and so a new version; correcting its withholding draws
+ * one more with the same record's QR (ADR 0005). Each file is stored and never changes: a download
+ * serves the current version, or an earlier one, as it was generated.
  */
 @Injectable()
 export class InvoicePdfsService {
@@ -37,10 +38,9 @@ export class InvoicePdfsService {
    */
   async generateForRecord(invoiceRecordId: string): Promise<void> {
     const [row] = await this.db
-      .select({ invoice: invoices, qrPng: invoiceRecords.qrPng, logoKey: issuers.logoKey })
+      .select({ invoice: invoices, qrPng: invoiceRecords.qrPng })
       .from(invoiceRecords)
       .innerJoin(invoices, eq(invoices.id, invoiceRecords.invoiceId))
-      .innerJoin(issuers, eq(issuers.id, invoices.issuerId))
       .where(eq(invoiceRecords.id, invoiceRecordId));
     if (!row?.qrPng) return;
     const [latest] = await this.db
@@ -50,52 +50,91 @@ export class InvoicePdfsService {
       .orderBy(desc(invoiceRecords.createdAt))
       .limit(1);
     if (latest?.id !== invoiceRecordId) return;
-    const [drawn] = await this.db
+    if (await this.drawnFor(this.db, invoiceRecordId)) return;
+    const { invoice } = row;
+    const record = { id: invoiceRecordId, qrPng: row.qrPng };
+    const body = await this.render(this.db, invoice, record.qrPng);
+
+    await this.db.transaction(async (tx) => {
+      // Locked as a correction of the withholding locks it: if one drew this record's version meanwhile,
+      // from the corrected copy, that version stays.
+      await tx.select({ id: invoices.id }).from(invoices).where(eq(invoices.id, invoice.id)).for('update');
+      if (await this.drawnFor(tx, invoiceRecordId)) return;
+      await this.store(tx, invoice, record.id, body, null);
+    });
+  }
+
+  /**
+   * Draws a new version of the invoice's PDF from its copy, as it is now, with the QR of `record`, its
+   * latest. Runs inside the transaction `db` that locked the invoice, which `actorUserId` acts in.
+   * Returns its version.
+   */
+  async drawIn(
+    db: Queryable,
+    invoice: typeof invoices.$inferSelect,
+    record: { id: string; qrPng: string },
+    actorUserId: string,
+  ): Promise<number> {
+    const body = await this.render(db, invoice, record.qrPng);
+    return this.store(db, invoice, record.id, body, actorUserId);
+  }
+
+  private async drawnFor(db: Queryable, invoiceRecordId: string): Promise<boolean> {
+    const [drawn] = await db
       .select({ id: invoicePdfs.id })
       .from(invoicePdfs)
       .where(eq(invoicePdfs.invoiceRecordId, invoiceRecordId))
       .limit(1);
-    if (drawn) return;
-    const { invoice } = row;
-    const recordId = invoiceRecordId;
+    return drawn !== undefined;
+  }
 
-    // The logo is not part of the frozen copy: the issuer's logo when the PDF is drawn, seconds after issuing.
-    const logo = row.logoKey ? await this.storage.get(row.logoKey) : null;
-    const body = await renderInvoicePdf({
+  private async render(db: Queryable, invoice: typeof invoices.$inferSelect, qrPng: string): Promise<Buffer> {
+    // The logo is not part of the frozen copy: the issuer's logo when the PDF is drawn.
+    const [issuer] = await db.select({ logoKey: issuers.logoKey }).from(issuers).where(eq(issuers.id, invoice.issuerId));
+    const logo = issuer?.logoKey ? await this.storage.get(issuer.logoKey) : null;
+    return renderInvoicePdf({
       number: invoiceNumberIn(invoice.series, invoice.number),
       issueDate: invoice.issueDate,
       snapshot: invoice.snapshot as InvoiceSnapshot,
-      qrPng: Buffer.from(row.qrPng, 'base64'),
+      qrPng: Buffer.from(qrPng, 'base64'),
       logo: logo && { data: logo.body, format: logo.contentType === 'image/png' ? 'png' : 'jpg' } satisfies InvoicePdfData['logo'],
     });
+  }
 
-    const version = ((await this.currentVersion(invoice.id)) ?? 0) + 1;
+  /** Stores the file as the invoice's next version, inside the transaction `db` that locked the invoice. Returns its version. */
+  private async store(
+    db: Queryable,
+    invoice: typeof invoices.$inferSelect,
+    invoiceRecordId: string,
+    body: Buffer,
+    actorUserId: string | null,
+  ): Promise<number> {
+    const version = ((await this.currentVersion(invoice.id, db)) ?? 0) + 1;
     const storageKey = `issuers/${invoice.issuerId}/invoices/${invoice.id}/v${version}-${randomUUID()}.pdf`;
     await this.storage.put(storageKey, { body, contentType: 'application/pdf' });
-    const created = await this.db.transaction(async (tx) => {
-      const inserted = await tx
+    try {
+      await db
         .insert(invoicePdfs)
-        .values({ issuerId: invoice.issuerId, invoiceId: invoice.id, invoiceRecordId: recordId, version, storageKey })
-        .onConflictDoNothing({ target: [invoicePdfs.invoiceId, invoicePdfs.version] })
-        .returning({ id: invoicePdfs.id });
-      if (inserted.length === 0) return false;
-      await recordAuditEvent(tx, {
+        .values({ issuerId: invoice.issuerId, invoiceId: invoice.id, invoiceRecordId, version, storageKey });
+      await recordAuditEvent(db, {
         issuerId: invoice.issuerId,
-        actorUserId: null,
+        actorUserId,
         action: 'invoice-pdf-generated',
         subjectType: 'invoice',
         subjectId: invoice.id,
-        details: { version, invoiceRecordId: recordId, sha256: createHash('sha256').update(body).digest('hex') },
+        details: { version, invoiceRecordId, sha256: createHash('sha256').update(body).digest('hex') },
       });
-      return true;
-    });
-    // Another run generated it first: its file is the one that stays.
-    if (!created) await this.storage.delete(storageKey);
+    } catch (error) {
+      // Without its row, the file is no version.
+      await this.storage.delete(storageKey);
+      throw error;
+    }
+    return version;
   }
 
   /** The number of the invoice's current PDF version, or null while it has none. */
-  async currentVersion(invoiceId: string): Promise<number | null> {
-    const [pdf] = await this.db
+  async currentVersion(invoiceId: string, db: Queryable = this.db): Promise<number | null> {
+    const [pdf] = await db
       .select({ version: invoicePdfs.version })
       .from(invoicePdfs)
       .where(eq(invoicePdfs.invoiceId, invoiceId))
@@ -104,13 +143,19 @@ export class InvoicePdfsService {
     return pdf?.version ?? null;
   }
 
-  /** The stored file of the invoice's current PDF version. */
-  async currentFile(issuerId: string, invoiceId: string): Promise<InvoicePdfFile> {
+  /** The stored file of a version of the invoice's PDF: by default, its current one. */
+  async file(issuerId: string, invoiceId: string, version?: number): Promise<InvoicePdfFile> {
     const [row] = await this.db
       .select({ storageKey: invoicePdfs.storageKey, series: invoices.series, number: invoices.number })
       .from(invoicePdfs)
       .innerJoin(invoices, eq(invoices.id, invoicePdfs.invoiceId))
-      .where(and(eq(invoicePdfs.issuerId, issuerId), eq(invoicePdfs.invoiceId, invoiceId)))
+      .where(
+        and(
+          eq(invoicePdfs.issuerId, issuerId),
+          eq(invoicePdfs.invoiceId, invoiceId),
+          version === undefined ? undefined : eq(invoicePdfs.version, version),
+        ),
+      )
       .orderBy(desc(invoicePdfs.version))
       .limit(1);
     if (!row) throw new InvoicePdfNotAvailableError();

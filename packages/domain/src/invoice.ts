@@ -79,6 +79,8 @@ export const INVOICE_EVENTS = [
   'rectified',
   /** The user voided it: its Voiding is sent to the AEAT. */
   'voided',
+  /** The user corrected its IRPF withholding: a new PDF version, same number and record (ADR 0005). */
+  'withholding-corrected',
 ] as const;
 
 export type InvoiceEvent = (typeof INVOICE_EVENTS)[number];
@@ -91,6 +93,12 @@ export const invoiceHistoryEntrySchema = z.object({
   actor: z.string().nullable(),
   /** The other invoice the event is about: the corrective invoice that rectified this one. */
   invoice: z.object({ id: z.uuid(), number: z.string() }).nullable(),
+  /** The PDF version the event generated, which stays downloadable. */
+  pdfVersion: z.number().int().positive().nullable(),
+  /** The withholding rate before and after a correction of it. */
+  withholding: z
+    .object({ before: draftDataSchema.shape.withholding, after: draftDataSchema.shape.withholding })
+    .nullable(),
 });
 
 export type InvoiceHistoryEntry = z.infer<typeof invoiceHistoryEntrySchema>;
@@ -123,7 +131,7 @@ export const invoiceSchema = z.object({
   }),
   /** What happened to the invoice, oldest first. */
   history: z.array(invoiceHistoryEntrySchema),
-  /** The current version of its PDF: there is none until the record has its QR. */
+  /** The current version of its PDF: there is none until the record has its QR. Earlier ones are in its history. */
   pdf: z.object({ version: z.number().int().positive() }).nullable(),
   /** The recipient it was issued to, whose data may have changed since. */
   recipientId: z.uuid(),
@@ -214,6 +222,8 @@ export const InvoiceErrorCode = {
    * for the AEAT's verdict, is voided (isVoidable); a voided one, only to send its Voiding again.
    */
   NotVoidable: 'INVOICE_NOT_VOIDABLE',
+  /** A voided invoice, or one whose latest record has no QR yet, keeps its withholding (isWithholdingCorrectable). */
+  NotWithholdingCorrectable: 'INVOICE_NOT_WITHHOLDING_CORRECTABLE',
 } as const;
 
 export type InvoiceErrorCode = (typeof InvoiceErrorCode)[keyof typeof InvoiceErrorCode];
