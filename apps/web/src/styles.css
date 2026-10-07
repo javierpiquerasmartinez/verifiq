@@ -22,6 +22,10 @@
   --danger: #a1241d;
   --danger-soft: #fbe9e6;
   --danger-line: #e8b1aa;
+  --danger-ink: #5c130f;
+  --rect: #553a99;
+  --rect-soft: #eee9f7;
+  --rect-line: #c5b6e3;
   --info: #1e4c9c;
   --info-soft: #e7eef9;
   --info-line: #afc3e6;
@@ -685,6 +689,29 @@ button.step:hover {
 .tbl tbody tr:hover td {
   background: #fafbf9;
 }
+/* a row that opens what it lists, clicked anywhere or with the keyboard */
+.tbl tr.row-link {
+  cursor: pointer;
+}
+.tbl tr.row-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.tbl tr.is-void td {
+  color: var(--ink-3);
+}
+.tbl tr.is-void .amt {
+  text-decoration: line-through;
+}
+
+/* an invoice to resolve, above the list */
+.incident {
+  display: grid;
+  grid-template-columns: 150px 210px 1fr auto;
+  gap: 16px 24px;
+  align-items: center;
+  padding: 16px 20px;
+}
 
 /* search box with its icon inside */
 .affix {
@@ -732,6 +759,18 @@ button.step:hover {
   background: var(--ink);
   color: #fff;
   border-color: var(--ink);
+}
+.pill .c {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.pill[aria-pressed='true'] .c {
+  color: #c9d0d5;
+}
+.pill .c.alarm {
+  color: var(--danger);
+  font-weight: 700;
 }
 
 /* generic tags */
@@ -848,6 +887,19 @@ button.step:hover {
   border-color: var(--ink);
   color: var(--ink);
   background: #fff;
+}
+.sf-rectified {
+  border-color: var(--rect-line);
+  background: var(--rect-soft);
+  color: var(--rect);
+}
+.sf-voided {
+  border-color: var(--line-strong);
+  background: var(--surface-3);
+  color: var(--ink-3);
+}
+.sf-voided span {
+  text-decoration: line-through;
 }
 
 /* InvoiceRecord status at the AEAT (pill with the AEAT key) */
@@ -1519,6 +1571,12 @@ button.step:hover {
   }
   .tbl td:first-child {
     flex: 1 1 100%;
+  }
+  .incident {
+    grid-template-columns: 1fr auto;
+  }
+  .incident > p {
+    grid-column: 1 / -1;
   }
 }
 

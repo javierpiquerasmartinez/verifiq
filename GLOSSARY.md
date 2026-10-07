@@ -47,6 +47,16 @@ Factura que corrige otra ya emitida; es la vía normal para corregir errores de 
 _En código_: `CorrectiveInvoice`
 _Avoid_: Abono (salvo como rectificativa total), nota de crédito
 
+**Factura rectificada**:
+Factura emitida que una Factura rectificativa corrige. Sigue visible y conserva su número y su Registro de facturación. Corregir la retención no la deja rectificada.
+_En código_: `rectified` (estado de la factura)
+_Avoid_: Corregida, abonada
+
+**Factura anulada**:
+Factura emitida que una Anulación deja sin efecto. Sigue visible, de solo lectura y atenuada; su número no se reutiliza jamás.
+_En código_: `voided` (estado de la factura)
+_Avoid_: Cancelada, borrada
+
 **Periodo facturado**:
 Intervalo de fechas en que se prestaron los servicios que recoge una factura (p. ej. un mes de trabajo en una clínica).
 _En código_: `BillingPeriod`

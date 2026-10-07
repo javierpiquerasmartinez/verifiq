@@ -13,8 +13,11 @@ import {
 import {
   DraftErrorCode,
   InvoiceErrorCode,
+  invoiceListQuerySchema,
   issueInvoiceSchema,
   type Invoice,
+  type InvoiceIncident,
+  type InvoiceList,
   type NextInvoiceNumber,
 } from '@verifiq/domain';
 import type { Response } from 'express';
@@ -23,6 +26,7 @@ import { CurrentSession, type AuthSession } from '../auth/session.guard.js';
 import { DraftNotFoundError } from '../drafts/drafts.js';
 import { parseBody, withHttpErrors } from '../issuers/http.js';
 import { CurrentIssuer } from '../issuers/issuer-context.js';
+import { decodeCursor, InvoiceListService } from './invoice-list.js';
 import { InvoicePdfNotAvailableError, InvoicePdfsService } from './invoice-pdfs.js';
 import { CannotIssueError, DraftNotReadyError, InvoiceNotFoundError, InvoicesService } from './invoices.js';
 
@@ -63,13 +67,36 @@ function invoiceId(id: string): string {
   return id;
 }
 
+/** The query of the list, with the cursor read: one the list did not give is a validation error. */
+const listQuerySchema = invoiceListQuerySchema.transform(({ cursor, ...query }, context) => {
+  const decoded = cursor === undefined ? null : decodeCursor(cursor);
+  if (cursor !== undefined && decoded === null) {
+    context.addIssue({ code: 'custom', path: ['cursor'], message: 'Not a cursor of this list' });
+    return z.NEVER;
+  }
+  return { ...query, cursor: decoded };
+});
+
 /** Issued invoices, and the Issuance that makes them out of drafts. */
 @Controller('invoices')
 export class InvoicesController {
   constructor(
     private readonly invoices: InvoicesService,
+    private readonly list: InvoiceListService,
     private readonly pdfs: InvoicePdfsService,
   ) {}
+
+  /** The main screen: drafts and invoices together, newest first, searched, filtered and paged. */
+  @Get()
+  index(@CurrentIssuer() issuerId: string, @Query() query: unknown): Promise<InvoiceList> {
+    return this.list.list(issuerId, parseBody(listQuerySchema, query));
+  }
+
+  /** The invoices whose record needs the user, shown above the list. */
+  @Get('incidents')
+  incidents(@CurrentIssuer() issuerId: string): Promise<InvoiceIncident[]> {
+    return this.list.incidents(issuerId);
+  }
 
   /** Issues a draft: irreversible. The draft becomes the invoice. */
   @Post()

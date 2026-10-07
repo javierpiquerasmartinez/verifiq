@@ -166,6 +166,7 @@ describe('Drafts', () => {
         id: older.id,
         recipientName: 'Clínica Dental Ruzafa SL',
         operationDescription: 'Servicios odontológicos septiembre 2026',
+        totalAmount: '5140.00',
         amountDue: '4369.00',
         updatedAt: expect.any(String),
       },

@@ -8,8 +8,12 @@ import { recipientDataSchema } from './recipient.js';
 // the issuer and the recipient. Its InvoiceRecord travels to the AEAT through the VeriFactu connector.
 
 export const INVOICE_STATUSES = [
-  /** Issued: numbered and frozen. Corrections (rectified, voided) come later. */
+  /** Issued: numbered and frozen. */
   'issued',
+  /** A corrective invoice corrects it (ADR 0005). */
+  'rectified',
+  /** Its Voiding left it without effect; its number is never reused. */
+  'voided',
 ] as const;
 
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
@@ -33,6 +37,9 @@ export const UNCONFIRMED_RECORD_HOURS = 24;
 
 /** Record statuses still waiting for the AEAT's verdict. */
 export const AWAITING_VERDICT_STATUSES = ['pending-submission', 'submitted'] as const satisfies InvoiceRecordStatus[];
+
+/** Record statuses that need the user: the record is not right at the AEAT until they act. */
+export const INCIDENT_RECORD_STATUSES = ['blocked', 'rejected', 'accepted-with-errors'] as const satisfies InvoiceRecordStatus[];
 
 /** Whether a record issued at `createdAt` is, as of `now`, still unconfirmed after UNCONFIRMED_RECORD_HOURS. */
 export function isRecordUnconfirmed(status: InvoiceRecordStatus, createdAt: Date, now = new Date()): boolean {

@@ -184,7 +184,7 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
     try {
       const saved = draft ? await updateDraft(draft.id, body) : await createDraft(body);
       queryClient.setQueryData(['draft', saved.id], saved);
-      await queryClient.invalidateQueries({ queryKey: ['drafts'] });
+      await queryClient.invalidateQueries({ queryKey: ['invoices'] });
       setNotice('Borrador guardado.');
       return saved;
     } catch (cause) {
@@ -229,7 +229,7 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
     try {
       await deleteDraft(draft.id);
       queryClient.removeQueries({ queryKey: ['draft', draft.id] });
-      await queryClient.invalidateQueries({ queryKey: ['drafts'] });
+      await queryClient.invalidateQueries({ queryKey: ['invoices'] });
       await navigate({ to: '/' });
     } catch {
       setError('No se ha podido borrar el borrador. Vuelve a intentarlo.');

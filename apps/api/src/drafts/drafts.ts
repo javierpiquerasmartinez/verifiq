@@ -45,13 +45,17 @@ export class DraftsService {
       .leftJoin(recipients, eq(recipients.id, drafts.recipientId))
       .where(eq(drafts.issuerId, issuerId))
       .orderBy(desc(drafts.updatedAt), desc(drafts.createdAt));
-    return rows.map((row) => ({
-      id: row.id,
-      recipientName: row.recipientName,
-      operationDescription: row.operationDescription,
-      amountDue: computeBreakdown(amountsOf(row)).amountDue,
-      updatedAt: row.updatedAt.toISOString(),
-    }));
+    return rows.map((row) => {
+      const { totalAmount, amountDue } = computeBreakdown(amountsOf(row));
+      return {
+        id: row.id,
+        recipientName: row.recipientName,
+        operationDescription: row.operationDescription,
+        totalAmount,
+        amountDue,
+        updatedAt: row.updatedAt.toISOString(),
+      };
+    });
   }
 
   /**

@@ -1,6 +1,7 @@
 import { Module, type DynamicModule } from '@nestjs/common';
 import { DraftsModule } from '../drafts/drafts.module.js';
 import { InvoicesController } from './invoices.controller.js';
+import { InvoiceListService } from './invoice-list.js';
 import { InvoicePdfsService } from './invoice-pdfs.js';
 import { InvoicesService } from './invoices.js';
 import { RecordStatusPoller } from './record-status-poller.js';
@@ -32,10 +33,10 @@ export class SubmissionModule {
   }
 }
 
-/** Issuance, issued invoices, and the connector's results webhook. */
+/** Issuance, issued invoices and their list, and the connector's results webhook. */
 @Module({
   imports: [DraftsModule],
   controllers: [InvoicesController, WebhooksController],
-  providers: [InvoicesService],
+  providers: [InvoicesService, InvoiceListService],
 })
 export class InvoicesModule {}
