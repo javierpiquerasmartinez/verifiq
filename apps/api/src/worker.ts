@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { Logger, Module, type DynamicModule } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { loadEnv, type Env } from './config.js';
+import { loadWorkerEnv, type WorkerEnv } from './config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { SubmissionModule } from './invoices/invoices.module.js';
 import { SUBMISSION_QUEUE_NAME } from './invoices/submission-queue.js';
@@ -19,7 +19,7 @@ import { loadBuildVersion } from './version.js';
  */
 @Module({})
 class WorkerModule {
-  static forRoot(env: Env): DynamicModule {
+  static forRoot(env: WorkerEnv): DynamicModule {
     return {
       module: WorkerModule,
       imports: [
@@ -38,7 +38,7 @@ class WorkerModule {
   }
 }
 
-const env = loadEnv();
+const env = loadWorkerEnv();
 const app = await NestFactory.createApplicationContext(WorkerModule.forRoot(env));
 app.enableShutdownHooks();
 new Logger('Worker').log(`Verifiq worker ${loadBuildVersion()} started`);
