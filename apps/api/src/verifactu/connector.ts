@@ -24,6 +24,11 @@ export interface VerifactuConnector {
   /** Voiding of an issued invoice. */
   voidRecord(issuer: IssuerRef, submission: VoidingSubmission): Promise<ConnectorResult<QueuedVoiding>>;
   recordStatus(issuer: IssuerRef, record: RecordRef): Promise<ConnectorResult<RecordStatus>>;
+  /**
+   * Reads a delivery of the connector's results webhook: the AEAT's verdicts on records. Null when
+   * its signature is missing or not valid, so nothing in it can be trusted.
+   */
+  readResultsDelivery(delivery: WebhookDelivery): ResultsDelivery | null;
 }
 
 /**
@@ -186,4 +191,27 @@ export interface RecordStatus {
   state: RecordState;
   /** The AEAT's error, exactly as it returns it. */
   aeatError?: { code: string; message: string };
+  /** The AEAT's code for an accepted record (its CSV), when the connector passes it on. */
+  registrationCode?: string;
+}
+
+/** An HTTP request to the results webhook, as it arrived. */
+export interface WebhookDelivery {
+  /** Lower-case names. */
+  headers: Record<string, string | undefined>;
+  /** The raw body: the signature covers it byte for byte. */
+  body: Buffer;
+}
+
+/** The status of one record, named by its issuer and its invoice: deliveries carry no id of ours. */
+export interface RecordResult {
+  issuerTaxId: string;
+  invoice: InvoiceKey;
+  status: RecordStatus;
+}
+
+export interface ResultsDelivery {
+  /** The same across the connector's retries of a delivery. */
+  id: string;
+  results: RecordResult[];
 }

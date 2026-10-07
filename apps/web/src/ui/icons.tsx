@@ -15,6 +15,8 @@ const paths = {
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   chevron: <path d="M6 9l6 6 6-6" />,
   chevronRight: <path d="M9 6l6 6-6 6" />,
+  arrowRight: <path d="M5 12h14M13 6l6 6-6 6" />,
+  file: <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
   closeSmall: <path d="M7 7l10 10M17 7L7 17" />,
   clock: (

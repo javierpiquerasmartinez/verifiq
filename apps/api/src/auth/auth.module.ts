@@ -17,21 +17,20 @@ class MeController {
 /** Better Auth (mounted on /auth by configureHttp) and the global session guard. */
 @Module({})
 export class AuthModule {
-  static forRoot(options: AuthOptions, mailer: Mailer): DynamicModule {
+  static forRoot(options: AuthOptions): DynamicModule {
     return {
       module: AuthModule,
       global: true,
       controllers: [MeController],
       providers: [
-        { provide: MAILER, useValue: mailer },
         {
           provide: AUTH,
-          inject: [DATABASE],
-          useFactory: (db: Database) => createAuth(db, mailer, options),
+          inject: [DATABASE, MAILER],
+          useFactory: (db: Database, mailer: Mailer) => createAuth(db, mailer, options),
         },
         { provide: APP_GUARD, useClass: SessionGuard },
       ],
-      exports: [AUTH, MAILER],
+      exports: [AUTH],
     };
   }
 }

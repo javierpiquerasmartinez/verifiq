@@ -1,12 +1,13 @@
 import { Link, useParams } from '@tanstack/react-router';
 import { formatSpanishDate, type Invoice } from '@verifiq/domain';
 import { ApiError } from '../api';
-import { formatAmount, formatWithheld } from '../format';
+import { formatAmount, formatDateTime, formatWithheld } from '../format';
 import { useSessionExpiry } from '../session';
 import { useInvoice } from '../use-invoice';
 import { AppShell } from '../ui/AppShell';
 import { Alert } from '../ui/components';
 import { Icon } from '../ui/icons';
+import { InvoiceHistory } from '../ui/InvoiceHistory';
 import { DownloadPdfButton, InvoiceDocument } from '../ui/InvoicePdf';
 import { InvoiceStates, RecordState } from '../ui/InvoiceStates';
 
@@ -90,10 +91,27 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
           {record.rejection?.message} El número {invoice.number} queda asignado a esta factura.
         </Alert>
       )}
+      {record.unconfirmed && (
+        <Alert tone="warn" title="La AEAT aún no ha confirmado esta factura">
+          Han pasado más de 24 horas desde que la emitiste y Hacienda todavía no ha respondido. Ya lo estamos revisando; no
+          tienes que volver a emitirla.
+        </Alert>
+      )}
+      {record.status === 'accepted-with-errors' && (
+        <Alert tone="warn" title="La AEAT ha aceptado la factura, pero con errores">
+          {record.aeatError?.message}
+        </Alert>
+      )}
+      {record.status === 'rejected' && (
+        <Alert tone="danger" title="La AEAT ha rechazado la factura">
+          {record.aeatError?.message} El número {invoice.number} queda asignado a esta factura.
+        </Alert>
+      )}
 
       <div className="invoice-layout">
         <InvoiceDocument invoice={invoice} />
         <aside className="invoice-side">
+          <InvoiceHistory history={invoice.history} />
           <section className="card card-pad stack" style={{ gap: 12 }} aria-labelledby="invoice-record">
             <h2 className="h3" id="invoice-record">
               Registro en la AEAT
@@ -103,6 +121,20 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
               <dd>
                 <RecordState status={record.status} />
               </dd>
+              {record.confirmedAt && (
+                <>
+                  <dt>Confirmado</dt>
+                  <dd>{formatDateTime(record.confirmedAt)}</dd>
+                </>
+              )}
+              {record.registrationCode && (
+                <>
+                  <dt>Código de registro</dt>
+                  <dd className="mono xs" style={{ wordBreak: 'break-all' }}>
+                    {record.registrationCode}
+                  </dd>
+                </>
+              )}
             </dl>
           </section>
         </aside>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decimalInputOf, parseDecimalInput } from './format';
+import { decimalInputOf, formatDateTime, parseDecimalInput } from './format';
 
 describe('parseDecimalInput', () => {
   it.each([
@@ -30,5 +30,16 @@ describe('decimalInputOf', () => {
   it('shows a decimal string the way it is typed in Spain', () => {
     expect(decimalInputOf('2340.5000')).toBe('2340,5000');
     expect(decimalInputOf('1')).toBe('1');
+  });
+});
+
+describe('formatDateTime', () => {
+  it.each([
+    // Summer time: UTC+2.
+    ['2026-08-01T08:42:10.000Z', '01/08/2026 · 10:42'],
+    // Winter time, and a day that changes at Madrid's midnight.
+    ['2026-12-31T23:05:00.000Z', '01/01/2027 · 00:05'],
+  ])('shows %j in Spanish time as %j', (instant, expected) => {
+    expect(formatDateTime(instant)).toBe(expected);
   });
 });

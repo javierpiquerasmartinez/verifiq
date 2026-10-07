@@ -43,4 +43,8 @@ services:
         value: test
       - key: CONNECTOR_MASTER_KEY
         sync: false
+      - key: VERIFACTI_WEBHOOK_SECRET
+        sync: false
+      - key: OPERATOR_EMAIL
+        sync: false
   # Worker (`pnpm start:worker`): added when it has work (invoice issuance). Render has no free workers.
