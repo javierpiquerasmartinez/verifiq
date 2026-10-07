@@ -198,6 +198,17 @@ describe('Corrective invoices', () => {
       await startCorrection(agent, invoice.id, { reason: 'amounts_or_data_error', note: 'NIF mal escrito' }).expect(201);
     });
 
+    it('still amends the description of an invoice accepted with errors once rectified', async () => {
+      const { agent } = await issuingUser();
+      const { invoice } = await acceptedInvoice(agent, { verdict: 'accepted-with-errors' });
+      await issueCorrection(agent, invoice.id, { reason: 'other', note: 'Ajuste' }, [line('Ajuste', '-10')]);
+
+      await agent
+        .post(`/invoices/${invoice.id}/resubmission`)
+        .send({ operationDescription: 'Servicios odontológicos agosto 2026 (corregida)' })
+        .expect(201);
+    });
+
     it('waits for the AEAT to have the invoice', async () => {
       const { agent } = await issuingUser();
       const { invoice } = await acceptedInvoice(agent, { verdict: null });

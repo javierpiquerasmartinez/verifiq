@@ -62,7 +62,7 @@ export class DraftsController {
   async update(@CurrentIssuer() issuerId: string, @Param('id') id: string, @Body() body: unknown): Promise<Draft> {
     const corrective = await run(this.drafts.isCorrective(issuerId, draftId(id)));
     const data = parseBody(corrective ? correctiveDraftDataSchema : draftDataSchema, body);
-    return run(this.drafts.update(issuerId, id, data));
+    return run(this.drafts.update(issuerId, draftId(id), data));
   }
 
   @Delete(':id')

@@ -194,7 +194,7 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
       {record.status === 'pending-submission' && (
         <Alert tone="info">Estamos registrando la factura en la AEAT. En unos segundos aparecerá su QR.</Alert>
       )}
-      {isIncident(record.status) && invoice.status === 'issued' && (
+      {isIncident(record.status) && invoice.status !== 'voided' && (
         <RecordIncident
           key={record.status}
           invoice={invoice}

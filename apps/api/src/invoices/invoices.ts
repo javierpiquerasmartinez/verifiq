@@ -66,7 +66,7 @@ function explainedRejection(code: string, message: string | null) {
 /** Without its key at the connector and a valid Representation, the issuer cannot issue. */
 export class CannotIssueError extends Error {}
 
-/** Only an issued invoice whose record is blocked, rejected or accepted with errors is corrected and sent again. */
+/** Only an invoice not voided whose record is blocked, rejected or accepted with errors is corrected and sent again. */
 export class NotResubmittableError extends Error {}
 
 /** The recipient's tax ID is not confirmed in the census: sending it again would fail again. */
@@ -315,7 +315,8 @@ export class InvoicesService {
         .orderBy(desc(invoiceRecords.createdAt))
         .limit(1);
       const incidents: readonly string[] = INCIDENT_RECORD_STATUSES;
-      if (invoice.status !== 'issued' || !latest || !incidents.includes(latest.status)) throw new NotResubmittableError();
+      // A rectified invoice is still amended: its corrective invoice corrects the amounts, not the record's errors.
+      if (invoice.status === 'voided' || !latest || !incidents.includes(latest.status)) throw new NotResubmittableError();
       const record = { status: latest.status as InvoiceRecordStatus, amendment: latest.operation === 'amendment' };
       if (isRetryDayOver({ issueDate: invoice.issueDate, record }, todayInSpain())) throw new RetryDayOverError();
 
