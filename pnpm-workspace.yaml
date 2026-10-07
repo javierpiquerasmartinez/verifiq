@@ -3,6 +3,7 @@ packages:
   - packages/*
 
 allowBuilds:
+  '@ibm/plex-mono': false
   '@swc/core': true
   esbuild: true
 
