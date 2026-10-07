@@ -11,6 +11,12 @@ import { renderInvoicePdf, type InvoicePdfData } from './invoice-pdf.js';
 /** The invoice has no PDF (its record has no QR yet, or never will: blocked), or not that version. */
 export class InvoicePdfNotAvailableError extends Error {}
 
+/** A version stored inside a transaction: its file is in the object storage before the transaction commits. */
+export interface DrawnPdf {
+  version: number;
+  storageKey: string;
+}
+
 export interface InvoicePdfFile {
   /** Series and number, for the file name. */
   number: string;
@@ -54,28 +60,39 @@ export class InvoicePdfsService {
     const { invoice } = row;
     const body = await this.render(this.db, invoice, row.qrPng);
 
-    await this.db.transaction(async (tx) => {
-      // Locked as a correction of the withholding locks it: if one drew this record's version meanwhile,
-      // from the corrected copy, that version stays.
-      await tx.select({ id: invoices.id }).from(invoices).where(eq(invoices.id, invoice.id)).for('update');
-      if (await this.drawnFor(tx, invoiceRecordId)) return;
-      await this.store(tx, invoice, invoiceRecordId, body, null);
-    });
+    const stored: { pdf?: DrawnPdf } = {};
+    try {
+      await this.db.transaction(async (tx) => {
+        // Locked as a correction of the withholding locks it: if one drew this record's version meanwhile,
+        // from the corrected copy, that version stays.
+        await tx.select({ id: invoices.id }).from(invoices).where(eq(invoices.id, invoice.id)).for('update');
+        if (await this.drawnFor(tx, invoiceRecordId)) return;
+        stored.pdf = await this.store(tx, invoice, invoiceRecordId, body, null);
+      });
+    } catch (error) {
+      if (stored.pdf) await this.discard(stored.pdf);
+      throw error;
+    }
   }
 
   /**
    * Draws a new version of the invoice's PDF from its copy, as it is now, with the QR of `record`, its
-   * latest. Runs inside the transaction `db` that locked the invoice, which `actorUserId` acts in.
-   * Returns its version.
+   * latest. Runs inside the transaction `db` that locked the invoice, which `actorUserId` acts in; if
+   * that transaction fails, the caller discards it.
    */
   async drawIn(
     db: Queryable,
     invoice: typeof invoices.$inferSelect,
     record: { id: string; qrPng: string },
     actorUserId: string,
-  ): Promise<number> {
+  ): Promise<DrawnPdf> {
     const body = await this.render(db, invoice, record.qrPng);
     return this.store(db, invoice, record.id, body, actorUserId);
+  }
+
+  /** Deletes the file of a version whose transaction failed: without its row, it is no version. */
+  async discard(pdf: DrawnPdf): Promise<void> {
+    await this.storage.delete(pdf.storageKey);
   }
 
   private async drawnFor(db: Queryable, invoiceRecordId: string): Promise<boolean> {
@@ -100,14 +117,14 @@ export class InvoicePdfsService {
     });
   }
 
-  /** Stores the file as the invoice's next version, inside the transaction `db` that locked the invoice. Returns its version. */
+  /** Stores the file as the invoice's next version, inside the transaction `db` that locked the invoice. */
   private async store(
     db: Queryable,
     invoice: typeof invoices.$inferSelect,
     invoiceRecordId: string,
     body: Buffer,
     actorUserId: string | null,
-  ): Promise<number> {
+  ): Promise<DrawnPdf> {
     const version = ((await this.currentVersion(invoice.id, db)) ?? 0) + 1;
     const storageKey = `issuers/${invoice.issuerId}/invoices/${invoice.id}/v${version}-${randomUUID()}.pdf`;
     await this.storage.put(storageKey, { body, contentType: 'application/pdf' });
@@ -124,11 +141,10 @@ export class InvoicePdfsService {
         details: { version, invoiceRecordId, sha256: createHash('sha256').update(body).digest('hex') },
       });
     } catch (error) {
-      // Without its row, the file is no version.
-      await this.storage.delete(storageKey);
+      await this.discard({ version, storageKey });
       throw error;
     }
-    return version;
+    return { version, storageKey };
   }
 
   /** The number of the invoice's current PDF version, or null while it has none. */

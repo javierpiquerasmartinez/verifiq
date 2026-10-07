@@ -41,7 +41,7 @@ import { auditEvents, drafts, invoiceRecords, invoices, issuers, recipients, ser
 import type { PreviousRejection, RecordOperation } from '../verifactu/connector.js';
 import { DraftsService } from '../drafts/drafts.js';
 import { RepresentationService } from '../issuers/representation.js';
-import { InvoicePdfsService } from './invoice-pdfs.js';
+import { InvoicePdfsService, type DrawnPdf } from './invoice-pdfs.js';
 import { SubmissionQueue } from './submission-queue.js';
 
 // Every method takes the issuer id resolved by the isolation layer (issuer-context.ts) and filters by it.
@@ -504,33 +504,50 @@ export class InvoicesService {
    * withholding already, nothing changes.
    */
   async correctWithholding(issuerId: string, userId: string, invoiceId: string, { withholding }: WithholdingCorrection): Promise<Invoice> {
-    await inTransaction(this.db, async (tx) => {
-      const invoice = await lockInvoice(tx, issuerId, invoiceId);
-      const latest = (await latestRecordOf(tx, invoice.id))!;
-      const status = invoice.status as InvoiceStatus;
-      if (!isWithholdingCorrectable({ status, hasQr: latest.qrPng !== null })) throw new NotWithholdingCorrectableError();
-      // Its corrective draft copied the withholding: it would be issued with the old one.
-      if (await hasCorrectiveDraft(tx, invoice)) throw new NotWithholdingCorrectableError();
-      const before = snapshotOf(invoice);
-      if (before.withholding === withholding) return;
-
-      const after: InvoiceSnapshot = { ...before, withholding, breakdown: withWithholding(before.breakdown, withholding) };
-      const [corrected] = await tx.update(invoices).set({ snapshot: after }).where(eq(invoices.id, invoice.id)).returning();
-      await recordAuditEvent(tx, {
-        issuerId,
-        actorUserId: userId,
-        action: 'invoice-withholding-corrected',
-        subjectType: 'invoice',
-        subjectId: invoice.id,
-        details: {
-          number: invoiceNumberIn(invoice.series, invoice.number),
-          withholding: { before: before.breakdown.withholding, after: after.breakdown.withholding },
-          amountDue: { before: before.breakdown.amountDue, after: after.breakdown.amountDue },
-        },
-      });
-      await this.pdfs.drawIn(tx, corrected!, { id: latest.id, qrPng: latest.qrPng! }, userId);
-    });
+    const drawn: { pdf?: DrawnPdf } = {};
+    try {
+      await inTransaction(this.db, (tx) => this.correctWithholdingIn(tx, issuerId, userId, invoiceId, withholding, drawn));
+    } catch (error) {
+      // The new version's file is stored before the transaction commits.
+      if (drawn.pdf) await this.pdfs.discard(drawn.pdf);
+      throw error;
+    }
     return this.find(issuerId, invoiceId);
+  }
+
+  /** The correction of the withholding, inside the transaction `tx`; `drawn` gets the new PDF version. */
+  private async correctWithholdingIn(
+    tx: Queryable,
+    issuerId: string,
+    userId: string,
+    invoiceId: string,
+    withholding: WithholdingCorrection['withholding'],
+    drawn: { pdf?: DrawnPdf },
+  ): Promise<void> {
+    const invoice = await lockInvoice(tx, issuerId, invoiceId);
+    const latest = (await latestRecordOf(tx, invoice.id))!;
+    const status = invoice.status as InvoiceStatus;
+    if (!isWithholdingCorrectable({ status, hasQr: latest.qrPng !== null })) throw new NotWithholdingCorrectableError();
+    // Its corrective draft copied the withholding: it would be issued with the old one.
+    if (await hasCorrectiveDraft(tx, invoice)) throw new NotWithholdingCorrectableError();
+    const before = snapshotOf(invoice);
+    if (before.withholding === withholding) return;
+
+    const after: InvoiceSnapshot = { ...before, withholding, breakdown: withWithholding(before.breakdown, withholding) };
+    const [corrected] = await tx.update(invoices).set({ snapshot: after }).where(eq(invoices.id, invoice.id)).returning();
+    await recordAuditEvent(tx, {
+      issuerId,
+      actorUserId: userId,
+      action: 'invoice-withholding-corrected',
+      subjectType: 'invoice',
+      subjectId: invoice.id,
+      details: {
+        number: invoiceNumberIn(invoice.series, invoice.number),
+        withholding: { before: before.breakdown.withholding, after: after.breakdown.withholding },
+        amountDue: { before: before.breakdown.amountDue, after: after.breakdown.amountDue },
+      },
+    });
+    drawn.pdf = await this.pdfs.drawIn(tx, corrected!, { id: latest.id, qrPng: latest.qrPng! }, userId);
   }
 
   /** Locks the invoice to rectify until the transaction ends, once sure it can still be rectified. */
