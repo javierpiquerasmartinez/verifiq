@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import type { Env } from '../config.js';
+import type { WorkerEnv } from '../config.js';
 import type { Database } from '../database/database.module.js';
 import type { VerifactuConnector } from './connector.js';
 import { FakeVerifactuConnector } from './fake-connector.js';
@@ -9,7 +9,7 @@ import { VerifactiConnector } from './verifacti-connector.js';
 /** Builds the connector once the database exists. */
 export type VerifactuConnectorFactory = (db: Database) => VerifactuConnector;
 
-export function verifactuConnectorFromEnv(env: Env): VerifactuConnectorFactory {
+export function verifactuConnectorFromEnv(env: WorkerEnv): VerifactuConnectorFactory {
   if (env.VERIFACTI_API_KEY && env.VERIFACTI_ENVIRONMENT && env.CONNECTOR_MASTER_KEY) {
     const secretBox = new SecretBox(env.CONNECTOR_MASTER_KEY);
     if (!env.VERIFACTI_WEBHOOK_SECRET) {
@@ -29,6 +29,6 @@ export function verifactuConnectorFromEnv(env: Env): VerifactuConnectorFactory {
 }
 
 /** Issuers sign the Representation only in production: test NIFs need none (and a signing has a cost). */
-export function representationRequiredFromEnv(env: Env): boolean {
+export function representationRequiredFromEnv(env: WorkerEnv): boolean {
   return env.VERIFACTI_ENVIRONMENT === 'prod';
 }

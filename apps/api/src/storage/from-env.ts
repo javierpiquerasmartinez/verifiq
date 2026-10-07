@@ -1,11 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { fileURLToPath } from 'node:url';
-import type { Env } from '../config.js';
+import type { WorkerEnv } from '../config.js';
 import { LocalObjectStorage, R2ObjectStorage, type ObjectStorage } from './object-storage.js';
 
 const LOCAL_STORAGE_DIR = fileURLToPath(new URL('../../.storage', import.meta.url));
 
-export function objectStorageFromEnv(env: Env): ObjectStorage {
+export function objectStorageFromEnv(env: WorkerEnv): ObjectStorage {
   if (env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_BUCKET) {
     return new R2ObjectStorage({
       accountId: env.R2_ACCOUNT_ID,
