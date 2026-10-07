@@ -96,7 +96,10 @@ export class NotRectifiableError extends Error {}
  */
 export class NotVoidableError extends Error {}
 
-/** A voided invoice, or one whose latest record has no QR yet, keeps its withholding (isWithholdingCorrectable). */
+/**
+ * A voided invoice, or one whose latest record has no QR yet, keeps its withholding (isWithholdingCorrectable);
+ * so does one with a corrective draft open, which copied it.
+ */
 export class NotWithholdingCorrectableError extends Error {}
 
 export class DraftNotReadyError extends Error {
@@ -180,6 +183,16 @@ function correctiveDraftOf(invoice: typeof invoices.$inferSelect, total: boolean
     lines: total ? negatedLines(snapshot.lines) : [],
     withholding: snapshot.withholding,
   };
+}
+
+/** Whether a corrective draft for the invoice is being prepared. */
+async function hasCorrectiveDraft(db: Queryable, invoice: { id: string; issuerId: string }): Promise<boolean> {
+  const [correctiveDraft] = await db
+    .select({ id: drafts.id })
+    .from(drafts)
+    .where(and(eq(drafts.issuerId, invoice.issuerId), eq(drafts.correctedInvoiceId, invoice.id)))
+    .limit(1);
+  return correctiveDraft !== undefined;
 }
 
 /** Locks the issuer's invoice until the transaction ends. */
@@ -432,13 +445,7 @@ export class InvoicesService {
       recordStatus: latest.status as InvoiceRecordStatus,
       corrective: invoice.correctedInvoiceId !== null,
     });
-    if (!voidable) throw new NotVoidableError();
-    const [correctiveDraft] = await db
-      .select({ id: drafts.id })
-      .from(drafts)
-      .where(and(eq(drafts.issuerId, invoice.issuerId), eq(drafts.correctedInvoiceId, invoice.id)))
-      .limit(1);
-    if (correctiveDraft) throw new NotVoidableError();
+    if (!voidable || (await hasCorrectiveDraft(db, invoice))) throw new NotVoidableError();
   }
 
   /** Leaves the invoice voided and queues its Voiding, inside the transaction `db` that locked it. */
@@ -502,6 +509,8 @@ export class InvoicesService {
       const latest = (await latestRecordOf(tx, invoice.id))!;
       const status = invoice.status as InvoiceStatus;
       if (!isWithholdingCorrectable({ status, hasQr: latest.qrPng !== null })) throw new NotWithholdingCorrectableError();
+      // Its corrective draft copied the withholding: it would be issued with the old one.
+      if (await hasCorrectiveDraft(tx, invoice)) throw new NotWithholdingCorrectableError();
       const before = snapshotOf(invoice);
       if (before.withholding === withholding) return;
 

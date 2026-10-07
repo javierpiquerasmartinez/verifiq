@@ -8,7 +8,7 @@ import { Icon } from './icons';
 
 function withholdingError(cause: unknown): string {
   if (cause instanceof ApiError && cause.code === InvoiceErrorCode.NotWithholdingCorrectable) {
-    return 'La retención de esta factura ya no se puede corregir. Recarga la página para ver su estado.';
+    return 'Ahora no se puede corregir la retención de esta factura: tiene una rectificativa en preparación, o aún no tiene su QR. Recarga la página para ver su estado.';
   }
   return 'No se ha podido corregir la retención. Vuelve a intentarlo.';
 }
@@ -92,6 +92,12 @@ export function WithholdingDialog({ invoice, onClose }: { invoice: Invoice; onCl
               <strong>{formatAmount(after.amountDue)}</strong>
             </dd>
           </dl>
+          {invoice.correctedBy.length > 0 && (
+            <Alert tone="info">
+              Esta factura tiene {invoice.correctedBy.length === 1 ? 'una rectificativa' : 'rectificativas'}, que conservan
+              su propia retención. Si también está mal, corrígela en cada una.
+            </Alert>
+          )}
           <p className="help">
             Si el error está en los importes, el IVA o los datos de la factura, rectifícala en lugar de corregir la retención.
           </p>

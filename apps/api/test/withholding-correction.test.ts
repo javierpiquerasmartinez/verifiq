@@ -4,7 +4,9 @@ import { extractText } from 'unpdf';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { findAuditEvents } from '../src/audit/audit.js';
 import { DATABASE, type Database } from '../src/database/database.module.js';
+import { InvoicePdfsService } from '../src/invoices/invoice-pdfs.js';
 import { SubmissionWorker } from '../src/invoices/submission-worker.js';
+import type { FakeVerdict } from '../src/verifactu/fake-connector.js';
 import { FakeVerifactuConnector } from '../src/verifactu/fake-connector.js';
 import type { Agent } from './access.js';
 import { onboardedUser, uniqueTaxId } from './issuer.js';
@@ -90,6 +92,27 @@ describe('Correcting the withholding', () => {
         response.on('end', () => done(null, Buffer.concat(chunks)));
       });
 
+  /** The AEAT gives the invoice's latest record its verdict, through the webhook. */
+  async function settle(invoiceId: string, verdict: FakeVerdict) {
+    const { rows } = await db.$client.query<{ connector_record_id: string }>(
+      'SELECT connector_record_id FROM invoice_records WHERE invoice_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [invoiceId],
+    );
+    const connectorRecordId = rows[0]!.connector_record_id;
+    connector.settle(connectorRecordId, verdict, verdict === 'accepted' ? {} : { aeatError: { code: '1100', message: 'Error' } });
+    const delivery = connector.resultsDelivery([connectorRecordId]);
+    await request(app.getHttpServer()).post('/webhooks/verifactu').set(delivery.headers).send(delivery.body).expect(204);
+  }
+
+  /** The invoice's records, oldest first: the withholding of the copy each one sent. */
+  const recordWithholdings = async (invoiceId: string) =>
+    (
+      await db.$client.query<{ withholding: number }>(
+        "SELECT snapshot -> 'withholding' AS withholding FROM invoice_records WHERE invoice_id = $1 ORDER BY created_at",
+        [invoiceId],
+      )
+    ).rows.map((row) => row.withholding);
+
   const notCorrectable = ({ body }: { body: { code: string } }) =>
     expect(body.code).toBe('INVOICE_NOT_WITHHOLDING_CORRECTABLE');
 
@@ -112,11 +135,7 @@ describe('Correcting the withholding', () => {
     // Nothing reaches the AEAT: the withholding is not part of the record.
     await worker.runPending();
     expect(connector.calls.length).toBe(calls);
-    const { rows: records } = await db.$client.query<{ withholding: number }>(
-      "SELECT snapshot -> 'withholding' AS withholding FROM invoice_records WHERE invoice_id = $1",
-      [invoice.id],
-    );
-    expect(records).toEqual([{ withholding: 15 }]);
+    expect(await recordWithholdings(invoice.id)).toEqual([15]);
   });
 
   it('keeps every PDF version: the current one with the new withholding, the earlier ones downloadable', async () => {
@@ -200,16 +219,60 @@ describe('Correcting the withholding', () => {
   it('never corrects a voided invoice', async () => {
     const { agent } = await issuingUser();
     const invoice = await issuedInvoice(agent);
-    const { rows } = await db.$client.query<{ connector_record_id: string }>(
-      'SELECT connector_record_id FROM invoice_records WHERE invoice_id = $1',
-      [invoice.id],
-    );
-    connector.settle(rows[0]!.connector_record_id, 'accepted', {});
-    const delivery = connector.resultsDelivery([rows[0]!.connector_record_id]);
-    await request(app.getHttpServer()).post('/webhooks/verifactu').set(delivery.headers).send(delivery.body).expect(204);
+    await settle(invoice.id, 'accepted');
     await agent.post(`/invoices/${invoice.id}/voiding`).send({}).expect(201);
 
     await correctWithholding(agent, invoice.id, 7).expect(409).expect(notCorrectable);
+  });
+
+  it('never corrects an invoice with a corrective draft open: the draft would keep the old withholding', async () => {
+    const { agent } = await issuingUser();
+    const invoice = await issuedInvoice(agent);
+    await settle(invoice.id, 'accepted');
+    const { body: draft } = await agent
+      .post(`/invoices/${invoice.id}/corrective-draft`)
+      .send({ reason: 'other', note: 'Ajuste' })
+      .expect(201);
+
+    await correctWithholding(agent, invoice.id, 7).expect(409).expect(notCorrectable);
+
+    await agent.delete(`/drafts/${draft.id}`).expect(204);
+    await correctWithholding(agent, invoice.id, 7).expect(201);
+  });
+
+  it('sends the corrected copy when the record is amended later, and draws its PDF with it', async () => {
+    const { agent } = await issuingUser();
+    const invoice = await issuedInvoice(agent);
+    await settle(invoice.id, 'accepted-with-errors');
+    await correctWithholding(agent, invoice.id, 7).expect(201);
+
+    await agent
+      .post(`/invoices/${invoice.id}/resubmission`)
+      .send({ operationDescription: 'Servicios odontológicos agosto 2026 (corregida)' })
+      .expect(201);
+    await worker.runPending();
+
+    expect(await recordWithholdings(invoice.id)).toEqual([15, 7]);
+    const { body } = await agent.get(`/invoices/${invoice.id}`).expect(200);
+    expect(body).toMatchObject({ withholding: 7, pdf: { version: 3 } });
+    const text = await textOf((await download(agent, invoice.id).expect(200)).body);
+    expect(text).toContain('Retención IRPF (7 %) −170,80 €');
+  });
+
+  it('keeps the corrected version when the record’s PDF is generated again afterwards', async () => {
+    const { agent } = await issuingUser();
+    const invoice = await issuedInvoice(agent);
+    const corrected = (await correctWithholding(agent, invoice.id, 7).expect(201)).body;
+    const { rows } = await db.$client.query<{ id: string }>('SELECT id FROM invoice_records WHERE invoice_id = $1', [invoice.id]);
+
+    // A worker that rendered the record's PDF before the correction stores it only now.
+    await app.get(InvoicePdfsService).generateForRecord(rows[0]!.id);
+
+    const { body } = await agent.get(`/invoices/${invoice.id}`).expect(200);
+    expect(body.pdf).toEqual({ version: 2 });
+    const current = (await download(agent, invoice.id).expect(200)).body as Buffer;
+    expect(current.equals((await download(agent, invoice.id, 2).expect(200)).body as Buffer)).toBe(true);
+    expect(corrected.pdf).toEqual({ version: 2 });
   });
 
   it('accepts only the withholdings an invoice can have', async () => {

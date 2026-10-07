@@ -90,7 +90,7 @@ function httpError(error: unknown): unknown {
   if (error instanceof NotWithholdingCorrectableError) {
     return new ConflictException({
       code: InvoiceErrorCode.NotWithholdingCorrectable,
-      message: 'Only an invoice not voided whose latest record has its QR has its withholding corrected',
+      message: 'Only an invoice not voided, whose latest record has its QR and without a corrective draft, has its withholding corrected',
     });
   }
   if (error instanceof RetryDayOverError) {

@@ -222,7 +222,10 @@ export const InvoiceErrorCode = {
    * for the AEAT's verdict, is voided (isVoidable); a voided one, only to send its Voiding again.
    */
   NotVoidable: 'INVOICE_NOT_VOIDABLE',
-  /** A voided invoice, or one whose latest record has no QR yet, keeps its withholding (isWithholdingCorrectable). */
+  /**
+   * A voided invoice, or one whose latest record has no QR yet, keeps its withholding (isWithholdingCorrectable);
+   * so does one with a corrective draft open.
+   */
   NotWithholdingCorrectable: 'INVOICE_NOT_WITHHOLDING_CORRECTABLE',
 } as const;
 
