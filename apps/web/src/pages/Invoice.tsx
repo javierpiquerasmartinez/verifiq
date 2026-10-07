@@ -230,7 +230,10 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const voided = invoice.status === 'voided';
   return (
     <div className={voided ? 'stack invoice-voided' : 'stack'} style={{ gap: 20 }}>
-      <section className="card row" style={{ padding: 28, gap: 32, justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <section
+        className="card row invoice-summary"
+        style={{ padding: 28, gap: 32, justifyContent: 'space-between', alignItems: 'flex-start' }}
+      >
         <div className="stack" style={{ gap: 16, minWidth: 0 }}>
           <div className="row" style={{ gap: 14 }}>
             <h1 className="mono" style={{ fontSize: 30, fontWeight: 600, letterSpacing: '-.01em' }}>

@@ -1132,6 +1132,13 @@ button.step:hover {
   overflow: hidden;
 }
 /* a voided invoice stays visible, read only and dimmed */
+.invoice-voided .invoice-summary .num,
+.invoice-voided .invoice-summary dd {
+  color: var(--ink-3);
+}
+.invoice-voided .invoice-summary .num {
+  text-decoration: line-through;
+}
 .invoice-voided .invoice-document-body {
   opacity: 0.55;
   filter: grayscale(1);

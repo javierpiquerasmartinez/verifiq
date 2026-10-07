@@ -241,7 +241,7 @@ export class InvoiceListService {
     // The same rules as INVOICE_LIST_FILTERS and isRecordUnconfirmed, in SQL so the database can filter and count.
     const awaiting = inArray(record.status, [...AWAITING_VERDICT_STATUSES]);
     const category = sql<Exclude<InvoiceListFilter, 'all' | 'drafts'>>`CASE
-      WHEN ${invoices.status} = 'voided' THEN 'voided'
+      WHEN ${invoices.status} = 'voided' AND ${record.status} NOT IN ('blocked', 'rejected') THEN 'voided'
       WHEN ${invoices.status} = 'rectified' THEN 'rectified'
       WHEN ${inArray(record.status, [...INCIDENT_RECORD_STATUSES])} OR (${awaiting} AND ${record.createdAt} <= ${unconfirmedBefore(now).toISOString()}::timestamptz) THEN 'incidents'
       WHEN ${awaiting} THEN 'pending'

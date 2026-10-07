@@ -145,15 +145,16 @@ describe('Voiding and correcting the recipient', () => {
       expect(incidents.map(({ id }: { id: string }) => id)).not.toContain(invoice.id);
     });
 
-    it('never reuses the voided number', async () => {
+    it('never reuses the voided number: the invoice issued again takes the next one', async () => {
       const { agent } = await issuingUser();
       const { invoice } = await issuedInvoice(agent);
       expect(invoice.number).toBe(ordinary(1));
-      await voidInvoice(agent, invoice.id).expect(201);
+      const { body: voided } = await voidInvoice(agent, invoice.id, { reissue: true }).expect(201);
       await worker.runPending();
 
-      const { invoice: next } = await issuedInvoice(agent);
-      expect(next.number).toBe(ordinary(2));
+      const { body: reissued } = await agent.post('/invoices').send({ draftId: voided.draft.id }).expect(201);
+      expect(reissued.number).toBe(ordinary(2));
+      expect((await invoiceOf(agent, invoice.id)).number).toBe(ordinary(1));
       const { body } = await agent.get('/invoices/next-number').expect(200);
       expect(body.number).toBe(ordinary(3));
     });
@@ -184,6 +185,9 @@ describe('Voiding and correcting the recipient', () => {
       await worker.runPending();
       await settle(invoice.id, 'rejected');
       expect((await invoiceOf(agent, invoice.id)).record).toMatchObject({ status: 'rejected', voiding: true });
+      // The AEAT still has the invoice: it needs the user.
+      const { body: incidents } = await agent.get('/invoices/incidents').expect(200);
+      expect(incidents.map(({ id }: { id: string }) => id)).toContain(invoice.id);
 
       const { body } = await voidInvoice(agent, invoice.id).expect(201);
       expect(body.invoice).toMatchObject({ status: 'voided', record: { status: 'pending-submission', voiding: true } });

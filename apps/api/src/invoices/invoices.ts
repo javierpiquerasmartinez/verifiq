@@ -313,16 +313,11 @@ export class InvoicesService {
    * lines, for the user to enter the difference.
    */
   async startCorrection(issuerId: string, invoiceId: string, request: NewCorrectiveDraft): Promise<Draft> {
-    const [invoice] = await this.db
-      .select()
-      .from(invoices)
-      .where(and(eq(invoices.issuerId, issuerId), eq(invoices.id, invoiceId)));
-    if (!invoice) throw new InvoiceNotFoundError();
-    if (!(await canRectify(this.db, invoice))) throw new NotRectifiableError();
-    return this.drafts.create(issuerId, correctiveDraftOf(invoice, request.total), {
-      invoiceId: invoice.id,
-      reason: request.reason,
-      note: request.note,
+    // Locked, so a Voiding that starts meanwhile waits and then finds the corrective draft.
+    return inTransaction(this.db, async (tx) => {
+      const invoice = await this.lockRectifiable(tx, issuerId, invoiceId);
+      const { reason, note } = request;
+      return this.drafts.create(issuerId, correctiveDraftOf(invoice, request.total), { invoiceId, reason, note }, { db: tx });
     });
   }
 
@@ -485,14 +480,11 @@ export class InvoicesService {
     return record!.id;
   }
 
-  /** Locks the invoice a corrective draft corrects until the Issuance ends, once sure it can still be rectified. */
-  private async lockRectifiable(db: Queryable, issuerId: string, invoiceId: string): Promise<void> {
-    const [invoice] = await db
-      .select()
-      .from(invoices)
-      .where(and(eq(invoices.issuerId, issuerId), eq(invoices.id, invoiceId)))
-      .for('update');
-    if (!invoice || !(await canRectify(db, invoice))) throw new NotRectifiableError();
+  /** Locks the invoice to rectify until the transaction ends, once sure it can still be rectified. */
+  private async lockRectifiable(db: Queryable, issuerId: string, invoiceId: string) {
+    const invoice = await lockInvoice(db, issuerId, invoiceId);
+    if (!(await canRectify(db, invoice))) throw new NotRectifiableError();
+    return invoice;
   }
 
   /**
