@@ -21,7 +21,6 @@ describe('environment', () => {
   });
 
   it('applies the same cross-checks to the worker', () => {
-    const { CONNECTOR_MASTER_KEY: _, ...withoutMasterKey } = workerEnv;
-    expect(() => loadWorkerEnv(withoutMasterKey)).toThrow(/VERIFACTI_API_KEY requires CONNECTOR_MASTER_KEY/);
+    expect(() => loadWorkerEnv({ ...workerEnv, CONNECTOR_MASTER_KEY: undefined })).toThrow(/VERIFACTI_API_KEY requires CONNECTOR_MASTER_KEY/);
   });
 });
