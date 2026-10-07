@@ -1,8 +1,9 @@
+import { Link } from '@tanstack/react-router';
 import type { InvoiceEvent, InvoiceHistoryEntry } from '@verifiq/domain';
 import { formatDateTime } from '../format';
 import { Icon, type IconName } from './icons';
 
-const EVENTS: Record<InvoiceEvent, { label: string; icon: IconName; tone?: 'ok' | 'warn' | 'danger' }> = {
+const EVENTS: Record<InvoiceEvent, { label: string; icon: IconName; tone?: 'ok' | 'warn' | 'danger' | 'rect' }> = {
   issued: { label: 'Emitida', icon: 'lock' },
   submitted: { label: 'Enviada a la AEAT', icon: 'arrowRight' },
   blocked: { label: 'No se pudo enviar a la AEAT', icon: 'closeSmall', tone: 'danger' },
@@ -11,6 +12,7 @@ const EVENTS: Record<InvoiceEvent, { label: string; icon: IconName; tone?: 'ok' 
   'accepted-with-errors': { label: 'Aceptada con errores por la AEAT', icon: 'mark', tone: 'warn' },
   rejected: { label: 'Rechazada por la AEAT', icon: 'closeSmall', tone: 'danger' },
   resubmitted: { label: 'Corregida y reenviada', icon: 'arrowRight' },
+  rectified: { label: 'Rectificada por', icon: 'rectify', tone: 'rect' },
 };
 
 /** The invoice's timeline, newest first: what happened, when, and who did it («Sistema» if no one did). */
@@ -29,7 +31,17 @@ export function InvoiceHistory({ history }: { history: InvoiceHistoryEntry[] }) 
                 <Icon name={event.icon} size="xs" />
               </span>
               <div>
-                <p className="tl-t">{event.label}</p>
+                <p className="tl-t">
+                  {event.label}
+                  {entry.invoice && (
+                    <>
+                      {' '}
+                      <Link to="/invoices/$invoiceId" params={{ invoiceId: entry.invoice.id }} className="lnk mono">
+                        {entry.invoice.number}
+                      </Link>
+                    </>
+                  )}
+                </p>
                 <p className="tl-m">
                   {formatDateTime(entry.occurredAt)} · {entry.actor ?? 'Sistema'}
                 </p>

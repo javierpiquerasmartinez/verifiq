@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import {
   computeBreakdown,
+  correctionReasonLabel,
   defaultOperationDescription,
   draftLineFromCatalogItem,
   DraftErrorCode,
@@ -90,10 +91,13 @@ const isBlank = (line: LineState) => !line.concept.trim() && !line.unitPrice.tri
 /**
  * The Draft editor. Amounts are computed live with the same domain the api uses; the api
  * recomputes them on save. A draft can be saved half done: what it lacks shows up as problems.
+ * A corrective draft keeps the recipient, billing period and withholding of the invoice it corrects:
+ * only its description and lines change, and its lines (the difference) may be negative.
  */
 function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefaults }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const correction = draft?.correction ?? null;
 
   const [recipient, setRecipient] = useState<DraftRecipient | null>(draft?.recipient ?? null);
   const [periodStart, setPeriodStart] = useState(draft?.billingPeriod?.start ?? '');
@@ -129,14 +133,17 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
         : undefined;
   const billingPeriod: BillingPeriod | null = periodStart && periodEnd && !periodError ? { start: periodStart, end: periodEnd } : null;
 
-  const parsed = lines.map(parseLine);
+  const parsed = lines.map((line) => parseLine(line, { signed: correction !== null }));
   const hasFieldErrors = periodError !== undefined || parsed.some(({ line }) => line === null);
   const breakdown = computeBreakdown({
     lines: parsed.map(({ line }, i) => line ?? { quantity: '0', unitPrice: '0', vat: lines[i]!.vat }),
     withholding,
   });
   const issueDate = draft?.issueDate ?? todayInSpain();
-  const problems = findDraftProblems({ recipient, billingPeriod, operationDescription, lines }, issueDate);
+  const problems = findDraftProblems(
+    { recipient, billingPeriod, operationDescription, lines, corrective: correction !== null },
+    issueDate,
+  );
 
   function edited() {
     setNotice(undefined);
@@ -249,13 +256,13 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
       <div className="page-head" style={{ alignItems: 'center' }}>
         <div className="stack" style={{ gap: 10 }}>
           <div className="row">
-            <h1 className="h1">{draft ? 'Borrador de factura' : 'Nueva factura'}</h1>
+            <h1 className="h1">{correction ? 'Borrador de rectificativa' : draft ? 'Borrador de factura' : 'Nueva factura'}</h1>
             <span className="sf sf-draft">Borrador</span>
           </div>
           <div className="row small ink2" style={{ gap: 24 }}>
             <span className="row" style={{ gap: 6 }}>
               <Icon name="hash" />
-              Número: se asignará al emitir
+              Número: se asignará al emitir{correction && ', en tu serie de rectificativas'}
             </span>
             <span className="row" style={{ gap: 6 }}>
               <Icon name="lock" />
@@ -265,67 +272,89 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
         </div>
       </div>
 
+      {correction && (
+        <section className="card rect-band" aria-label="Factura que rectifica">
+          <Icon name="link" />
+          <span>
+            Rectifica la factura{' '}
+            <Link to="/invoices/$invoiceId" params={{ invoiceId: correction.invoice.id }} className="lnk mono">
+              {correction.invoice.number}
+            </Link>{' '}
+            de {formatSpanishDate(correction.invoice.issueDate)}
+          </span>
+          <span className="small">
+            Motivo: {correctionReasonLabel(correction.reason)} · {correction.note}
+          </span>
+        </section>
+      )}
+
       <div className="editor">
         <div className="editor-main">
           <section className="card card-pad stack" style={{ gap: 22 }} aria-labelledby="draft-operation">
             <h2 className="h3" id="draft-operation">
               Cliente y operación
             </h2>
-            <RecipientPicker
-              value={recipient}
-              onChange={(next) => {
-                setRecipient(next);
-                edited();
-              }}
-              error={showProblems && !recipient ? 'Elige el cliente al que facturas.' : undefined}
-            />
-            <div className="grid2">
-              <div className="field">
-                <label className="label" htmlFor="period-start">
-                  Periodo facturado: del <span className="opt">· opcional</span>
-                </label>
-                <input
-                  id="period-start"
-                  className="input"
-                  type="date"
-                  value={periodStart}
-                  onChange={(event) => changePeriod(event.target.value, periodEnd)}
-                  aria-invalid={periodError ? true : undefined}
+            {draft && correction ? (
+              <CorrectedInvoiceTerms draft={draft} />
+            ) : (
+              <>
+                <RecipientPicker
+                  value={recipient}
+                  onChange={(next) => {
+                    setRecipient(next);
+                    edited();
+                  }}
+                  error={showProblems && !recipient ? 'Elige el cliente al que facturas.' : undefined}
                 />
-              </div>
-              <div className="field">
-                <label className="label" htmlFor="period-end">
-                  al
-                </label>
-                <input
-                  id="period-end"
-                  className="input"
-                  type="date"
-                  value={periodEnd}
-                  min={periodStart || undefined}
-                  onChange={(event) => changePeriod(periodStart, event.target.value)}
-                  aria-invalid={periodError ? true : undefined}
-                  aria-describedby="period-hint"
-                />
-              </div>
-              {periodError ? (
-                <p className="err span-all" id="period-hint">
-                  {periodError}
-                </p>
-              ) : (
-                billingPeriod &&
-                (billingPeriod.end > issueDate ? (
-                  <p className="err span-all" id="period-hint">
-                    El periodo aún no ha terminado: Hacienda no admite una fecha de operación posterior a la de
-                    expedición. Podrás emitir a partir del {formatSpanishDate(billingPeriod.end)}.
-                  </p>
-                ) : (
-                  <p className="help span-all" id="period-hint">
-                    Fecha de operación: {formatSpanishDate(billingPeriod.end)}, el último día del periodo.
-                  </p>
-                ))
-              )}
-            </div>
+                <div className="grid2">
+                  <div className="field">
+                    <label className="label" htmlFor="period-start">
+                      Periodo facturado: del <span className="opt">· opcional</span>
+                    </label>
+                    <input
+                      id="period-start"
+                      className="input"
+                      type="date"
+                      value={periodStart}
+                      onChange={(event) => changePeriod(event.target.value, periodEnd)}
+                      aria-invalid={periodError ? true : undefined}
+                    />
+                  </div>
+                  <div className="field">
+                    <label className="label" htmlFor="period-end">
+                      al
+                    </label>
+                    <input
+                      id="period-end"
+                      className="input"
+                      type="date"
+                      value={periodEnd}
+                      min={periodStart || undefined}
+                      onChange={(event) => changePeriod(periodStart, event.target.value)}
+                      aria-invalid={periodError ? true : undefined}
+                      aria-describedby="period-hint"
+                    />
+                  </div>
+                  {periodError ? (
+                    <p className="err span-all" id="period-hint">
+                      {periodError}
+                    </p>
+                  ) : (
+                    billingPeriod &&
+                    (billingPeriod.end > issueDate ? (
+                      <p className="err span-all" id="period-hint">
+                        El periodo aún no ha terminado: Hacienda no admite una fecha de operación posterior a la de
+                        expedición. Podrás emitir a partir del {formatSpanishDate(billingPeriod.end)}.
+                      </p>
+                    ) : (
+                      <p className="help span-all" id="period-hint">
+                        Fecha de operación: {formatSpanishDate(billingPeriod.end)}, el último día del periodo.
+                      </p>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
             <div className="field">
               <label className="label" htmlFor="description">
                 Descripción de la operación
@@ -359,11 +388,17 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
           <section className="card" style={{ overflow: 'hidden' }} aria-labelledby="draft-lines">
             <div className="card-head">
               <h2 className="h3" id="draft-lines">
-                Líneas
+                {correction ? 'Diferencia' : 'Líneas'}
               </h2>
               <span className="small muted">{lines.length === 1 ? '1 línea' : `${lines.length} líneas`}</span>
             </div>
             <div className="lines">
+              {correction && (
+                <p className="line small ink2">
+                  Indica solo lo que cambia: en negativo si el importe baja (cantidad o precio con signo menos), en
+                  positivo si sube.
+                </p>
+              )}
               <div className="line-grid line-head" aria-hidden="true">
                 <span>Concepto</span>
                 <span className="r">Cant.</span>
@@ -409,17 +444,27 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
           <section className="card card-pad row" style={{ justifyContent: 'space-between', gap: 24 }}>
             <div>
               <h2 className="h3">Retención de IRPF</h2>
-              <p className="small muted">Por defecto, la de tus ajustes ({WITHHOLDING_LABELS[defaults.withholding]}).</p>
+              <p className="small muted">
+                {correction
+                  ? 'La de la factura que rectificas.'
+                  : `Por defecto, la de tus ajustes (${WITHHOLDING_LABELS[defaults.withholding]}).`}
+              </p>
             </div>
-            <Seg
-              label="Retención de IRPF"
-              options={WITHHOLDING_RATES.map((rate) => ({ value: rate, label: WITHHOLDING_LABELS[rate] }))}
-              value={withholding}
-              onChange={(rate) => {
-                setWithholding(rate);
-                edited();
-              }}
-            />
+            {correction ? (
+              <span className="num" style={{ fontWeight: 600 }}>
+                {WITHHOLDING_LABELS[withholding]}
+              </span>
+            ) : (
+              <Seg
+                label="Retención de IRPF"
+                options={WITHHOLDING_RATES.map((rate) => ({ value: rate, label: WITHHOLDING_LABELS[rate] }))}
+                value={withholding}
+                onChange={(rate) => {
+                  setWithholding(rate);
+                  edited();
+                }}
+              />
+            )}
           </section>
         </div>
 
@@ -448,7 +493,7 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
             aria-describedby={issuer.data && !canIssue ? 'issue-unavailable' : undefined}
           >
             <Icon name="lock" />
-            Emitir factura
+            {correction ? 'Emitir rectificativa' : 'Emitir factura'}
           </button>
           {issuer.data && !canIssue && (
             <p className="xs muted" id="issue-unavailable" style={{ textAlign: 'center' }}>
@@ -486,5 +531,41 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
         />
       )}
     </>
+  );
+}
+
+/** What a corrective draft takes from the invoice it corrects, and never changes: its recipient and its dates. */
+function CorrectedInvoiceTerms({ draft }: { draft: Draft }) {
+  const { recipient, billingPeriod, operationDate } = draft;
+  return (
+    <dl className="kv" style={{ gridTemplateColumns: '170px 1fr', gap: '8px 24px' }}>
+      <dt>Cliente</dt>
+      <dd>
+        {recipient?.name} <span className="mono xs muted">{recipient?.taxId}</span>
+        {recipient && recipient.censusStatus !== 'identified' && (
+          <p className="err">
+            Hacienda no ha confirmado su NIF.{' '}
+            <Link to="/recipients/$recipientId" params={{ recipientId: recipient.id }} className="lnk">
+              Corrígelo en su ficha
+            </Link>
+            .
+          </p>
+        )}
+      </dd>
+      {billingPeriod && (
+        <>
+          <dt>Periodo facturado</dt>
+          <dd>
+            {formatSpanishDate(billingPeriod.start)} – {formatSpanishDate(billingPeriod.end)}
+          </dd>
+        </>
+      )}
+      {operationDate && (
+        <>
+          <dt>Fecha de operación</dt>
+          <dd>{formatSpanishDate(operationDate)}, la de la factura que rectificas</dd>
+        </>
+      )}
+    </dl>
   );
 }

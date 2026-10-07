@@ -1,5 +1,6 @@
 import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 import {
+  correctionReasonLabel,
   formatAmount,
   formatIban,
   formatSpanishDate,
@@ -71,6 +72,7 @@ const styles = StyleSheet.create({
   party: { flex: 1 },
   eyebrow: { fontSize: 7.5, fontWeight: 600, letterSpacing: 0.6, color: LABEL },
   description: { marginBottom: GAP },
+  correction: { marginBottom: GAP, padding: 8, border: `1pt solid ${RULE}` },
   row: { flexDirection: 'row', gap: 6, paddingVertical: 5, borderBottom: `1pt solid ${RULE}` },
   headRow: { borderBottomColor: INK, fontSize: 8, fontWeight: 600 },
   concept: { flex: 1 },
@@ -121,8 +123,11 @@ function Party({ heading, party }: { heading: string; party: InvoiceSnapshot['re
 
 export function InvoicePdf({ number, issueDate, snapshot, qrPng, logo }: InvoicePdfData) {
   const { issuer, recipient, billingPeriod, operationDate, breakdown } = snapshot;
+  // Copies issued before corrective invoices existed have no correction.
+  const correction = snapshot.correction ?? null;
+  const title = correction ? 'Factura rectificativa' : 'Factura';
   return (
-    <Document title={`Factura ${number}`} author={issuer.name} language="es">
+    <Document title={`${title} ${number}`} author={issuer.name} language="es">
       <Page size="A4" style={styles.page}>
         <View style={styles.head}>
           <View style={styles.qr}>
@@ -132,7 +137,7 @@ export function InvoicePdf({ number, issueDate, snapshot, qrPng, logo }: Invoice
           </View>
           <View style={styles.title}>
             {logo && <Image style={styles.logo} src={logo} />}
-            <Text style={styles.h1}>Factura</Text>
+            <Text style={styles.h1}>{title}</Text>
             <Text style={styles.number}>{number}</Text>
             <Text>Fecha de expedición: {formatSpanishDate(issueDate)}</Text>
             {billingPeriod && (
@@ -150,6 +155,18 @@ export function InvoicePdf({ number, issueDate, snapshot, qrPng, logo }: Invoice
           <Party heading="EMISOR" party={issuer} />
           <Party heading="CLIENTE" party={recipient} />
         </View>
+
+        {correction && (
+          <View style={styles.correction} wrap={false}>
+            <Text style={styles.strong}>
+              Rectifica la factura <Text style={styles.mono}>{correction.invoice.number}</Text> de{' '}
+              {formatSpanishDate(correction.invoice.issueDate)}
+            </Text>
+            <Text>
+              Motivo: {correctionReasonLabel(correction.reason)}. {correction.note}
+            </Text>
+          </View>
+        )}
 
         {snapshot.operationDescription && <Text style={styles.description}>{snapshot.operationDescription}</Text>}
 
@@ -206,7 +223,7 @@ export function InvoicePdf({ number, issueDate, snapshot, qrPng, logo }: Invoice
         <Text
           style={styles.pageNumber}
           fixed
-          render={({ pageNumber, totalPages }) => (totalPages > 1 ? `Factura ${number} · Página ${pageNumber} de ${totalPages}` : '')}
+          render={({ pageNumber, totalPages }) => (totalPages > 1 ? `${title} ${number} · Página ${pageNumber} de ${totalPages}` : '')}
         />
       </Page>
     </Document>

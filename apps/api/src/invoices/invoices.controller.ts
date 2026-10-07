@@ -16,6 +16,9 @@ import {
   invoiceListQuerySchema,
   invoiceResubmissionSchema,
   issueInvoiceSchema,
+  newCorrectiveDraftSchema,
+  nextInvoiceNumberQuerySchema,
+  type Draft,
   type Invoice,
   type InvoiceIncident,
   type InvoiceList,
@@ -34,6 +37,7 @@ import {
   DraftNotReadyError,
   InvoiceNotFoundError,
   InvoicesService,
+  NotRectifiableError,
   NotResubmittableError,
   RecipientNotReadyError,
   RetryDayOverError,
@@ -62,6 +66,12 @@ function httpError(error: unknown): unknown {
     return new ConflictException({
       code: InvoiceErrorCode.NotResubmittable,
       message: 'Only an invoice whose record is blocked, rejected or accepted with errors is sent again',
+    });
+  }
+  if (error instanceof NotRectifiableError) {
+    return new ConflictException({
+      code: InvoiceErrorCode.NotRectifiable,
+      message: 'Only an invoice the AEAT has, neither voided nor corrective, is rectified',
     });
   }
   if (error instanceof RetryDayOverError) {
@@ -137,8 +147,9 @@ export class InvoicesController {
   }
 
   @Get('next-number')
-  async nextNumber(@CurrentIssuer() issuerId: string): Promise<NextInvoiceNumber> {
-    return { number: await this.invoices.nextNumber(issuerId) };
+  async nextNumber(@CurrentIssuer() issuerId: string, @Query() query: unknown): Promise<NextInvoiceNumber> {
+    const { series } = parseBody(nextInvoiceNumberQuerySchema, query);
+    return { number: await this.invoices.nextNumber(issuerId, { corrective: series === 'corrective' }) };
   }
 
   @Get(':id')
@@ -159,6 +170,16 @@ export class InvoicesController {
   ): Promise<Invoice> {
     const correction = parseBody(invoiceResubmissionSchema, body);
     return run(this.invoices.resubmit(issuerId, session.user.id, invoiceId(id), correction));
+  }
+
+  /**
+   * Rectifying (ADR 0005): a corrective draft for the invoice, by differences, in its recipient and with
+   * its operation date. The user reviews it and issues it like any draft.
+   */
+  @Post(':id/corrective-draft')
+  startCorrection(@CurrentIssuer() issuerId: string, @Param('id') id: string, @Body() body: unknown): Promise<Draft> {
+    const request = parseBody(newCorrectiveDraftSchema, body);
+    return run(this.invoices.startCorrection(issuerId, invoiceId(id), request));
   }
 
   /** The stored file of the current PDF version: shown in the browser, or saved with `?download`. */

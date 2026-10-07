@@ -34,10 +34,13 @@ export const lineStateOf = (line: DraftLine): LineState => ({
   vat: line.vat,
 });
 
-/** The line as the api takes it, or the errors of the fields that are not numbers. */
-export function parseLine(state: LineState): { line: DraftLineInput | null; errors: LineErrors } {
-  const quantity = parseDecimalInput(state.quantity, 2);
-  const unitPrice = parseDecimalInput(state.unitPrice, 4);
+/**
+ * The line as the api takes it, or the errors of the fields that are not numbers. With `signed` (a
+ * corrective draft, whose lines are the difference), the quantity and the price may be negative.
+ */
+export function parseLine(state: LineState, { signed = false } = {}): { line: DraftLineInput | null; errors: LineErrors } {
+  const quantity = parseDecimalInput(state.quantity, 2, { signed });
+  const unitPrice = parseDecimalInput(state.unitPrice, 4, { signed });
   const discount = state.discountPercent.trim() ? parseDecimalInput(state.discountPercent, 2) : undefined;
   const errors: LineErrors = {};
   if (quantity === null) errors.quantity = 'Cantidad no válida (hasta 2 decimales).';

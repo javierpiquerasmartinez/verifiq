@@ -50,7 +50,16 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
  * accepted with errors, they choose between amending the record's description (Subsanar) and a
  * corrective invoice (Rectificar), the way to correct anything else.
  */
-export function RecordIncident({ invoice, incident }: { invoice: Invoice; incident: Incident }) {
+export function RecordIncident({
+  invoice,
+  incident,
+  onRectify,
+}: {
+  invoice: Invoice;
+  incident: Incident;
+  /** Opens the rectification, when the invoice can be rectified. */
+  onRectify?: () => void;
+}) {
   const queryClient = useQueryClient();
   const recipient = useQuery({
     queryKey: ['recipient', invoice.recipientId],
@@ -158,7 +167,7 @@ export function RecordIncident({ invoice, incident }: { invoice: Invoice; incide
             <button type="button" className="btn btn-primary" onClick={() => setAmending(true)}>
               Subsanar
             </button>
-            <button type="button" className="btn btn-secondary" disabled title="Disponible próximamente">
+            <button type="button" className="btn btn-secondary" onClick={onRectify} disabled={!onRectify}>
               Rectificar
             </button>
           </div>

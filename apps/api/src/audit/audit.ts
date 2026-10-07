@@ -12,7 +12,9 @@ export type AuditAction =
   | 'invoice-record-accepted-with-errors'
   | 'invoice-record-rejected'
   /** The user corrected the copy of an invoice with an incident and sent its record again. */
-  | 'invoice-record-resubmitted';
+  | 'invoice-record-resubmitted'
+  /** A corrective invoice corrects the invoice (ADR 0005). */
+  | 'invoice-rectified';
 
 export type AuditEvent = Omit<typeof auditEvents.$inferSelect, 'action'> & { action: AuditAction };
 

@@ -1,26 +1,38 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   computeBreakdown,
+  correctiveInvoiceTypeFor,
   findDraftProblems,
+  invoiceNumberIn,
   operationDate,
   todayInSpain,
   type CensusStatus,
+  type Correction,
+  type CorrectionReason,
   type Draft,
   type DraftData,
   type DraftLine,
   type DraftRecipient,
   type DraftSummary,
+  type InvoiceSnapshot,
   type WithholdingRate,
 } from '@verifiq/domain';
 import { and, desc, eq, type SQL } from 'drizzle-orm';
 import { DATABASE, type Database, type Queryable } from '../database/database.module.js';
-import { drafts, recipients } from '../database/schema.js';
+import { drafts, invoices, recipients } from '../database/schema.js';
 
 // Every method takes the issuer id resolved by the isolation layer (issuer-context.ts) and filters by it.
 
 export class DraftNotFoundError extends Error {}
 
 export class DraftRecipientNotFoundError extends Error {}
+
+/** What a new corrective draft corrects, and why (ADR 0005). */
+export interface NewCorrection {
+  invoiceId: string;
+  reason: CorrectionReason;
+  note: string;
+}
 
 /**
  * The issuer's Drafts: invoices in preparation, without number (ADR 0002), saved half done and
@@ -36,6 +48,8 @@ export class DraftsService {
       .select({
         id: drafts.id,
         recipientName: recipients.name,
+        correctedSeries: invoices.series,
+        correctedNumber: invoices.number,
         operationDescription: drafts.operationDescription,
         lines: drafts.lines,
         withholding: drafts.withholding,
@@ -43,6 +57,7 @@ export class DraftsService {
       })
       .from(drafts)
       .leftJoin(recipients, eq(recipients.id, drafts.recipientId))
+      .leftJoin(invoices, eq(invoices.id, drafts.correctedInvoiceId))
       .where(eq(drafts.issuerId, issuerId))
       .orderBy(desc(drafts.updatedAt), desc(drafts.createdAt));
     return rows.map((row) => {
@@ -50,6 +65,10 @@ export class DraftsService {
       return {
         id: row.id,
         recipientName: row.recipientName,
+        corrects:
+          row.correctedSeries !== null && row.correctedNumber !== null
+            ? invoiceNumberIn(row.correctedSeries, row.correctedNumber)
+            : null,
         operationDescription: row.operationDescription,
         totalAmount,
         amountDue,
@@ -77,9 +96,17 @@ export class DraftsService {
           censusStatus: recipients.censusStatus,
           archivedAt: recipients.archivedAt,
         },
+        corrected: {
+          id: invoices.id,
+          series: invoices.series,
+          number: invoices.number,
+          issueDate: invoices.issueDate,
+          snapshot: invoices.snapshot,
+        },
       })
       .from(drafts)
       .leftJoin(recipients, eq(recipients.id, drafts.recipientId))
+      .leftJoin(invoices, eq(invoices.id, drafts.correctedInvoiceId))
       .where(this.owned(issuerId, id));
     const [row] = await (lock ? query.for('update', { of: drafts }) : query);
     if (!row) throw new DraftNotFoundError();
@@ -101,39 +128,78 @@ export class DraftsService {
       censusStatus: row.recipient.censusStatus as CensusStatus,
       archived: row.recipient.archivedAt !== null,
     };
+    const { corrected } = row;
+    const correction: Correction | null =
+      corrected && draft.correctionReason !== null
+        ? {
+            type: correctiveInvoiceTypeFor(draft.correctionReason as CorrectionReason),
+            reason: draft.correctionReason as CorrectionReason,
+            note: draft.correctionNote ?? '',
+            invoice: { id: corrected.id, number: invoiceNumberIn(corrected.series, corrected.number), issueDate: corrected.issueDate },
+          }
+        : null;
     const issueDate = todayInSpain();
     return {
       id: draft.id,
       recipient,
+      correction,
       billingPeriod,
-      operationDate: operationDate(billingPeriod),
+      // A corrective invoice takes the operation date of the invoice it corrects (its issue date if it had none).
+      operationDate: corrected
+        ? ((corrected.snapshot as InvoiceSnapshot).operationDate ?? corrected.issueDate)
+        : operationDate(billingPeriod),
       operationDescription: draft.operationDescription,
       lines,
       withholding,
       issueDate,
       breakdown: computeBreakdown({ lines, withholding }),
       problems: findDraftProblems(
-        { recipient, billingPeriod, operationDescription: draft.operationDescription, lines },
+        { recipient, billingPeriod, operationDescription: draft.operationDescription, lines, corrective: correction !== null },
         issueDate,
       ),
       updatedAt: draft.updatedAt.toISOString(),
     };
   }
 
-  async create(issuerId: string, data: DraftData): Promise<Draft> {
+  /**
+   * With `correction`, a corrective draft: the caller takes its recipient, billing period and
+   * withholding from the invoice it corrects, and they never change.
+   */
+  async create(issuerId: string, data: DraftData, correction?: NewCorrection): Promise<Draft> {
     await this.checkRecipient(issuerId, data.recipientId);
     const [created] = await this.db
       .insert(drafts)
-      .values({ ...columns(data), issuerId })
+      .values({
+        ...columns(data),
+        issuerId,
+        ...(correction && {
+          correctedInvoiceId: correction.invoiceId,
+          correctionReason: correction.reason,
+          correctionNote: correction.note,
+        }),
+      })
       .returning({ id: drafts.id });
     return this.find(issuerId, created!.id);
   }
 
+  /** Whether the draft is a corrective one, whose lines may be negative. */
+  async isCorrective(issuerId: string, id: string): Promise<boolean> {
+    const [draft] = await this.db
+      .select({ correctedInvoiceId: drafts.correctedInvoiceId })
+      .from(drafts)
+      .where(this.owned(issuerId, id));
+    if (!draft) throw new DraftNotFoundError();
+    return draft.correctedInvoiceId !== null;
+  }
+
+  /** A corrective draft keeps its recipient, billing period and withholding: only its description and lines change. */
   async update(issuerId: string, id: string, data: DraftData): Promise<Draft> {
-    await this.checkRecipient(issuerId, data.recipientId);
+    const corrective = await this.isCorrective(issuerId, id);
+    if (!corrective) await this.checkRecipient(issuerId, data.recipientId);
+    const changes = corrective ? { operationDescription: data.operationDescription, lines: data.lines } : columns(data);
     const updated = await this.db
       .update(drafts)
-      .set({ ...columns(data), updatedAt: new Date() })
+      .set({ ...changes, updatedAt: new Date() })
       .where(this.owned(issuerId, id))
       .returning({ id: drafts.id });
     if (updated.length === 0) throw new DraftNotFoundError();

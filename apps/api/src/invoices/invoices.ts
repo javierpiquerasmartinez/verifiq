@@ -2,8 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   invoiceNumber,
   invoiceNumberIn,
+  isRectifiable,
+  negatedLines,
   seriesCode,
   todayInSpain,
+  type CorrectionReason,
+  type Draft,
   type DraftProblem,
   type FiscalData,
   type Invoice,
@@ -13,6 +17,7 @@ import {
   type InvoiceResubmission,
   type InvoiceSnapshot,
   type InvoiceStatus,
+  type NewCorrectiveDraft,
   explainRecordRejection,
   INCIDENT_RECORD_STATUSES,
   isRecordUnconfirmed,
@@ -43,6 +48,7 @@ const HISTORY_EVENTS: Record<AuditAction, InvoiceEvent> = {
   'invoice-record-accepted-with-errors': 'accepted-with-errors',
   'invoice-record-rejected': 'rejected',
   'invoice-record-resubmitted': 'resubmitted',
+  'invoice-rectified': 'rectified',
 };
 
 /** What the frozen copy keeps of a recipient. */
@@ -69,14 +75,20 @@ export class RecipientNotReadyError extends Error {}
 /** A blocked record is retried on its issue date only (isRetryDayOver): past it, the invoice is voided. */
 export class RetryDayOverError extends Error {}
 
+/** Only an invoice the AEAT has, neither voided nor itself corrective, is rectified (isRectifiable). */
+export class NotRectifiableError extends Error {}
+
 export class DraftNotReadyError extends Error {
   constructor(readonly problems: DraftProblem[]) {
     super('The draft cannot be issued yet');
   }
 }
 
-/** The issuer's fiscal data, and its ordinary series of the year of `issueDate` (ADR 0004). */
-async function issuerAndSeries(db: Queryable, issuerId: string, issueDate: string) {
+/**
+ * The issuer's fiscal data, and its series of the year of `issueDate` (ADR 0004): the ordinary one, or
+ * the corrective invoices' one.
+ */
+async function issuerAndSeries(db: Queryable, issuerId: string, issueDate: string, { corrective = false } = {}) {
   const [issuer] = await db
     .select({
       name: issuers.name,
@@ -89,14 +101,46 @@ async function issuerAndSeries(db: Queryable, issuerId: string, issueDate: strin
       phone: issuers.phone,
       iban: issuers.iban,
       seriesPrefix: issuers.seriesPrefix,
+      correctivePrefix: issuers.correctivePrefix,
     })
     .from(issuers)
     .where(eq(issuers.id, issuerId));
-  if (!issuer?.seriesPrefix) throw new Error(`Issuer ${issuerId} has no series`);
-  const { seriesPrefix, ...fiscalData } = issuer;
+  if (!issuer?.seriesPrefix || !issuer.correctivePrefix) throw new Error(`Issuer ${issuerId} has no series`);
+  const { seriesPrefix, correctivePrefix, ...fiscalData } = issuer;
+  const prefix = corrective ? correctivePrefix : seriesPrefix;
   const year = Number(issueDate.slice(0, 4));
-  return { prefix: seriesPrefix, year, series: seriesCode(seriesPrefix, year), fiscalData: fiscalData satisfies FiscalData };
+  return { prefix, year, series: seriesCode(prefix, year), fiscalData: fiscalData satisfies FiscalData };
 }
+
+/** The latest record of each invoice is its state at the AEAT. */
+async function latestRecordOf(db: Queryable, invoiceId: string) {
+  const [latest] = await db
+    .select()
+    .from(invoiceRecords)
+    .where(eq(invoiceRecords.invoiceId, invoiceId))
+    .orderBy(desc(invoiceRecords.createdAt))
+    .limit(1);
+  return latest;
+}
+
+/** Whether the invoice can be rectified now (isRectifiable). */
+async function canRectify(db: Queryable, invoice: typeof invoices.$inferSelect): Promise<boolean> {
+  const latest = await latestRecordOf(db, invoice.id);
+  return (
+    latest !== undefined &&
+    isRectifiable({
+      status: invoice.status as InvoiceStatus,
+      recordStatus: latest.status as InvoiceRecordStatus,
+      corrective: invoice.correctedInvoiceId !== null,
+    })
+  );
+}
+
+/** The frozen copy of an invoice. Copies issued before corrective invoices existed have no correction. */
+const snapshotOf = (invoice: { snapshot: unknown }): InvoiceSnapshot => {
+  const snapshot = invoice.snapshot as Omit<InvoiceSnapshot, 'correction'> & Partial<Pick<InvoiceSnapshot, 'correction'>>;
+  return { ...snapshot, correction: snapshot.correction ?? null };
+};
 
 /**
  * Issuance (ADR 0002) and issued invoices. Issuing is one transaction: it locks the draft and the
@@ -119,8 +163,9 @@ export class InvoicesService {
     const invoiceId = await inTransaction(this.db, async (tx, client) => {
       const draft = await this.drafts.find(issuerId, draftId, { db: tx, lock: true });
       if (draft.problems.length > 0 || !draft.recipient) throw new DraftNotReadyError(draft.problems);
-      const { issueDate, recipient } = draft;
-      const { series, fiscalData } = await issuerAndSeries(tx, issuerId, issueDate);
+      const { issueDate, recipient, correction } = draft;
+      if (correction) await this.lockRectifiable(tx, issuerId, correction.invoice.id);
+      const { series, fiscalData } = await issuerAndSeries(tx, issuerId, issueDate, { corrective: correction !== null });
 
       // The counter's row stays locked until the transaction ends: Issuances in a series take turns.
       const [counter] = await tx
@@ -142,11 +187,22 @@ export class InvoicesService {
         lines: draft.lines,
         withholding: draft.withholding,
         breakdown: draft.breakdown,
+        correction,
       };
       const status: InvoiceStatus = 'issued';
       const [invoice] = await tx
         .insert(invoices)
-        .values({ issuerId, recipientId: recipient.id, series, number, issueDate, status, snapshot, issuedBy: userId })
+        .values({
+          issuerId,
+          recipientId: recipient.id,
+          series,
+          number,
+          issueDate,
+          status,
+          snapshot,
+          issuedBy: userId,
+          correctedInvoiceId: correction?.invoice.id ?? null,
+        })
         .returning({ id: invoices.id });
       const recordStatus: InvoiceRecordStatus = 'pending-submission';
       const [record] = await tx
@@ -169,12 +225,70 @@ export class InvoicesService {
           recipientTaxId: recipient.taxId,
           totalAmount: draft.breakdown.totalAmount,
           amountDue: draft.breakdown.amountDue,
+          ...(correction && { correction }),
         },
       });
+      if (correction) {
+        await tx
+          .update(invoices)
+          .set({ status: 'rectified' satisfies InvoiceStatus })
+          .where(eq(invoices.id, correction.invoice.id));
+        await recordAuditEvent(tx, {
+          issuerId,
+          actorUserId: userId,
+          action: 'invoice-rectified',
+          subjectType: 'invoice',
+          subjectId: correction.invoice.id,
+          details: {
+            correctiveInvoiceId: invoice!.id,
+            number: invoiceNumberIn(series, number),
+            type: correction.type,
+            reason: correction.reason,
+            note: correction.note,
+          },
+        });
+      }
       await this.drafts.delete(issuerId, draftId, { db: tx });
       return invoice!.id;
     });
     return this.find(issuerId, invoiceId);
+  }
+
+  /**
+   * A corrective draft for the invoice (ADR 0005), in its recipient, billing period and withholding,
+   * with its operation date. Rectifying totally, it starts with every line negated; otherwise with no
+   * lines, for the user to enter the difference.
+   */
+  async startCorrection(issuerId: string, invoiceId: string, request: NewCorrectiveDraft): Promise<Draft> {
+    const [invoice] = await this.db
+      .select()
+      .from(invoices)
+      .where(and(eq(invoices.issuerId, issuerId), eq(invoices.id, invoiceId)));
+    if (!invoice) throw new InvoiceNotFoundError();
+    if (!(await canRectify(this.db, invoice))) throw new NotRectifiableError();
+    const snapshot = snapshotOf(invoice);
+    const number = invoiceNumberIn(invoice.series, invoice.number);
+    return this.drafts.create(
+      issuerId,
+      {
+        recipientId: invoice.recipientId,
+        billingPeriod: snapshot.billingPeriod,
+        operationDescription: `Rectificación de ${number}: ${snapshot.operationDescription}`.slice(0, 500),
+        lines: request.total ? negatedLines(snapshot.lines) : [],
+        withholding: snapshot.withholding,
+      },
+      { invoiceId: invoice.id, reason: request.reason, note: request.note },
+    );
+  }
+
+  /** Locks the invoice a corrective draft corrects until the Issuance ends, once sure it can still be rectified. */
+  private async lockRectifiable(db: Queryable, issuerId: string, invoiceId: string): Promise<void> {
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(and(eq(invoices.issuerId, issuerId), eq(invoices.id, invoiceId)))
+      .for('update');
+    if (!invoice || !(await canRectify(db, invoice))) throw new NotRectifiableError();
   }
 
   /**
@@ -294,7 +408,7 @@ export class InvoicesService {
       .limit(1);
     if (!row) throw new InvoiceNotFoundError();
     const { invoice, record } = row;
-    const snapshot = invoice.snapshot as InvoiceSnapshot;
+    const snapshot = snapshotOf(invoice);
     const pdfVersion = await this.pdfs.currentVersion(invoice.id);
     const recordStatus = record.status as InvoiceRecordStatus;
     return {
@@ -320,14 +434,34 @@ export class InvoicesService {
       pdf: pdfVersion === null ? null : { version: pdfVersion },
       recipientId: invoice.recipientId,
       ...snapshot,
+      correctedBy: await this.correctedBy(issuerId, invoice.id),
       issuedAt: invoice.createdAt.toISOString(),
     };
+  }
+
+  /** The corrective invoices that correct the invoice, oldest first. */
+  private async correctedBy(issuerId: string, invoiceId: string): Promise<Invoice['correctedBy']> {
+    const rows = await this.db
+      .select()
+      .from(invoices)
+      .where(and(eq(invoices.issuerId, issuerId), eq(invoices.correctedInvoiceId, invoiceId)))
+      .orderBy(asc(invoices.createdAt));
+    return rows.map((row) => {
+      const { breakdown, correction } = snapshotOf(row);
+      return {
+        id: row.id,
+        number: invoiceNumberIn(row.series, row.number),
+        issueDate: row.issueDate,
+        amountDue: breakdown.amountDue,
+        reason: correction?.reason ?? ('other' satisfies CorrectionReason),
+      };
+    });
   }
 
   /** What happened to the invoice, oldest first: its audit events, with who acted (null for the system). */
   private async history(issuerId: string, invoiceId: string): Promise<InvoiceHistoryEntry[]> {
     const events = await this.db
-      .select({ action: auditEvents.action, occurredAt: auditEvents.occurredAt, actor: users.name })
+      .select({ action: auditEvents.action, occurredAt: auditEvents.occurredAt, details: auditEvents.details, actor: users.name })
       .from(auditEvents)
       .leftJoin(users, eq(users.id, auditEvents.actorUserId))
       .where(
@@ -338,15 +472,19 @@ export class InvoicesService {
         ),
       )
       .orderBy(asc(auditEvents.occurredAt));
-    return events.flatMap(({ action, occurredAt, actor }) => {
+    return events.flatMap(({ action, occurredAt, details, actor }) => {
       const event = HISTORY_EVENTS[action as AuditAction];
-      return event ? [{ event, occurredAt: occurredAt.toISOString(), actor }] : [];
+      if (!event) return [];
+      // The corrective invoice that rectified this one.
+      const rectifying = action === 'invoice-rectified' ? (details as { correctiveInvoiceId: string; number: string }) : null;
+      const invoice = rectifying && { id: rectifying.correctiveInvoiceId, number: rectifying.number };
+      return [{ event, occurredAt: occurredAt.toISOString(), actor, invoice }];
     });
   }
 
-  /** The number an Issuance today would assign, unless another one comes first. */
-  async nextNumber(issuerId: string): Promise<string> {
-    const { prefix, year, series } = await issuerAndSeries(this.db, issuerId, todayInSpain());
+  /** The number an Issuance today would assign in the series, unless another one comes first. */
+  async nextNumber(issuerId: string, { corrective = false } = {}): Promise<string> {
+    const { prefix, year, series } = await issuerAndSeries(this.db, issuerId, todayInSpain(), { corrective });
     const [counter] = await this.db
       .select({ lastNumber: seriesCounters.lastNumber })
       .from(seriesCounters)

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { breakdownLineSchema, breakdownSchema, WITHHOLDING_RATES, type VatTreatment } from './amounts.js';
 import { exemptionGround } from './exemptions.js';
+import { correctionSchema } from './corrective-invoice.js';
 import { CENSUS_STATUSES, recipientDataSchema, type CensusStatus } from './recipient.js';
 
 // A Draft is an invoice in preparation: no number (ADR 0002) and no fiscal effect, so it can be
@@ -24,16 +25,20 @@ export function operationDate(period: BillingPeriod | null): string | null {
 const unsigned = (schema: z.ZodString) =>
   schema.refine((value) => !value.startsWith('-'), { message: 'No puede ser negativo' });
 
-/** An ordinary invoice line; corrective invoices, with their negative lines, come later. */
-export const draftLineSchema = breakdownLineSchema.extend({
+/** A line of any invoice: signed, since a corrective invoice by differences carries negative lines. */
+export const invoiceLineSchema = breakdownLineSchema.extend({
   /** May be blank while the draft is prepared; issuing needs it. */
   concept: z.string().trim().max(500),
+});
+
+/** A line of an ordinary invoice: never negative. */
+export const draftLineSchema = invoiceLineSchema.extend({
   quantity: unsigned(breakdownLineSchema.shape.quantity),
   unitPrice: unsigned(breakdownLineSchema.shape.unitPrice),
 });
 
-export type DraftLine = z.infer<typeof draftLineSchema>;
-export type DraftLineInput = z.input<typeof draftLineSchema>;
+export type DraftLine = z.infer<typeof invoiceLineSchema>;
+export type DraftLineInput = z.input<typeof invoiceLineSchema>;
 
 /** Body of POST /drafts and PUT /drafts/:id. Amounts are never sent: the api computes them. */
 export const draftDataSchema = z.object({
@@ -45,8 +50,14 @@ export const draftDataSchema = z.object({
   withholding: z.literal(WITHHOLDING_RATES),
 });
 
-export type DraftData = z.infer<typeof draftDataSchema>;
-export type DraftDataInput = z.input<typeof draftDataSchema>;
+/**
+ * Body of PUT /drafts/:id for a corrective draft: its lines are the difference, negative if it lowers
+ * the amounts. Its recipient, billing period and withholding are the corrected invoice's: those sent are ignored.
+ */
+export const correctiveDraftDataSchema = draftDataSchema.extend({ lines: z.array(invoiceLineSchema).max(100) });
+
+export type DraftData = z.infer<typeof correctiveDraftDataSchema>;
+export type DraftDataInput = z.input<typeof correctiveDraftDataSchema>;
 
 /** What a draft still lacks to be issued; `line` is the index of the line. */
 export const draftProblemSchema = z.discriminatedUnion('code', [
@@ -66,7 +77,7 @@ export type DraftProblem = z.infer<typeof draftProblemSchema>;
 
 /**
  * The problems of a draft issued on `today` (YYYY-MM-DD), in the order of the form. Shared by the
- * web (inline) and the api.
+ * web (inline) and the api. A corrective draft corrects an invoice of its recipient even if archived.
  */
 export function findDraftProblems(
   draft: {
@@ -74,12 +85,13 @@ export function findDraftProblems(
     billingPeriod: BillingPeriod | null;
     operationDescription: string;
     lines: { concept: string }[];
+    corrective?: boolean;
   },
   today: string,
 ): DraftProblem[] {
   const problems: DraftProblem[] = [];
   if (!draft.recipient) problems.push({ code: 'recipient-missing' });
-  else if (draft.recipient.archived) problems.push({ code: 'recipient-archived' });
+  else if (draft.recipient.archived && !draft.corrective) problems.push({ code: 'recipient-archived' });
   else if (draft.recipient.censusStatus !== 'identified') problems.push({ code: 'recipient-unchecked' });
   const date = operationDate(draft.billingPeriod);
   if (date && date > today) problems.push({ code: 'operation-date-in-future' });
@@ -101,9 +113,12 @@ export const draftRecipientSchema = recipientDataSchema.extend({
 export type DraftRecipient = z.infer<typeof draftRecipientSchema>;
 
 /** Response of the draft endpoints. */
-export const draftSchema = draftDataSchema.omit({ recipientId: true }).extend({
+export const draftSchema = correctiveDraftDataSchema.omit({ recipientId: true }).extend({
   id: z.uuid(),
   recipient: draftRecipientSchema.nullable(),
+  /** A corrective draft: what it corrects and why. Null for an ordinary one. */
+  correction: correctionSchema.nullable(),
+  /** The last day of the billing period; a corrective draft's is the corrected invoice's. */
   operationDate: z.iso.date().nullable(),
   /** Always today (Europe/Madrid): a draft is issued the day it is issued, never back-dated. */
   issueDate: z.iso.date(),
@@ -118,6 +133,8 @@ export type Draft = z.infer<typeof draftSchema>;
 export const draftSummarySchema = z.object({
   id: z.uuid(),
   recipientName: z.string().nullable(),
+  /** The number of the invoice a corrective draft corrects. */
+  corrects: z.string().nullable(),
   operationDescription: z.string(),
   totalAmount: breakdownSchema.shape.totalAmount,
   amountDue: breakdownSchema.shape.amountDue,

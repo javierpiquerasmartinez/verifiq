@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
-import { exemptionGround, serialNumber, sumAmounts, type InvoiceSnapshot } from '@verifiq/domain';
+import { exemptionGround, serialNumber, splitInvoiceNumber, sumAmounts, type InvoiceSnapshot } from '@verifiq/domain';
 import { and, eq } from 'drizzle-orm';
 import { recordAuditEvent } from '../audit/audit.js';
 import { DATABASE, type Database } from '../database/database.module.js';
@@ -16,12 +16,17 @@ import { SUBMISSION_OPTIONS, SubmissionQueue, type SubmissionOptions } from './s
 /** The connector did not answer: the record is still to be sent, with the same idempotency key. */
 export class SubmissionPostponedError extends Error {}
 
-/** What VeriFactu receives of an issued invoice: its key, recipient and tax breakdown, never its items. */
+/**
+ * What VeriFactu receives of an issued invoice: its key, recipient and tax breakdown, never its items.
+ * A corrective invoice goes as its R1/R4 type, by differences, referring to the invoice it corrects.
+ */
 export function recordInvoiceOf(
   invoice: { series: string; number: number; issueDate: string },
   snapshot: InvoiceSnapshot,
 ): RecordInvoice {
   const { breakdown } = snapshot;
+  // Copies issued before corrective invoices existed have no correction.
+  const correction = snapshot.correction ?? null;
   const exemptBases = new Map<string, string[]>();
   for (const { ground, base } of breakdown.exempt) {
     const code = exemptionGround(ground).verifactuCode;
@@ -40,7 +45,7 @@ export function recordInvoiceOf(
     series: invoice.series,
     number: serialNumber(invoice.number),
     issueDate: invoice.issueDate,
-    type: 'F1',
+    type: correction?.type ?? 'F1',
     ...(snapshot.operationDate && snapshot.operationDate !== invoice.issueDate
       ? { operationDate: snapshot.operationDate }
       : {}),
@@ -48,6 +53,9 @@ export function recordInvoiceOf(
     recipient: { taxId: snapshot.recipient.taxId, name: snapshot.recipient.name },
     lines,
     totalAmount: breakdown.totalAmount,
+    ...(correction && {
+      corrects: [{ ...splitInvoiceNumber(correction.invoice.number), issueDate: correction.invoice.issueDate }],
+    }),
   };
 }
 

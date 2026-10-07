@@ -25,6 +25,7 @@ import {
   type InvoiceResubmission,
   type InvoiceList,
   type InvoiceListQuery,
+  type NewCorrectiveDraftInput,
   type Onboarding,
   type Recipient,
   type RecipientDataInput,
@@ -208,6 +209,11 @@ export async function resubmitInvoice(id: string, body: InvoiceResubmission): Pr
   return invoiceSchema.parse(await request(`/invoices/${encodeURIComponent(id)}/resubmission`, sendJson('POST', body)));
 }
 
+/** Rectifying the invoice: a corrective draft by differences, to review and issue like any draft. */
+export async function startCorrection(invoiceId: string, body: NewCorrectiveDraftInput): Promise<Draft> {
+  return draftSchema.parse(await request(`/invoices/${encodeURIComponent(invoiceId)}/corrective-draft`, sendJson('POST', body)));
+}
+
 /** A page of drafts and invoices, newest first, with how many match under each filter. */
 export async function fetchInvoiceList(query: InvoiceListQuery): Promise<InvoiceList> {
   const search = new URLSearchParams(
@@ -229,7 +235,7 @@ export async function fetchInvoice(id: string): Promise<Invoice> {
 export const invoicePdfUrl = (id: string, { download = false } = {}) =>
   `${apiUrl}/invoices/${encodeURIComponent(id)}/pdf${download ? '?download' : ''}`;
 
-/** The number the next Issuance assigns, unless another one comes first. */
-export async function fetchNextInvoiceNumber(): Promise<string> {
-  return nextInvoiceNumberSchema.parse(await request('/invoices/next-number')).number;
+/** The number the next Issuance in the series assigns, unless another one comes first. */
+export async function fetchNextInvoiceNumber(series: 'ordinary' | 'corrective' = 'ordinary'): Promise<string> {
+  return nextInvoiceNumberSchema.parse(await request(`/invoices/next-number?series=${series}`)).number;
 }

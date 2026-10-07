@@ -72,6 +72,7 @@ describe('Drafts', () => {
         censusStatus: 'identified',
         archived: false,
       },
+      correction: null,
       billingPeriod: { start: '2026-09-01', end: '2026-09-30' },
       operationDate: '2026-09-30',
       operationDescription: 'Servicios odontológicos septiembre 2026',
@@ -165,6 +166,7 @@ describe('Drafts', () => {
       {
         id: older.id,
         recipientName: 'Clínica Dental Ruzafa SL',
+        corrects: null,
         operationDescription: 'Servicios odontológicos septiembre 2026',
         totalAmount: '5140.00',
         amountDue: '4369.00',

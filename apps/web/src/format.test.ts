@@ -24,6 +24,20 @@ describe('parseDecimalInput', () => {
   it('refuses more decimals than allowed', () => {
     expect(parseDecimalInput('1,234', 2)).toBeNull();
   });
+
+  it.each([
+    ['-5', '-5'],
+    ['−2.340,50', '-2340.50'],
+    ['- 1', '-1'],
+    ['-0', '0'],
+    ['5', '5'],
+  ])('reads %j as %j where negatives are allowed', (input, expected) => {
+    expect(parseDecimalInput(input, 4, { signed: true })).toBe(expected);
+  });
+
+  it.each(['--5', '5-', '-'])('refuses %j where negatives are allowed', (input) => {
+    expect(parseDecimalInput(input, 4, { signed: true })).toBeNull();
+  });
 });
 
 describe('decimalInputOf', () => {

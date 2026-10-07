@@ -62,6 +62,11 @@ describe('findDraftProblems', () => {
     ]);
   });
 
+  it('lets a corrective draft correct an invoice of an archived recipient', () => {
+    const archived = { censusStatus: 'identified' as const, archived: true };
+    expect(findDraftProblems({ ...ready, recipient: archived, corrective: true }, today)).toEqual([]);
+  });
+
   it('needs the billing period to have ended by today: the AEAT refuses a future operation date', () => {
     expect(findDraftProblems({ ...ready, billingPeriod: { start: '2026-10-01', end: '2026-10-04' } }, today)).toEqual([]);
     expect(findDraftProblems({ ...ready, billingPeriod: { start: '2026-10-01', end: '2026-10-31' } }, today)).toEqual([

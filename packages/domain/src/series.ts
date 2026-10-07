@@ -48,3 +48,9 @@ export function invoiceNumber(prefix: string, year: number, number: number): str
 export function invoiceNumberIn(series: string, number: number): string {
   return `${series}${serialNumber(number)}`;
 }
+
+/** F2026-0009 → series F2026- and number 0009, as VeriFactu identifies an invoice. Prefixes carry no hyphen. */
+export function splitInvoiceNumber(number: string): { series: string; number: string } {
+  const end = number.lastIndexOf('-') + 1;
+  return { series: number.slice(0, end), number: number.slice(end) };
+}

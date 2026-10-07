@@ -893,6 +893,12 @@ button.step:hover {
   background: var(--rect-soft);
   color: var(--rect);
 }
+.sf-type {
+  border-color: var(--rect-line);
+  color: var(--rect);
+  background: #fff;
+  font-weight: 500;
+}
 .sf-voided {
   border-color: var(--line-strong);
   background: var(--surface-3);
@@ -1188,6 +1194,11 @@ button.step:hover {
   color: var(--warn);
   background: var(--warn-soft);
 }
+.tl .dot.rect {
+  border-color: var(--rect);
+  color: var(--rect);
+  background: var(--rect-soft);
+}
 .tl .dot.danger {
   border-color: var(--danger);
   color: var(--danger);
@@ -1381,6 +1392,44 @@ button.step:hover {
 .mi:hover {
   background: var(--surface-2);
 }
+.mi > .ic {
+  margin-top: 2px;
+}
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 5;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+}
+textarea.input {
+  height: auto;
+  min-height: 88px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+/* the links between a rectified invoice and its corrective invoices */
+.rect-band {
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  background: var(--rect-soft);
+  border-color: var(--rect-line);
+  color: #33215f;
+}
+.rect-band > .ic,
+.rect-band .lnk {
+  color: var(--rect);
+}
 .inline-form {
   padding: 18px;
   border: 1px solid var(--line);
@@ -1520,6 +1569,10 @@ button.step:hover {
   border-top: 1px solid #111;
   font-size: 16px;
   font-weight: 700;
+}
+.sheet-correction {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
 }
 .sheet-payment {
   padding-top: 12px;

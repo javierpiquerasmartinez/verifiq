@@ -121,13 +121,22 @@ describe('Invoice list', () => {
     const page = await list(agent);
 
     expect(page.items).toEqual([
-      { kind: 'draft', id: draft, date: expect.any(String), recipientName: 'Clínica Dental Ruzafa SL', totalAmount: '5140.00', amountDue: '4369.00' },
+      {
+        kind: 'draft',
+        id: draft,
+        date: expect.any(String),
+        recipientName: 'Clínica Dental Ruzafa SL',
+        corrects: null,
+        totalAmount: '5140.00',
+        amountDue: '4369.00',
+      },
       {
         kind: 'invoice',
         id: invoice.id,
         number: invoice.number,
         date: expect.any(String),
         recipientName: 'Clínica Dental Ruzafa SL',
+        corrects: null,
         totalAmount: '3960.00',
         amountDue: '3366.00',
         status: 'issued',

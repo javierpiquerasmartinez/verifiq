@@ -43,7 +43,8 @@ export function DraftSummary({ breakdown, recipientName }: { breakdown: Breakdow
         <span className="tp-v">{formatAmount(breakdown.amountDue)}</span>
         {recipientName && (
           <span className="xs" style={{ color: 'var(--primary)' }}>
-            Lo que te paga {recipientName}
+            {/* A corrective invoice that lowers the amounts is paid back to the recipient. */}
+            {breakdown.amountDue.startsWith('-') ? `Lo que devuelves a ${recipientName}` : `Lo que te paga ${recipientName}`}
           </span>
         )}
       </div>
