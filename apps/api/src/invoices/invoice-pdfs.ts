@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { invoiceNumberIn, type InvoiceSnapshot } from '@verifiq/domain';
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import { recordAuditEvent } from '../audit/audit.js';
 import { DATABASE, type Database } from '../database/database.module.js';
@@ -31,26 +31,33 @@ export class InvoicePdfsService {
   ) {}
 
   /**
-   * Generates a new version of the invoice's PDF for its latest record with QR, unless that record
-   * has one already. The first record gets version 1; a record sent again after an incident, the next.
+   * Generates the PDF version of the record, with its QR, unless it has one already or is no longer its
+   * invoice's latest record: a record sent again after an incident is drawn from the corrected copy,
+   * which an earlier record's QR never carries. The first record gets version 1; each later one, the next.
    */
-  async generateForLatestRecord(invoiceId: string): Promise<void> {
+  async generateForRecord(invoiceRecordId: string): Promise<void> {
     const [row] = await this.db
-      .select({ invoice: invoices, recordId: invoiceRecords.id, qrPng: invoiceRecords.qrPng, logoKey: issuers.logoKey })
-      .from(invoices)
-      .innerJoin(invoiceRecords, eq(invoiceRecords.invoiceId, invoices.id))
+      .select({ invoice: invoices, qrPng: invoiceRecords.qrPng, logoKey: issuers.logoKey })
+      .from(invoiceRecords)
+      .innerJoin(invoices, eq(invoices.id, invoiceRecords.invoiceId))
       .innerJoin(issuers, eq(issuers.id, invoices.issuerId))
-      .where(and(eq(invoices.id, invoiceId), isNotNull(invoiceRecords.qrPng)))
+      .where(eq(invoiceRecords.id, invoiceRecordId));
+    if (!row?.qrPng) return;
+    const [latest] = await this.db
+      .select({ id: invoiceRecords.id })
+      .from(invoiceRecords)
+      .where(eq(invoiceRecords.invoiceId, row.invoice.id))
       .orderBy(desc(invoiceRecords.createdAt))
       .limit(1);
-    if (!row?.qrPng) return;
+    if (latest?.id !== invoiceRecordId) return;
     const [drawn] = await this.db
       .select({ id: invoicePdfs.id })
       .from(invoicePdfs)
-      .where(eq(invoicePdfs.invoiceRecordId, row.recordId))
+      .where(eq(invoicePdfs.invoiceRecordId, invoiceRecordId))
       .limit(1);
     if (drawn) return;
-    const { invoice, recordId } = row;
+    const { invoice } = row;
+    const recordId = invoiceRecordId;
 
     // The logo is not part of the frozen copy: the issuer's logo when the PDF is drawn, seconds after issuing.
     const logo = row.logoKey ? await this.storage.get(row.logoKey) : null;

@@ -147,9 +147,14 @@ export interface RecordSubmission extends Submission {
   invoice: RecordInvoice;
 }
 
+/** How an InvoiceRecord is sent: the invoice's registration, or an Amendment of it. */
+export type RecordOperation = 'submission' | 'amendment';
+
+/** Whether the AEAT rejected the original record, or a previous amendment of it. */
+export type PreviousRejection = 'none' | 'record' | 'amendment';
+
 export interface AmendmentSubmission extends RecordSubmission {
-  /** Whether the AEAT rejected the original record, or a previous amendment of it. */
-  previousRejection: 'none' | 'record' | 'amendment';
+  previousRejection: PreviousRejection;
 }
 
 export interface VoidingSubmission extends Submission {

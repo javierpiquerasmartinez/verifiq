@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { InvoiceErrorCode, type Invoice } from '@verifiq/domain';
+import { INCIDENT_RECORD_STATUSES, InvoiceErrorCode, type Invoice } from '@verifiq/domain';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError, fetchRecipient, resubmitInvoice } from '../api';
 import { Alert, Field } from './components';
 import { Icon } from './icons';
 
-type Incident = 'blocked' | 'rejected' | 'accepted-with-errors';
+type Incident = (typeof INCIDENT_RECORD_STATUSES)[number];
 
 const INCIDENTS: Record<Incident, { title: string; tone: 'danger' | 'warn'; action: string }> = {
   blocked: { title: 'La factura no se ha podido enviar a Hacienda', tone: 'danger', action: 'Corregir y reintentar' },
@@ -14,7 +14,8 @@ const INCIDENTS: Record<Incident, { title: string; tone: 'danger' | 'warn'; acti
   'accepted-with-errors': { title: 'Hacienda ha aceptado la factura con errores', tone: 'warn', action: 'Subsanar y reenviar' },
 };
 
-export const isIncident = (status: Invoice['record']['status']): status is Incident => status in INCIDENTS;
+export const isIncident = (status: Invoice['record']['status']): status is Incident =>
+  (INCIDENT_RECORD_STATUSES as readonly string[]).includes(status);
 
 function resubmitError(cause: unknown): string {
   if (cause instanceof ApiError && cause.code === InvoiceErrorCode.RecipientNotReady) {

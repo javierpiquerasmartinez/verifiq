@@ -432,9 +432,9 @@ function failure(outcome: HttpOutcome): ConnectorResult<never> {
     return { outcome: 'transient', reason: 'in-progress', message };
   }
   if (status === 422) return { outcome: 'rejected', code: REJECTION_CODES.idempotencyKeyReused, message };
-  const codigo = text('codigo');
-  const code = codigo
-    ? (RECORD_REJECTIONS[codigo] ?? codigo)
+  const connectorCode = text('codigo');
+  const code = connectorCode
+    ? (RECORD_REJECTIONS[connectorCode] ?? connectorCode)
     : status === 404
       ? REJECTION_CODES.notFound
       : `http-${status}`;

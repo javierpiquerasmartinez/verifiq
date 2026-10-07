@@ -6,7 +6,6 @@ import { DATABASE, type Database } from '../database/database.module.js';
 import { invoiceRecords, invoices } from '../database/schema.js';
 import {
   VERIFACTU_CONNECTOR,
-  type AmendmentSubmission,
   type RecordInvoice,
   type RecordLine,
   type VerifactuConnector,
@@ -101,8 +100,9 @@ export class SubmissionWorker implements OnApplicationBootstrap {
       .where(eq(invoiceRecords.id, invoiceRecordId));
     if (!row) return;
     if (row.record.status === 'pending-submission') await this.send(row);
-    // Does nothing without QR (blocked) or when the record's PDF exists: a retry only draws what is missing.
-    await this.pdfs.generateForLatestRecord(row.invoice.id);
+    // Does nothing without QR (blocked), when the record's PDF exists or once the record was sent again:
+    // a retry only draws what is missing.
+    await this.pdfs.generateForRecord(invoiceRecordId);
   }
 
   /**
@@ -126,10 +126,7 @@ export class SubmissionWorker implements OnApplicationBootstrap {
     };
     const result =
       record.operation === 'amendment'
-        ? await this.connector.amendRecord(issuer, {
-            ...submission,
-            previousRejection: record.previousRejection as AmendmentSubmission['previousRejection'],
-          })
+        ? await this.connector.amendRecord(issuer, { ...submission, previousRejection: record.previousRejection ?? 'none' })
         : await this.connector.submitRecord(issuer, submission);
     if (result.outcome === 'transient') {
       throw new SubmissionPostponedError(`${result.reason}: ${result.message}`);

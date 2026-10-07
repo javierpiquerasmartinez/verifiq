@@ -311,8 +311,8 @@ describe('VerifactiConnector: failures', () => {
     ['vf-verifactu-destinatario_no_censado_aeat', 'recipient-not-in-census'],
     ['vf-verifactu-fecha_expedicion_hoy', 'issue-date-not-today'],
     ['vf-verifactu-factura_duplicada', 'duplicate-invoice'],
-  ])('a 400 with %s is the rejection %s, with Verifacti’s message', async (codigo, code) => {
-    const { result } = await submit({ status: 400, body: { error: 'Mensaje de Verifacti', codigo } });
+  ])('a 400 with %s is the rejection %s, with Verifacti’s message', async (connectorCode, code) => {
+    const { result } = await submit({ status: 400, body: { error: 'Mensaje de Verifacti', codigo: connectorCode } });
     expect(result).toEqual({ outcome: 'rejected', code, message: 'Mensaje de Verifacti' });
   });
 

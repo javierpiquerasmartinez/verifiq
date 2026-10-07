@@ -22,7 +22,7 @@ import { randomUUID } from 'node:crypto';
 import { recordAuditEvent, type AuditAction } from '../audit/audit.js';
 import { DATABASE, inTransaction, type Database, type Queryable } from '../database/database.module.js';
 import { auditEvents, invoiceRecords, invoices, issuers, recipients, seriesCounters, users } from '../database/schema.js';
-import type { AmendmentSubmission } from '../verifactu/connector.js';
+import type { PreviousRejection, RecordOperation } from '../verifactu/connector.js';
 import { DraftsService } from '../drafts/drafts.js';
 import { RepresentationService } from '../issuers/representation.js';
 import { InvoicePdfsService } from './invoice-pdfs.js';
@@ -43,6 +43,12 @@ const HISTORY_EVENTS: Record<AuditAction, InvoiceEvent> = {
   'invoice-record-rejected': 'rejected',
   'invoice-record-resubmitted': 'resubmitted',
 };
+
+/** What the frozen copy keeps of a recipient. */
+function recipientDataOf(recipient: InvoiceSnapshot['recipient']): InvoiceSnapshot['recipient'] {
+  const { name, taxId, address, postalCode, municipality, province } = recipient;
+  return { name, taxId, address, postalCode, municipality, province };
+}
 
 /** The connector's refusal of a blocked record, as it came and explained to the user. */
 function explainedRejection(code: string, message: string | null) {
@@ -125,14 +131,7 @@ export class InvoicesService {
 
       const snapshot: InvoiceSnapshot = {
         issuer: fiscalData,
-        recipient: {
-          name: recipient.name,
-          taxId: recipient.taxId,
-          address: recipient.address,
-          postalCode: recipient.postalCode,
-          municipality: recipient.municipality,
-          province: recipient.province,
-        },
+        recipient: recipientDataOf(recipient),
         billingPeriod: draft.billingPeriod,
         operationDate: draft.operationDate,
         operationDescription: draft.operationDescription,
@@ -208,14 +207,7 @@ export class InvoicesService {
       const before = invoice.snapshot as InvoiceSnapshot;
       const after: InvoiceSnapshot = {
         ...before,
-        recipient: {
-          name: recipient.name,
-          taxId: recipient.taxId,
-          address: recipient.address,
-          postalCode: recipient.postalCode,
-          municipality: recipient.municipality,
-          province: recipient.province,
-        },
+        recipient: recipientDataOf(recipient),
         operationDescription: correction.operationDescription,
       };
       await tx.update(invoices).set({ snapshot: after }).where(eq(invoices.id, invoice.id));
@@ -259,13 +251,8 @@ export class InvoicesService {
   private async resubmissionOf(
     db: Queryable,
     latest: typeof invoiceRecords.$inferSelect,
-  ): Promise<{ operation: 'submission' | 'amendment'; previousRejection: AmendmentSubmission['previousRejection'] | null }> {
-    if (latest.status === 'blocked') {
-      return {
-        operation: latest.operation as 'submission' | 'amendment',
-        previousRejection: latest.previousRejection as AmendmentSubmission['previousRejection'] | null,
-      };
-    }
+  ): Promise<{ operation: RecordOperation; previousRejection: PreviousRejection | null }> {
+    if (latest.status === 'blocked') return { operation: latest.operation, previousRejection: latest.previousRejection };
     if (latest.status === 'accepted-with-errors') return { operation: 'amendment', previousRejection: 'none' };
     // Rejected: an Amendment that follows a rejected Amendment says so only if the invoice ever reached
     // the AEAT; otherwise nothing exists there and it amends a rejected record.

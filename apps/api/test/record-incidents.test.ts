@@ -7,7 +7,20 @@ import { SubmissionWorker } from '../src/invoices/submission-worker.js';
 import { FakeVerifactuConnector, type FakeVerdict } from '../src/verifactu/fake-connector.js';
 import type { Agent } from './access.js';
 import { onboardedUser, uniqueTaxId } from './issuer.js';
-import { createTestApp } from './test-app.js';
+import { createTestApp, InMemoryObjectStorage } from './test-app.js';
+
+/** Fails the next stored file, as an unavailable object storage would. */
+class FlakyObjectStorage extends InMemoryObjectStorage {
+  failNextPut = false;
+
+  override async put(...args: Parameters<InMemoryObjectStorage['put']>): Promise<void> {
+    if (this.failNextPut) {
+      this.failNextPut = false;
+      throw new Error('Object storage unavailable');
+    }
+    await super.put(...args);
+  }
+}
 
 const clinic = (taxId = uniqueTaxId()) => ({
   name: 'Clínica Dental Ruzafa SL',
@@ -31,9 +44,10 @@ describe('Record incidents', () => {
   let worker: SubmissionWorker;
   let db: Database;
   const connector = new FakeVerifactuConnector();
+  const storage = new FlakyObjectStorage();
 
   beforeAll(async () => {
-    app = await createTestApp({ verifactu: connector });
+    app = await createTestApp({ verifactu: connector, storage });
     worker = app.get(SubmissionWorker);
     db = app.get<Database>(DATABASE);
   });
@@ -166,6 +180,23 @@ describe('Record incidents', () => {
       await settle(invoice.id, 'accepted');
       expect((await invoiceOf(agent, invoice.id)).record).toMatchObject({ status: 'accepted', amendment: true });
     });
+
+    it('says a previous Amendment was rejected when the invoice had reached the AEAT', async () => {
+      const { agent } = await issuingUser();
+      const { invoice } = await issuedInvoice(agent);
+      await worker.runPending();
+      await settle(invoice.id, 'accepted-with-errors', { code: '2004', message: 'La descripción no es adecuada.' });
+      await agent.post(`/invoices/${invoice.id}/resubmission`).send({ operationDescription: 'Servicios odontológicos' }).expect(201);
+      await worker.runPending();
+      await settle(invoice.id, 'rejected', { code: '1100', message: 'Valor no permitido.' });
+
+      await agent.post(`/invoices/${invoice.id}/resubmission`).send({ operationDescription: 'Servicios odontológicos 2026' }).expect(201);
+      await worker.runPending();
+
+      expect(connector.calls.filter((call) => call.operation === 'amendRecord').at(-1)!.input).toMatchObject({
+        previousRejection: 'amendment',
+      });
+    });
   });
 
   describe('accepted with errors', () => {
@@ -226,6 +257,41 @@ describe('Record incidents', () => {
   });
 
   describe('guards', () => {
+    it('sends the record again once, however many times the user asks at once', async () => {
+      const { agent } = await issuingUser();
+      const { invoice } = await issuedInvoice(agent);
+      connector.failNext({ kind: 'rejected', code: 'invalid-character', message: 'Carácter no válido' }, 'submitRecord');
+      await worker.runPending();
+
+      const statuses = (
+        await Promise.all(
+          [1, 2].map(() => agent.post(`/invoices/${invoice.id}/resubmission`).send({ operationDescription: 'Servicios odontológicos' })),
+        )
+      ).map(({ status }) => status);
+      await worker.runPending();
+
+      expect(statuses.sort()).toEqual([201, 409]);
+      expect((await invoiceOf(agent, invoice.id)).history.filter(({ event }: { event: string }) => event === 'resubmitted')).toHaveLength(1);
+    });
+
+    it("never draws the corrected copy with an earlier record's QR", async () => {
+      const { agent } = await issuingUser();
+      const { invoice } = await issuedInvoice(agent);
+      // The record is sent, but its PDF cannot be stored: its job is left for a retry.
+      storage.failNextPut = true;
+      await worker.runPending();
+      await settle(invoice.id, 'rejected', { code: '1100', message: 'Valor no permitido.' });
+      const { rows } = await db.$client.query<{ id: string }>('SELECT id FROM invoice_records WHERE invoice_id = $1', [invoice.id]);
+      await agent.post(`/invoices/${invoice.id}/resubmission`).send({ operationDescription: 'Servicios odontológicos' }).expect(201);
+
+      // The first record's job is retried before the new record is sent.
+      await worker.submit(rows[0]!.id);
+      expect((await invoiceOf(agent, invoice.id)).pdf).toBeNull();
+
+      await worker.runPending();
+      expect((await invoiceOf(agent, invoice.id)).pdf).toEqual({ version: 1 });
+    });
+
     it('refuses to send again a record without an incident', async () => {
       const { agent } = await issuingUser();
       const { invoice } = await issuedInvoice(agent);

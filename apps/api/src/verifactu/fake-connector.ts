@@ -284,6 +284,7 @@ export class FakeVerifactuConnector implements VerifactuConnector {
     if (operation === 'submission' ? invoice.issueDate !== today : invoice.issueDate > today) {
       return rejected(RECORD_REJECTION_CODES.issueDateNotToday, 'La fecha de expedición debe ser la fecha actual.');
     }
+    // Verifiq never sends a record without lines: a code of the fake's own, passed through as it comes.
     if (invoice.lines.length < 1) return rejected('lines-missing', 'La factura debe tener al menos una línea.');
     if (invoice.lines.length > 12) {
       return rejected(RECORD_REJECTION_CODES.tooManyLines, 'La factura debe tener como máximo 12 líneas.');

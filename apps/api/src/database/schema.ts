@@ -16,6 +16,7 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
+import type { PreviousRejection, RecordOperation } from '../verifactu/connector.js';
 
 // --- Better Auth tables (see auth/auth.ts). Property names are the field names Better Auth expects.
 
@@ -401,9 +402,9 @@ export const invoiceRecords = pgTable(
     status: text('status').notNull(),
     // 'submission' (the first record of the invoice, or its retry once blocked) or 'amendment' (an
     // Amendment, after the AEAT rejected the record or accepted it with errors).
-    operation: text('operation').notNull().default('submission'),
+    operation: text('operation').$type<RecordOperation>().notNull().default('submission'),
     // Amendments only: what the AEAT rejected before ('none', 'record' or 'amendment').
-    previousRejection: text('previous_rejection'),
+    previousRejection: text('previous_rejection').$type<PreviousRejection>(),
     // Sent with every attempt: the connector never registers the same key twice.
     idempotencyKey: text('idempotency_key').notNull().unique(),
     // Once the connector queued it.
