@@ -22,6 +22,7 @@ export function verifactuConnectorFromEnv(env: WorkerEnv): VerifactuConnectorFac
         db,
         secretBox,
         webhookSecret: env.VERIFACTI_WEBHOOK_SECRET,
+        webhookId: env.VERIFACTI_WEBHOOK_ID,
       });
   }
   new Logger('VeriFactu').warn('VERIFACTI_API_KEY is not set: an in-memory fake connector stands in for VeriFactu');

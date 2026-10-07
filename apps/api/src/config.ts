@@ -40,6 +40,9 @@ const sharedEnv = z.object({
   // The `secret` the results webhook (POST /webhooks/verifactu) was registered with at Verifacti.
   // Without it every delivery is refused and the AEAT's verdicts arrive only by the 15-minute poll.
   VERIFACTI_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // The `id` POST /webhooks returned for that webhook. Each issuer the app registers at Verifacti is linked
+  // to it; without it their verdicts arrive only by the poll.
+  VERIFACTI_WEBHOOK_ID: z.string().min(1).optional(),
   // Seals the issuers' connector API keys in the database (AES-256-GCM). 32 random bytes in base64.
   CONNECTOR_MASTER_KEY: z
     .string()
@@ -65,6 +68,10 @@ function withCrossChecks<T extends typeof sharedEnv>(schema: T) {
     })
     .refine((env) => env.VERIFACTI_ENVIRONMENT !== 'prod' || env.VERIFACTI_API_KEY, {
       message: 'VERIFACTI_ENVIRONMENT=prod requires VERIFACTI_API_KEY',
+    })
+    // Deliveries without the secret get a 401, and Verifacti disables a webhook that keeps failing.
+    .refine((env) => !env.VERIFACTI_WEBHOOK_ID || env.VERIFACTI_WEBHOOK_SECRET, {
+      message: 'VERIFACTI_WEBHOOK_ID requires VERIFACTI_WEBHOOK_SECRET',
     });
 }
 

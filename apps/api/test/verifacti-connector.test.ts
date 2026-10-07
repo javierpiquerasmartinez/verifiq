@@ -17,6 +17,7 @@ import { VerifactiStub } from './verifacti-stub.js';
 
 const ACCOUNT_KEY = 'vfn_account_key';
 const ISSUER_KEY = 'vf_test_issuer_key_123';
+const WEBHOOK_ID = '17067405-8c32-4efe-a7cb-8fad93403997';
 
 let db: Database;
 
@@ -34,7 +35,7 @@ async function newIssuer(): Promise<ConnectorIssuer> {
   return { issuerId: row!.issuerId, ...data };
 }
 
-function connectorFor(stub: VerifactiStub, timeoutMs = 2_000) {
+function connectorFor(stub: VerifactiStub, timeoutMs = 2_000, webhookId?: string) {
   return new VerifactiConnector({
     accountApiKey: ACCOUNT_KEY,
     environment: 'test',
@@ -42,6 +43,7 @@ function connectorFor(stub: VerifactiStub, timeoutMs = 2_000) {
     timeoutMs,
     db,
     secretBox: new SecretBox(randomBytes(32).toString('base64')),
+    webhookId,
     fetch: stub.fetch,
   });
 }
@@ -86,6 +88,41 @@ describe('VerifactiConnector: issuer key', () => {
   it('still fetches the key when the tax ID was already registered', async () => {
     stub.on('POST /nifs', { status: 409, body: { error: 'NIF ya existe' } });
     expect((await connectorFor(stub).createIssuerKey(issuer)).outcome).toBe('ok');
+  });
+
+  it('links the tax ID to the results webhook', async () => {
+    await connectorFor(stub, undefined, WEBHOOK_ID).createIssuerKey(issuer);
+    expect(stub.last('POST /nifs').body).toEqual([expect.objectContaining({ webhooks: [WEBHOOK_ID] })]);
+  });
+
+  it('links an already registered tax ID to the results webhook', async () => {
+    stub
+      .on('POST /nifs', { status: 409, body: { error: 'NIF ya existe' } })
+      .on(`POST /webhooks/${WEBHOOK_ID}/nifs/${issuer.taxId}`, { status: 200, body: { message: 'OK' } });
+    expect((await connectorFor(stub, undefined, WEBHOOK_ID).createIssuerKey(issuer)).outcome).toBe('ok');
+    expect(stub.last(`POST /webhooks/${WEBHOOK_ID}/nifs/${issuer.taxId}`).headers.authorization).toBe(
+      `Bearer ${ACCOUNT_KEY}`,
+    );
+  });
+
+  it('takes a tax ID the webhook already had as linked', async () => {
+    stub
+      .on('POST /nifs', { status: 409, body: { error: 'NIF ya existe' } })
+      .on(`POST /webhooks/${WEBHOOK_ID}/nifs/${issuer.taxId}`, { status: 409, body: { error: 'Ya asociado' } });
+    expect((await connectorFor(stub, undefined, WEBHOOK_ID).createIssuerKey(issuer)).outcome).toBe('ok');
+  });
+
+  it('does not count the issuer as registered until its tax ID is linked to the webhook', async () => {
+    stub
+      .on('POST /nifs', { status: 409, body: { error: 'NIF ya existe' } })
+      .on(`POST /webhooks/${WEBHOOK_ID}/nifs/${issuer.taxId}`, { status: 503, body: { error: 'Mantenimiento' } });
+    const result = await connectorFor(stub, undefined, WEBHOOK_ID).createIssuerKey(issuer);
+    expect(result.outcome).toBe('transient');
+    const credentials = await db
+      .select()
+      .from(connectorCredentials)
+      .where(eq(connectorCredentials.issuerId, issuer.issuerId));
+    expect(credentials).toEqual([]);
   });
 
   it('never stores a key in the exchange log', async () => {

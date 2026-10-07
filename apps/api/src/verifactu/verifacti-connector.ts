@@ -45,6 +45,8 @@ export interface VerifactiOptions {
   secretBox: SecretBox;
   /** The `secret` the results webhook was registered with. Without it no delivery is trusted. */
   webhookSecret?: string;
+  /** The results webhook (`POST /webhooks`) every new issuer's tax ID is linked to. */
+  webhookId?: string;
   fetch?: typeof fetch;
 }
 
@@ -119,7 +121,7 @@ export class VerifactiConnector implements VerifactuConnector {
   }
 
   async createIssuerKey(issuer: ConnectorIssuer): Promise<ConnectorResult<void>> {
-    const { environment, accountApiKey } = this.options;
+    const { environment, accountApiKey, webhookId } = this.options;
     const created = await this.send({
       issuer,
       operation: 'createIssuerKey',
@@ -136,12 +138,27 @@ export class VerifactiConnector implements VerifactuConnector {
           cp: issuer.postalCode,
           poblacion: issuer.municipality,
           provincia: issuer.province,
+          ...(webhookId && { webhooks: [webhookId] }),
         },
       ],
     });
     // 409: the tax ID is already registered (e.g. a retry); its key is still there to fetch.
     const alreadyRegistered = created.kind === 'response' && created.status === 409;
     if (!alreadyRegistered && !isSuccess(created)) return failure(created);
+
+    // A tax ID registered earlier may predate the webhook. Verifacti documents no answer for a tax ID
+    // already linked; a 409 is taken as linked.
+    if (alreadyRegistered && webhookId) {
+      const linked = await this.send({
+        issuer,
+        operation: 'createIssuerKey',
+        method: 'POST',
+        path: `/webhooks/${encodeURIComponent(webhookId)}/nifs/${encodeURIComponent(issuer.taxId)}`,
+        apiKey: accountApiKey,
+      });
+      const alreadyLinked = linked.kind === 'response' && linked.status === 409;
+      if (!alreadyLinked && !isSuccess(linked)) return failure(linked);
+    }
 
     const fetched = await this.send({
       issuer,
