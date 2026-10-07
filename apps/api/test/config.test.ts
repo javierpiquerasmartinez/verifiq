@@ -23,4 +23,14 @@ describe('environment', () => {
   it('applies the same cross-checks to the worker', () => {
     expect(() => loadWorkerEnv({ ...workerEnv, CONNECTOR_MASTER_KEY: undefined })).toThrow(/VERIFACTI_API_KEY requires CONNECTOR_MASTER_KEY/);
   });
+
+  it('refuses a results webhook without its secret', () => {
+    const webhook = { VERIFACTI_WEBHOOK_ID: '17067405-8c32-4efe-a7cb-8fad93403997' };
+    expect(() => loadWorkerEnv({ ...workerEnv, ...webhook })).toThrow(
+      /VERIFACTI_WEBHOOK_ID requires VERIFACTI_WEBHOOK_SECRET/,
+    );
+    expect(loadWorkerEnv({ ...workerEnv, ...webhook, VERIFACTI_WEBHOOK_SECRET: 'secret' }).VERIFACTI_WEBHOOK_ID).toBe(
+      webhook.VERIFACTI_WEBHOOK_ID,
+    );
+  });
 });

@@ -45,6 +45,8 @@ services:
         sync: false
       - key: VERIFACTI_WEBHOOK_SECRET
         sync: false
+      - key: VERIFACTI_WEBHOOK_ID
+        sync: false
       - key: OPERATOR_EMAIL
         sync: false
   # Sends the outbox to VeriFactu, draws the PDFs and polls the AEAT's verdicts. Render has no free
