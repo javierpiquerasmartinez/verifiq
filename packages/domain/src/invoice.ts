@@ -32,6 +32,18 @@ export const INVOICE_RECORD_STATUSES = [
 
 export type InvoiceRecordStatus = (typeof INVOICE_RECORD_STATUSES)[number];
 
+/**
+ * Whether a blocked record can no longer be retried as of `today` (YYYY-MM-DD): the AEAT registers a
+ * new invoice on its issue date only. An Amendment keeps its original date, so it is always retried.
+ * Past its day, the invoice is voided (its number is never reused) and issued again.
+ */
+export function isRetryDayOver(
+  invoice: { issueDate: string; record: { status: InvoiceRecordStatus; amendment: boolean } },
+  today: string,
+): boolean {
+  return invoice.record.status === 'blocked' && !invoice.record.amendment && invoice.issueDate < today;
+}
+
 /** Records unconfirmed this long after the Issuance warn the user and alert the operator. */
 export const UNCONFIRMED_RECORD_HOURS = 24;
 
@@ -144,8 +156,10 @@ export type NextInvoiceNumber = z.infer<typeof nextInvoiceNumberSchema>;
 
 /**
  * Body of POST /invoices/:id/resubmission: corrects the copy of an invoice whose record is blocked,
- * rejected or accepted with errors, and sends it again with the same number. The recipient's data
- * come again from its profile, where the user corrects them; the description is corrected here.
+ * rejected or accepted with errors, and sends it again with the same number. The description is
+ * corrected here. Blocked or rejected, the recipient's data come again from its profile, where the
+ * user corrects them; accepted with errors, they stay: the invoice exists at the AEAT, and an error in
+ * them is corrected with a corrective invoice.
  */
 export const invoiceResubmissionSchema = z.object({
   operationDescription: draftDataSchema.shape.operationDescription.min(1, 'Escribe la descripción de la operación'),
@@ -164,6 +178,8 @@ export const InvoiceErrorCode = {
   PdfNotAvailable: 'INVOICE_PDF_NOT_AVAILABLE',
   /** Only a blocked, rejected or accepted with errors record is corrected and sent again. */
   NotResubmittable: 'INVOICE_NOT_RESUBMITTABLE',
+  /** A blocked record is retried on its issue date only (isRetryDayOver). */
+  RetryDayOver: 'INVOICE_RETRY_DAY_OVER',
   /** The recipient's tax ID is not confirmed in the census: the user corrects it in its profile first. */
   RecipientNotReady: 'INVOICE_RECIPIENT_NOT_READY',
 } as const;

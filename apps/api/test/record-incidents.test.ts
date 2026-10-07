@@ -1,11 +1,11 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { findAuditEvents } from '../src/audit/audit.js';
 import { DATABASE, type Database } from '../src/database/database.module.js';
 import { SubmissionWorker } from '../src/invoices/submission-worker.js';
 import { FakeVerifactuConnector, type FakeVerdict } from '../src/verifactu/fake-connector.js';
-import type { Agent } from './access.js';
+import { signIn, type Agent } from './access.js';
 import { onboardedUser, uniqueTaxId } from './issuer.js';
 import { createTestApp, InMemoryObjectStorage } from './test-app.js';
 
@@ -149,6 +149,31 @@ describe('Record incidents', () => {
     });
   });
 
+  describe('blocked on an earlier day', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('is not retried: the AEAT registers a new invoice on its issue date only', async () => {
+      const user = await issuingUser();
+      const { invoice } = await issuedInvoice(user.agent);
+      connector.failNext({ kind: 'rejected', code: 'invalid-character', message: 'Carácter no válido' }, 'submitRecord');
+      await worker.runPending();
+
+      // The next day, the user signs in again.
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(Date.now() + 24 * 3_600_000);
+      const agent = await signIn(app, user.email, user.secret);
+
+      await agent
+        .post(`/invoices/${invoice.id}/resubmission`)
+        .send({ operationDescription: 'Servicios odontológicos' })
+        .expect(409)
+        .expect(({ body }) => expect(body.code).toBe('INVOICE_RETRY_DAY_OVER'));
+      expect((await invoiceOf(agent, invoice.id)).record.status).toBe('blocked');
+    });
+  });
+
   describe('rejected', () => {
     it('sends the corrected copy again as an Amendment of a rejected record, with the same number and a new PDF', async () => {
       const { agent } = await issuingUser();
@@ -200,11 +225,15 @@ describe('Record incidents', () => {
   });
 
   describe('accepted with errors', () => {
-    it('amends the record without a previous rejection', async () => {
+    it("amends the record's description without a previous rejection, keeping the recipient frozen", async () => {
       const { agent } = await issuingUser();
-      const { invoice } = await issuedInvoice(agent);
+      const { invoice, recipient } = await issuedInvoice(agent);
       await worker.runPending();
       await settle(invoice.id, 'accepted-with-errors', { code: '2004', message: 'La descripción no es adecuada.' });
+      // The recipient's data are part of the invoice: an error there is corrected with a corrective invoice.
+      const renamed = { ...clinic(recipient.taxId), name: 'Clínica Dental Ruzafa SLP' };
+      connector.census.set(renamed.taxId, renamed.name);
+      await agent.put(`/recipients/${recipient.id}`).send(renamed).expect(200);
 
       await agent
         .post(`/invoices/${invoice.id}/resubmission`)
@@ -214,10 +243,11 @@ describe('Record incidents', () => {
 
       expect(connector.calls.filter((call) => call.operation === 'amendRecord').at(-1)!.input).toMatchObject({
         previousRejection: 'none',
-        invoice: { operationDescription: 'Servicios odontológicos de agosto de 2026' },
+        invoice: { operationDescription: 'Servicios odontológicos de agosto de 2026', recipient: { name: recipient.name } },
       });
       expect(await invoiceOf(agent, invoice.id)).toMatchObject({
         operationDescription: 'Servicios odontológicos de agosto de 2026',
+        recipient: { name: recipient.name },
         record: { status: 'submitted', amendment: true },
         pdf: { version: 2 },
       });
@@ -246,6 +276,12 @@ describe('Record incidents', () => {
           changes: { operationDescription: { before: 'Servicios odontológicos agosto 2026', after: 'Servicios odontológicos' } },
         },
       });
+      // Each record keeps the copy it sent, whatever the invoice's copy is now.
+      const { rows: sent } = await db.$client.query<{ description: string }>(
+        "SELECT snapshot->>'operationDescription' AS description FROM invoice_records WHERE invoice_id = $1 ORDER BY created_at",
+        [invoice.id],
+      );
+      expect(sent.map(({ description }) => description)).toEqual(['Servicios odontológicos agosto 2026', 'Servicios odontológicos']);
       expect((await invoiceOf(agent, invoice.id)).history.map(({ event }: { event: string }) => event)).toEqual([
         'issued',
         'blocked',

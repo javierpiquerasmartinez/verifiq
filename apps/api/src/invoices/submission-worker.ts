@@ -116,7 +116,8 @@ export class SubmissionWorker implements OnApplicationBootstrap {
     record: typeof invoiceRecords.$inferSelect;
     invoice: typeof invoices.$inferSelect;
   }): Promise<void> {
-    const snapshot = invoice.snapshot as InvoiceSnapshot;
+    // What the record sends is the copy it keeps (records before migration 0011 have none: the invoice's).
+    const snapshot = (record.snapshot ?? invoice.snapshot) as InvoiceSnapshot;
 
     const issuer = { issuerId: invoice.issuerId, taxId: snapshot.issuer.taxId };
     const submission = {

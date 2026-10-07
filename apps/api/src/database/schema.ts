@@ -405,6 +405,9 @@ export const invoiceRecords = pgTable(
     operation: text('operation').$type<RecordOperation>().notNull().default('submission'),
     // Amendments only: what the AEAT rejected before ('none', 'record' or 'amendment').
     previousRejection: text('previous_rejection').$type<PreviousRejection>(),
+    // The copy of the invoice this record sent (InvoiceSnapshot): the invoice's own copy changes when the
+    // user corrects it after an incident; what each record sent never does.
+    snapshot: jsonb('snapshot'),
     // Sent with every attempt: the connector never registers the same key twice.
     idempotencyKey: text('idempotency_key').notNull().unique(),
     // Once the connector queued it.

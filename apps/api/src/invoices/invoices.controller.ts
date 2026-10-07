@@ -36,6 +36,7 @@ import {
   InvoicesService,
   NotResubmittableError,
   RecipientNotReadyError,
+  RetryDayOverError,
 } from './invoices.js';
 
 const notFound = () => new NotFoundException({ code: InvoiceErrorCode.NotFound, message: 'Invoice not found' });
@@ -61,6 +62,12 @@ function httpError(error: unknown): unknown {
     return new ConflictException({
       code: InvoiceErrorCode.NotResubmittable,
       message: 'Only an invoice whose record is blocked, rejected or accepted with errors is sent again',
+    });
+  }
+  if (error instanceof RetryDayOverError) {
+    return new ConflictException({
+      code: InvoiceErrorCode.RetryDayOver,
+      message: 'A blocked record is retried on its issue date only',
     });
   }
   if (error instanceof RecipientNotReadyError) {

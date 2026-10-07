@@ -1,5 +1,5 @@
 {
-  "id": "e445d935-1f33-490b-a3ab-39bfa483a237",
+  "id": "6589f5b8-85a4-4913-985b-6380d41a72e3",
   "prevId": "c35a4ce7-5072-4124-8b45-20a2b1f747b0",
   "version": "7",
   "dialect": "postgresql",
@@ -955,6 +955,12 @@
         "previous_rejection": {
           "name": "previous_rejection",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "snapshot": {
+          "name": "snapshot",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },

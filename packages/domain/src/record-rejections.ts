@@ -33,7 +33,7 @@ const EXPLANATIONS: Record<RecordRejectionCode, string> = {
   'invalid-character':
     'El nombre del cliente o la descripción de la operación contienen un carácter que Hacienda no admite. Revísalos y vuelve a intentarlo.',
   'issue-date-not-today':
-    'Hacienda solo admite registrar una factura el mismo día de su fecha de expedición. Escríbenos para resolverlo sin perder el número.',
+    'Hacienda solo admite registrar una factura el mismo día de su fecha de expedición. Habrá que anularla (su número no se reutiliza) y emitir una nueva.',
   'too-many-lines': 'Hacienda admite como máximo 12 tipos de IVA o exención distintos en una factura.',
   'total-mismatch':
     'El importe total no cuadra con la suma de bases y cuotas. Es un error nuestro: vuelve a intentarlo y, si se repite, escríbenos.',

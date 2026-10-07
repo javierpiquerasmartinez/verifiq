@@ -16,6 +16,7 @@ import {
   explainRecordRejection,
   INCIDENT_RECORD_STATUSES,
   isRecordUnconfirmed,
+  isRetryDayOver,
 } from '@verifiq/domain';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
@@ -64,6 +65,9 @@ export class NotResubmittableError extends Error {}
 
 /** The recipient's tax ID is not confirmed in the census: sending it again would fail again. */
 export class RecipientNotReadyError extends Error {}
+
+/** A blocked record is retried on its issue date only (isRetryDayOver): past it, the invoice is voided. */
+export class RetryDayOverError extends Error {}
 
 export class DraftNotReadyError extends Error {
   constructor(readonly problems: DraftProblem[]) {
@@ -147,7 +151,7 @@ export class InvoicesService {
       const recordStatus: InvoiceRecordStatus = 'pending-submission';
       const [record] = await tx
         .insert(invoiceRecords)
-        .values({ issuerId, invoiceId: invoice!.id, status: recordStatus, idempotencyKey: randomUUID() })
+        .values({ issuerId, invoiceId: invoice!.id, status: recordStatus, snapshot, idempotencyKey: randomUUID() })
         .returning({ id: invoiceRecords.id });
       await this.queue.enqueue({ invoiceRecordId: record!.id }, client);
 
@@ -175,10 +179,11 @@ export class InvoicesService {
 
   /**
    * Corrects the copy of an invoice whose record has an incident and sends its record again, with the
-   * same number (a number is never released). The recipient's data come again from its profile, where
-   * the user corrected them. A blocked record never reached the AEAT: it is sent again as it was sent
-   * (a submission, or an Amendment). After the AEAT's verdict, it is an Amendment: of a rejected record,
-   * or of one accepted with errors.
+   * same number (a number is never released). Blocked or rejected, the recipient's data come again from
+   * its profile, where the user corrected them; accepted with errors, the invoice exists at the AEAT and
+   * only its description is corrected. A blocked record never reached the AEAT: it is sent again as it
+   * was sent (a submission, on its issue date only, or an Amendment). After the AEAT's verdict, it is an
+   * Amendment: of a rejected record, or of one accepted with errors. Each record keeps the copy it sent.
    */
   async resubmit(issuerId: string, userId: string, invoiceId: string, correction: InvoiceResubmission): Promise<Invoice> {
     await inTransaction(this.db, async (tx, client) => {
@@ -197,23 +202,19 @@ export class InvoicesService {
         .limit(1);
       const incidents: readonly string[] = INCIDENT_RECORD_STATUSES;
       if (invoice.status !== 'issued' || !latest || !incidents.includes(latest.status)) throw new NotResubmittableError();
-
-      const [recipient] = await tx
-        .select()
-        .from(recipients)
-        .where(and(eq(recipients.issuerId, issuerId), eq(recipients.id, invoice.recipientId)));
-      if (recipient?.censusStatus !== 'identified') throw new RecipientNotReadyError();
+      const record = { status: latest.status as InvoiceRecordStatus, amendment: latest.operation === 'amendment' };
+      if (isRetryDayOver({ issueDate: invoice.issueDate, record }, todayInSpain())) throw new RetryDayOverError();
 
       const before = invoice.snapshot as InvoiceSnapshot;
       const after: InvoiceSnapshot = {
         ...before,
-        recipient: recipientDataOf(recipient),
+        recipient: latest.status === 'accepted-with-errors' ? before.recipient : await this.checkedRecipient(tx, invoice),
         operationDescription: correction.operationDescription,
       };
       await tx.update(invoices).set({ snapshot: after }).where(eq(invoices.id, invoice.id));
 
       const { operation, previousRejection } = await this.resubmissionOf(tx, latest);
-      const [record] = await tx
+      const [resubmitted] = await tx
         .insert(invoiceRecords)
         .values({
           issuerId,
@@ -221,10 +222,11 @@ export class InvoicesService {
           status: 'pending-submission' satisfies InvoiceRecordStatus,
           operation,
           previousRejection,
+          snapshot: after,
           idempotencyKey: randomUUID(),
         })
         .returning({ id: invoiceRecords.id });
-      await this.queue.enqueue({ invoiceRecordId: record!.id }, client);
+      await this.queue.enqueue({ invoiceRecordId: resubmitted!.id }, client);
 
       const changed = <K extends 'recipient' | 'operationDescription'>(key: K) =>
         JSON.stringify(before[key]) === JSON.stringify(after[key]) ? {} : { [key]: { before: before[key], after: after[key] } };
@@ -235,7 +237,7 @@ export class InvoicesService {
         subjectType: 'invoice',
         subjectId: invoice.id,
         details: {
-          invoiceRecordId: record!.id,
+          invoiceRecordId: resubmitted!.id,
           previousInvoiceRecordId: latest.id,
           previousRecordStatus: latest.status,
           operation,
@@ -245,6 +247,19 @@ export class InvoicesService {
       });
     });
     return this.find(issuerId, invoiceId);
+  }
+
+  /**
+   * The recipient's data from its profile, where the user corrected them; refused while its tax ID is
+   * not confirmed in the census.
+   */
+  private async checkedRecipient(db: Queryable, invoice: { recipientId: string; issuerId: string }) {
+    const [recipient] = await db
+      .select()
+      .from(recipients)
+      .where(and(eq(recipients.issuerId, invoice.issuerId), eq(recipients.id, invoice.recipientId)));
+    if (recipient?.censusStatus !== 'identified') throw new RecipientNotReadyError();
+    return recipientDataOf(recipient);
   }
 
   /** How the record that follows `latest` is sent. */

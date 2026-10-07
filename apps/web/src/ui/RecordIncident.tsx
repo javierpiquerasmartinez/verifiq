@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { INCIDENT_RECORD_STATUSES, InvoiceErrorCode, type Invoice } from '@verifiq/domain';
+import { INCIDENT_RECORD_STATUSES, InvoiceErrorCode, isRetryDayOver, todayInSpain, type Invoice } from '@verifiq/domain';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError, fetchRecipient, resubmitInvoice } from '../api';
 import { Alert, Field } from './components';
@@ -20,6 +20,9 @@ export const isIncident = (status: Invoice['record']['status']): status is Incid
 function resubmitError(cause: unknown): string {
   if (cause instanceof ApiError && cause.code === InvoiceErrorCode.RecipientNotReady) {
     return 'Hacienda aún no ha confirmado el NIF del cliente. Corrígelo en su ficha y vuelve a intentarlo.';
+  }
+  if (cause instanceof ApiError && cause.code === InvoiceErrorCode.RetryDayOver) {
+    return 'Ya ha pasado el día de su fecha de expedición: Hacienda no admite registrarla. Habrá que anularla y emitir una nueva.';
   }
   if (cause instanceof ApiError && cause.code === InvoiceErrorCode.NotResubmittable) {
     return 'Esta factura ya se ha reenviado. Recarga la página para ver su estado.';
@@ -43,14 +46,16 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 
 /**
  * What to do about a record with an incident: why it happened, and the way out. Blocked or rejected,
- * the user corrects the data and sends it again with the same number; accepted with errors, they
- * choose between amending the record (Subsanar) and a corrective invoice (Rectificar).
+ * the user corrects the data and sends it again with the same number (blocked, on its issue date only);
+ * accepted with errors, they choose between amending the record's description (Subsanar) and a
+ * corrective invoice (Rectificar), the way to correct anything else.
  */
 export function RecordIncident({ invoice, incident }: { invoice: Invoice; incident: Incident }) {
   const queryClient = useQueryClient();
   const recipient = useQuery({
     queryKey: ['recipient', invoice.recipientId],
     queryFn: () => fetchRecipient(invoice.recipientId),
+    enabled: incident !== 'accepted-with-errors',
     retry: false,
   });
   const [amending, setAmending] = useState(incident !== 'accepted-with-errors');
@@ -60,6 +65,9 @@ export function RecordIncident({ invoice, incident }: { invoice: Invoice; incide
   const { record } = invoice;
   const { title, tone, action } = INCIDENTS[incident];
   const reason = incident === 'blocked' ? record.rejection?.explanation : record.aeatError?.message;
+  const dayOver = isRetryDayOver(invoice, todayInSpain());
+  // Accepted with errors, the invoice exists at the AEAT: its recipient is corrected with a corrective invoice.
+  const recipientEditable = incident !== 'accepted-with-errors';
 
   async function resubmit(event: FormEvent) {
     event.preventDefault();
@@ -87,28 +95,38 @@ export function RecordIncident({ invoice, incident }: { invoice: Invoice; incide
           {reason && <p>{reason}</p>}
           {incident === 'accepted-with-errors' && (
             <p className="small">
-              Subsana si el error está solo en los datos que recibe Hacienda, como la descripción o los datos del cliente. Si
-              afecta a importes o al IVA, rectifica la factura.
+              Subsana si el error está solo en la descripción de la operación. Si afecta a los datos del cliente, a los
+              importes o al IVA, rectifica la factura.
             </p>
+          )}
+          {incident === 'blocked' && !record.amendment && !dayOver && (
+            <p className="small">Corrígela hoy: Hacienda solo la registra el día de su fecha de expedición.</p>
           )}
         </div>
 
-        {amending ? (
+        {dayOver ? (
+          <p>
+            Ya ha pasado el día de su fecha de expedición, así que Hacienda no admite registrarla. Habrá que anularla (el
+            número {invoice.number} no se reutiliza) y emitir una factura nueva.
+          </p>
+        ) : amending ? (
           <form className="stack" style={{ gap: 12 }} onSubmit={resubmit}>
             <ol className="incident-steps">
-              <Step n={1} title="Revisa los datos del cliente">
-                Se corrigen en la ficha de{' '}
-                <Link to="/recipients/$recipientId" params={{ recipientId: invoice.recipientId }} className="lnk">
-                  {current?.name ?? invoice.recipient.name}
-                </Link>
-                {current && (
-                  <>
-                    . Ahora: <span className="mono">{current.taxId}</span>
-                    {current.censusStatus !== 'identified' && ' (sin confirmar en Hacienda)'}
-                  </>
-                )}
-              </Step>
-              <Step n={2} title="Revisa la descripción">
+              {recipientEditable && (
+                <Step n={1} title="Revisa los datos del cliente">
+                  Se corrigen en la ficha de{' '}
+                  <Link to="/recipients/$recipientId" params={{ recipientId: invoice.recipientId }} className="lnk">
+                    {current?.name ?? invoice.recipient.name}
+                  </Link>
+                  {current && (
+                    <>
+                      . Ahora: <span className="mono">{current.taxId}</span>
+                      {current.censusStatus !== 'identified' && ' (sin confirmar en Hacienda)'}
+                    </>
+                  )}
+                </Step>
+              )}
+              <Step n={recipientEditable ? 2 : 1} title="Revisa la descripción">
                 <Field
                   label="Descripción de la operación"
                   value={operationDescription}
@@ -118,7 +136,7 @@ export function RecordIncident({ invoice, incident }: { invoice: Invoice; incide
                   help="Viaja a Hacienda: nunca incluyas datos de pacientes."
                 />
               </Step>
-              <Step n={3} title="Reenvía la factura">
+              <Step n={recipientEditable ? 3 : 2} title="Reenvía la factura">
                 Conserva el número <span className="mono">{invoice.number}</span> y la fecha.
                 {invoice.pdf && ' Generaremos un PDF nuevo.'}
               </Step>
