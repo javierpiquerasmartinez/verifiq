@@ -10,6 +10,9 @@ export function voidingError(cause: unknown): string {
   if (cause instanceof ApiError && cause.code === InvoiceErrorCode.NotVoidable) {
     return 'Esta factura ya no se puede anular: tiene una rectificativa (emitida o en preparación) o Hacienda aún no ha respondido. Recarga la página para ver su estado.';
   }
+  if (cause instanceof ApiError && cause.code === InvoiceErrorCode.CannotIssue) {
+    return 'Ahora mismo no puedes enviar registros a Hacienda: revisa tu representación en Ajustes.';
+  }
   return 'No se ha podido anular la factura. Vuelve a intentarlo.';
 }
 

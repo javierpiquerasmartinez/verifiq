@@ -224,8 +224,8 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const rectifiable = isRectifiable({ status: invoice.status, recordStatus: record.status, corrective });
   const voidable = isVoidable({ status: invoice.status, recordStatus: record.status, corrective });
   const onRectify = rectifiable ? () => setDialog('rectify') : undefined;
-  // Either answer must be possible: Voiding (not sent) or a total rectification (sent).
-  const onCorrectRecipient = rectifiable && voidable ? () => setDialog('recipient') : undefined;
+  // Voided if not sent; rectified totally if sent and the AEAT has it, else voided too.
+  const onCorrectRecipient = voidable ? () => setDialog('recipient') : undefined;
   const onVoid = voidable ? () => setDialog('void') : undefined;
   const voided = invoice.status === 'voided';
   return (
@@ -343,7 +343,9 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
         </aside>
       </div>
       {dialog === 'rectify' && <RectifyDialog invoice={invoice} onClose={close} />}
-      {dialog === 'recipient' && <RecipientCorrectionDialog invoice={invoice} onClose={close} />}
+      {dialog === 'recipient' && (
+        <RecipientCorrectionDialog invoice={invoice} rectifiable={rectifiable} onClose={close} />
+      )}
       {(dialog === 'void' || dialog === 'void-reissue') && (
         <VoidDialog invoice={invoice} reissue={dialog === 'void-reissue'} onClose={close} />
       )}

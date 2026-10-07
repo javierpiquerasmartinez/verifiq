@@ -9,12 +9,9 @@ import { Icon } from './icons';
 import { voidingError } from './VoidDialog';
 
 function correctionError(cause: unknown, sent: boolean): string {
-  if (!sent) return voidingError(cause);
+  if (!sent || (cause instanceof ApiError && cause.code === InvoiceErrorCode.CannotIssue)) return voidingError(cause);
   if (cause instanceof ApiError && cause.code === InvoiceErrorCode.NotRectifiable) {
     return 'Esta factura ya no se puede rectificar. Recarga la página para ver su estado.';
-  }
-  if (cause instanceof ApiError && cause.code === InvoiceErrorCode.CannotIssue) {
-    return 'Ahora mismo no puedes emitir: revisa tu representación ante Hacienda en Ajustes.';
   }
   if (cause instanceof ApiError && cause.code === InvoiceErrorCode.DraftNotReady) {
     return 'No se ha podido emitir la rectificativa: revisa la ficha del cliente de la factura (puede estar archivado o sin confirmar en Hacienda).';
@@ -24,15 +21,25 @@ function correctionError(cause: unknown, sent: boolean): string {
 
 /**
  * "Corregir destinatario" (ADR 0005), one question: has the user already sent the invoice? Not sent, it
- * is voided; sent, a total corrective invoice is issued. Either way the user lands on a new draft with
- * its content, to choose the right recipient.
+ * is voided; sent, a total corrective invoice is issued. An invoice the AEAT does not have (rejected or
+ * blocked) cannot be rectified: it is voided either way, with no question. The user then lands on a new
+ * draft with its content, to choose the right recipient.
  */
-export function RecipientCorrectionDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
+export function RecipientCorrectionDialog({
+  invoice,
+  rectifiable,
+  onClose,
+}: {
+  invoice: Invoice;
+  /** Whether the AEAT has the invoice, so that a total corrective invoice can correct it once sent. */
+  rectifiable: boolean;
+  onClose: () => void;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const id = useId();
-  const [sent, setSent] = useState<boolean>();
+  const [sent, setSent] = useState<boolean | undefined>(rectifiable ? undefined : false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -78,19 +85,26 @@ export function RecipientCorrectionDialog({ invoice, onClose }: { invoice: Invoi
           </p>
         </div>
         <div className="modal-body">
-          <fieldset className="stack" style={{ gap: 10, border: 0, padding: 0, margin: 0 }}>
-            <legend className="label" style={{ marginBottom: 10 }}>
-              ¿Has enviado ya esta factura a {invoice.recipient.name}?
-            </legend>
-            <label className="chk">
-              <input type="radio" name={`${id}-sent`} checked={sent === false} onChange={() => setSent(false)} required />
-              <span>No, todavía no la tiene</span>
-            </label>
-            <label className="chk">
-              <input type="radio" name={`${id}-sent`} checked={sent === true} onChange={() => setSent(true)} required />
-              <span>Sí, ya se la he enviado</span>
-            </label>
-          </fieldset>
+          {rectifiable ? (
+            <fieldset className="stack" style={{ gap: 10, border: 0, padding: 0, margin: 0 }}>
+              <legend className="label" style={{ marginBottom: 10 }}>
+                ¿Has enviado ya esta factura a {invoice.recipient.name}?
+              </legend>
+              <label className="chk">
+                <input type="radio" name={`${id}-sent`} checked={sent === false} onChange={() => setSent(false)} required />
+                <span>No, todavía no la tiene</span>
+              </label>
+              <label className="chk">
+                <input type="radio" name={`${id}-sent`} checked={sent === true} onChange={() => setSent(true)} required />
+                <span>Sí, ya se la he enviado</span>
+              </label>
+            </fieldset>
+          ) : (
+            <p>
+              Hacienda no tiene registrada esta factura, así que se corrige anulándola, tanto si ya se la enviaste a{' '}
+              {invoice.recipient.name} como si no.
+            </p>
+          )}
           {sent === false && (
             <p className="help">
               La anularemos: Hacienda recibirá un registro de anulación, la factura quedará anulada y el número{' '}

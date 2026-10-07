@@ -208,6 +208,19 @@ describe('Voiding and correcting the recipient', () => {
       expect(voidings().at(-1)).toMatchObject({ previouslyRejected: false, notRegistered: true });
     });
 
+    it('refuses to void without a valid Representation', async () => {
+      const { agent, issuerId } = await issuingUser();
+      const { invoice } = await issuedInvoice(agent);
+      connector.signRepresentation(issuerId, 'expired');
+      await db.$client.query("UPDATE issuers SET representation_state = 'expired' WHERE id = $1", [issuerId]);
+
+      const cannotIssue = ({ body }: { body: { code: string } }) => expect(body.code).toBe('CANNOT_ISSUE');
+      await voidInvoice(agent, invoice.id).expect(409).expect(cannotIssue);
+      await correctRecipient(agent, invoice.id, false).expect(409).expect(cannotIssue);
+      expect((await invoiceOf(agent, invoice.id)).status).toBe('issued');
+      expect(voidings(issuerId)).toHaveLength(0);
+    });
+
     it('is no other issuer’s to void', async () => {
       const { agent } = await issuingUser();
       const { invoice } = await issuedInvoice(agent);
@@ -358,6 +371,20 @@ describe('Voiding and correcting the recipient', () => {
         subjectId: invoice.id,
         details: { sent: true, draftId: body.draft.id, correctiveInvoiceId: body.correctiveInvoice.id },
       });
+    });
+
+    it('voids an invoice the AEAT rejected, sent or not: the AEAT never registered it', async () => {
+      const { agent, issuerId } = await issuingUser();
+      const { invoice } = await issuedInvoice(agent, { verdict: 'rejected' });
+
+      await correctRecipient(agent, invoice.id, true)
+        .expect(409)
+        .expect(({ body }) => expect(body.code).toBe('INVOICE_NOT_RECTIFIABLE'));
+      const { body } = await correctRecipient(agent, invoice.id, false).expect(201);
+      expect(body).toMatchObject({ correctiveInvoice: null, draft: { recipient: null, lines } });
+      expect((await invoiceOf(agent, invoice.id)).status).toBe('voided');
+      await worker.runPending();
+      expect(voidings(issuerId).at(-1)).toMatchObject({ notRegistered: true, previouslyRejected: false });
     });
 
     it('rectifies only an invoice the AEAT has', async () => {

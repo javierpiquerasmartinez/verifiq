@@ -197,7 +197,7 @@ export const InvoiceErrorCode = {
   NotFound: 'INVOICE_NOT_FOUND',
   /** The draft still has problems (`problems` in the body). */
   DraftNotReady: 'DRAFT_NOT_READY',
-  /** Without its key at the connector and a valid Representation, the issuer cannot issue. */
+  /** Without its key at the connector and a valid Representation, the issuer cannot issue (nor void). */
   CannotIssue: 'CANNOT_ISSUE',
   /** The invoice has no PDF yet: its record has no QR. */
   PdfNotAvailable: 'INVOICE_PDF_NOT_AVAILABLE',

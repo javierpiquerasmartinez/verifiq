@@ -324,9 +324,11 @@ export class InvoicesService {
   /**
    * Voids the invoice (ADR 0005): it stays, voided and read only, its number is never reused, and its
    * Voiding is queued for the AEAT. With `reissue`, a new draft with its content and recipient, to issue
-   * it again. A voided invoice whose Voiding was blocked or rejected sends it again instead.
+   * it again. A voided invoice whose Voiding was blocked or rejected sends it again instead. Like an
+   * Issuance, it needs the key at the connector and a valid Representation.
    */
   async void(issuerId: string, userId: string, invoiceId: string, { reissue }: { reissue: boolean }): Promise<VoidedInvoice> {
+    if (!(await this.representation.canIssue(issuerId))) throw new CannotIssueError();
     const draftId = await inTransaction(this.db, async (tx, client) => {
       const invoice = await lockInvoice(tx, issuerId, invoiceId);
       const latest = (await latestRecordOf(tx, invoice.id))!;
@@ -366,7 +368,8 @@ export class InvoicesService {
     invoiceId: string,
     { sent }: RecipientCorrection,
   ): Promise<CorrectedRecipient> {
-    if (sent && !(await this.representation.canIssue(issuerId))) throw new CannotIssueError();
+    // Both answers send a record: the corrective invoice, or the Voiding.
+    if (!(await this.representation.canIssue(issuerId))) throw new CannotIssueError();
     const { draftId, correctiveInvoiceId } = await inTransaction(this.db, async (tx, client) => {
       const invoice = await lockInvoice(tx, issuerId, invoiceId);
       let correctiveInvoiceId: string | null = null;

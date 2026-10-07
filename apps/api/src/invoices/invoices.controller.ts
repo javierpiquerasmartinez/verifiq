@@ -64,7 +64,7 @@ function httpError(error: unknown): unknown {
   if (error instanceof CannotIssueError) {
     return new ConflictException({
       code: InvoiceErrorCode.CannotIssue,
-      message: 'The issuer needs a valid Representation to issue',
+      message: 'The issuer needs a valid Representation to issue or void',
     });
   }
   if (error instanceof NotResubmittableError) {
