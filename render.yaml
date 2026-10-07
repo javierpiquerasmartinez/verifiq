@@ -47,4 +47,72 @@ services:
         sync: false
       - key: OPERATOR_EMAIL
         sync: false
-  # Worker (`pnpm start:worker`): added when it has work (invoice issuance). Render has no free workers.
+  # Sends the outbox to VeriFactu, draws the PDFs and polls the AEAT's verdicts. Render has no free
+  # workers: 0.5c-512mb is the cheapest plan. Its secrets are the API's (fromService), so they are set
+  # once, on the API; after changing one there, redeploy the worker too.
+  - type: worker
+    name: verifiq-worker-staging
+    runtime: node
+    plan: 0.5c-512mb
+    region: frankfurt
+    branch: stage
+    buildCommand: pnpm install --frozen-lockfile && pnpm build:api
+    startCommand: pnpm start:worker
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: DATABASE_URL
+        fromService:
+          type: web
+          name: verifiq-api-staging
+          envVarKey: DATABASE_URL
+      - key: RESEND_API_KEY
+        fromService:
+          type: web
+          name: verifiq-api-staging
+          envVarKey: RESEND_API_KEY
+      - key: EMAIL_FROM
+        fromService:
+          type: web
+          name: verifiq-api-staging
+          envVarKey: EMAIL_FROM
+      - key: R2_ACCOUNT_ID
+        fromService:
+          type: web
+          name: verifiq-api-staging
+          envVarKey: R2_ACCOUNT_ID
+      - key: R2_ACCESS_KEY_ID
+        fromService:
+          type: web
+          name: verifiq-api-staging
+          envVarKey: R2_ACCESS_KEY_ID
+      - key: R2_SECRET_ACCESS_KEY
+        fromService:
+          type: web
+          name: verifiq-api-staging
+          envVarKey: R2_SECRET_ACCESS_KEY
+      - key: R2_BUCKET
+        fromService:
+          type: web
+          name: verifiq-api-staging
+          envVarKey: R2_BUCKET
+      - key: VERIFACTI_API_KEY
+        fromService:
+          type: web
+          name: verifiq-api-staging
+          envVarKey: VERIFACTI_API_KEY
+      - key: VERIFACTI_ENVIRONMENT
+        fromService:
+          type: web
+          name: verifiq-api-staging
+          envVarKey: VERIFACTI_ENVIRONMENT
+      - key: CONNECTOR_MASTER_KEY
+        fromService:
+          type: web
+          name: verifiq-api-staging
+          envVarKey: CONNECTOR_MASTER_KEY
+      - key: OPERATOR_EMAIL
+        fromService:
+          type: web
+          name: verifiq-api-staging
+          envVarKey: OPERATOR_EMAIL
