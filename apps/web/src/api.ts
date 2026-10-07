@@ -1,5 +1,6 @@
 import {
   catalogItemSchema,
+  correctedRecipientSchema,
   draftSchema,
   issuerSummarySchema,
   invitationSchema,
@@ -10,10 +11,12 @@ import {
   onboardingSchema,
   recipientSchema,
   representationSchema,
+  voidedInvoiceSchema,
   type AcceptInvitation,
   type AcceptTerms,
   type CatalogItem,
   type CatalogItemDataInput,
+  type CorrectedRecipient,
   type Draft,
   type DraftDataInput,
   type IssuerDefaults,
@@ -25,14 +28,17 @@ import {
   type InvoiceResubmission,
   type InvoiceList,
   type InvoiceListQuery,
+  type InvoiceVoidingInput,
   type NewCorrectiveDraftInput,
   type Onboarding,
   type Recipient,
+  type RecipientCorrection,
   type RecipientDataInput,
   type RecipientListStatus,
   type Representation,
   type RepresentationSigner,
   type Series,
+  type VoidedInvoice,
 } from '@verifiq/domain';
 
 /** Base URL of the API: `/api` behind the same-origin proxy (Vercel rewrite, Vite dev server). */
@@ -212,6 +218,21 @@ export async function resubmitInvoice(id: string, body: InvoiceResubmission): Pr
 /** Rectifying the invoice: a corrective draft by differences, to review and issue like any draft. */
 export async function startCorrection(invoiceId: string, body: NewCorrectiveDraftInput): Promise<Draft> {
   return draftSchema.parse(await request(`/invoices/${encodeURIComponent(invoiceId)}/corrective-draft`, sendJson('POST', body)));
+}
+
+/**
+ * Voids the invoice (irreversible: its number is never reused), or sends its Voiding again. With
+ * `reissue`, also a new draft with its content.
+ */
+export async function voidInvoice(invoiceId: string, body: InvoiceVoidingInput = {}): Promise<VoidedInvoice> {
+  return voidedInvoiceSchema.parse(await request(`/invoices/${encodeURIComponent(invoiceId)}/voiding`, sendJson('POST', body)));
+}
+
+/** "Corregir destinatario": voids the invoice (not sent) or rectifies it totally (sent), and gives a new draft without recipient. */
+export async function correctRecipient(invoiceId: string, body: RecipientCorrection): Promise<CorrectedRecipient> {
+  return correctedRecipientSchema.parse(
+    await request(`/invoices/${encodeURIComponent(invoiceId)}/recipient-correction`, sendJson('POST', body)),
+  );
 }
 
 /** A page of drafts and invoices, newest first, with how many match under each filter. */

@@ -15,14 +15,18 @@ import {
   InvoiceErrorCode,
   invoiceListQuerySchema,
   invoiceResubmissionSchema,
+  invoiceVoidingSchema,
   issueInvoiceSchema,
   newCorrectiveDraftSchema,
   nextInvoiceNumberQuerySchema,
+  recipientCorrectionSchema,
+  type CorrectedRecipient,
   type Draft,
   type Invoice,
   type InvoiceIncident,
   type InvoiceList,
   type NextInvoiceNumber,
+  type VoidedInvoice,
 } from '@verifiq/domain';
 import type { Response } from 'express';
 import { z } from 'zod';
@@ -39,6 +43,7 @@ import {
   InvoicesService,
   NotRectifiableError,
   NotResubmittableError,
+  NotVoidableError,
   RecipientNotReadyError,
   RetryDayOverError,
 } from './invoices.js';
@@ -59,7 +64,7 @@ function httpError(error: unknown): unknown {
   if (error instanceof CannotIssueError) {
     return new ConflictException({
       code: InvoiceErrorCode.CannotIssue,
-      message: 'The issuer needs a valid Representation to issue',
+      message: 'The issuer needs a valid Representation to issue or void',
     });
   }
   if (error instanceof NotResubmittableError) {
@@ -72,6 +77,12 @@ function httpError(error: unknown): unknown {
     return new ConflictException({
       code: InvoiceErrorCode.NotRectifiable,
       message: 'Only an invoice the AEAT has, neither voided nor corrective, is rectified',
+    });
+  }
+  if (error instanceof NotVoidableError) {
+    return new ConflictException({
+      code: InvoiceErrorCode.NotVoidable,
+      message: 'Only an issued invoice, neither rectified nor corrective, without a corrective draft and with its verdict, is voided',
     });
   }
   if (error instanceof RetryDayOverError) {
@@ -180,6 +191,36 @@ export class InvoicesController {
   startCorrection(@CurrentIssuer() issuerId: string, @Param('id') id: string, @Body() body: unknown): Promise<Draft> {
     const request = parseBody(newCorrectiveDraftSchema, body);
     return run(this.invoices.startCorrection(issuerId, invoiceId(id), request));
+  }
+
+  /**
+   * Voiding (ADR 0005), for an invoice that should never have existed: irreversible, its number is never
+   * reused. With `reissue`, also a new draft with its content. Sends a blocked or rejected Voiding again.
+   */
+  @Post(':id/voiding')
+  void(
+    @CurrentIssuer() issuerId: string,
+    @CurrentSession() session: AuthSession,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<VoidedInvoice> {
+    const request = parseBody(invoiceVoidingSchema, body);
+    return run(this.invoices.void(issuerId, session.user.id, invoiceId(id), request));
+  }
+
+  /**
+   * "Corregir destinatario" (ADR 0005): voids an invoice not sent yet, or issues a total corrective
+   * invoice for one already sent, and gives a new draft with its content and no recipient.
+   */
+  @Post(':id/recipient-correction')
+  correctRecipient(
+    @CurrentIssuer() issuerId: string,
+    @CurrentSession() session: AuthSession,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<CorrectedRecipient> {
+    const correction = parseBody(recipientCorrectionSchema, body);
+    return run(this.invoices.correctRecipient(issuerId, session.user.id, invoiceId(id), correction));
   }
 
   /** The stored file of the current PDF version: shown in the browser, or saved with `?download`. */

@@ -1,11 +1,23 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
-import { exemptionGround, serialNumber, splitInvoiceNumber, sumAmounts, type InvoiceSnapshot } from '@verifiq/domain';
-import { and, eq } from 'drizzle-orm';
+import {
+  exemptionGround,
+  serialNumber,
+  splitInvoiceNumber,
+  sumAmounts,
+  voidingFlagsOf,
+  type InvoiceRecordStatus,
+  type InvoiceSnapshot,
+} from '@verifiq/domain';
+import { and, asc, eq, lt } from 'drizzle-orm';
 import { recordAuditEvent } from '../audit/audit.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { invoiceRecords, invoices } from '../database/schema.js';
 import {
   VERIFACTU_CONNECTOR,
+  type ConnectorResult,
+  type InvoiceKey,
+  type QueuedRecord,
+  type QueuedVoiding,
   type RecordInvoice,
   type RecordLine,
   type VerifactuConnector,
@@ -15,6 +27,11 @@ import { SUBMISSION_OPTIONS, SubmissionQueue, type SubmissionOptions } from './s
 
 /** The connector did not answer: the record is still to be sent, with the same idempotency key. */
 export class SubmissionPostponedError extends Error {}
+
+/** The series, number and issue date that name an invoice at VeriFactu: F2026-0001 travels as series F2026- and number 0001. */
+function invoiceKeyOf(invoice: { series: string; number: number; issueDate: string }): InvoiceKey {
+  return { series: invoice.series, number: serialNumber(invoice.number), issueDate: invoice.issueDate };
+}
 
 /**
  * What VeriFactu receives of an issued invoice: its key, recipient and tax breakdown, never its items.
@@ -41,10 +58,7 @@ export function recordInvoiceOf(
     })),
   ];
   return {
-    // F2026-0001 travels as series F2026- and number 0001.
-    series: invoice.series,
-    number: serialNumber(invoice.number),
-    issueDate: invoice.issueDate,
+    ...invoiceKeyOf(invoice),
     type: correction?.type ?? 'F1',
     ...(snapshot.operationDate && snapshot.operationDate !== invoice.issueDate
       ? { operationDate: snapshot.operationDate }
@@ -114,8 +128,9 @@ export class SubmissionWorker implements OnApplicationBootstrap {
   }
 
   /**
-   * Sends the record (an Amendment, if it is one) and keeps the fingerprint, QR and verification URL
-   * the connector answers, or blocks the record if it refuses it. Throws when it has to be retried.
+   * Sends the record (an Amendment or a Voiding, if it is one) and keeps the fingerprint, QR and
+   * verification URL the connector answers (a Voiding has no QR), or blocks the record if it refuses it.
+   * Throws when it has to be retried.
    */
   private async send({
     record,
@@ -128,15 +143,17 @@ export class SubmissionWorker implements OnApplicationBootstrap {
     const snapshot = (record.snapshot ?? invoice.snapshot) as InvoiceSnapshot;
 
     const issuer = { issuerId: invoice.issuerId, taxId: snapshot.issuer.taxId };
-    const submission = {
-      invoiceRecordId: record.id,
-      idempotencyKey: record.idempotencyKey,
-      invoice: recordInvoiceOf(invoice, snapshot),
-    };
-    const result =
-      record.operation === 'amendment'
-        ? await this.connector.amendRecord(issuer, { ...submission, previousRejection: record.previousRejection ?? 'none' })
-        : await this.connector.submitRecord(issuer, submission);
+    const exchange = { invoiceRecordId: record.id, idempotencyKey: record.idempotencyKey };
+    const submission = { ...exchange, invoice: recordInvoiceOf(invoice, snapshot) };
+    let result: ConnectorResult<QueuedRecord | QueuedVoiding>;
+    if (record.operation === 'voiding') {
+      const flags = voidingFlagsOf(await this.recordsBefore(record));
+      result = await this.connector.voidRecord(issuer, { ...exchange, invoice: invoiceKeyOf(invoice), ...flags });
+    } else if (record.operation === 'amendment') {
+      result = await this.connector.amendRecord(issuer, { ...submission, previousRejection: record.previousRejection ?? 'none' });
+    } else {
+      result = await this.connector.submitRecord(issuer, submission);
+    }
     if (result.outcome === 'transient') {
       throw new SubmissionPostponedError(`${result.reason}: ${result.message}`);
     }
@@ -145,7 +162,8 @@ export class SubmissionWorker implements OnApplicationBootstrap {
       const pending = and(eq(invoiceRecords.id, record.id), eq(invoiceRecords.status, 'pending-submission'));
       const audit = { issuerId: invoice.issuerId, actorUserId: null, subjectType: 'invoice', subjectId: invoice.id } as const;
       if (result.outcome === 'ok') {
-        const { connectorRecordId, fingerprint, verificationUrl, qrPng } = result.value;
+        const { connectorRecordId, fingerprint } = result.value;
+        const { verificationUrl = null, qrPng = null } = 'qrPng' in result.value ? result.value : {};
         const updated = await tx
           .update(invoiceRecords)
           .set({
@@ -180,4 +198,15 @@ export class SubmissionWorker implements OnApplicationBootstrap {
       }
     });
   }
+
+  /** The invoice's records before this one, oldest first. */
+  private async recordsBefore(record: typeof invoiceRecords.$inferSelect) {
+    const rows = await this.db
+      .select({ operation: invoiceRecords.operation, status: invoiceRecords.status })
+      .from(invoiceRecords)
+      .where(and(eq(invoiceRecords.invoiceId, record.invoiceId), lt(invoiceRecords.createdAt, record.createdAt)))
+      .orderBy(asc(invoiceRecords.createdAt));
+    return rows.map(({ operation, status }) => ({ voiding: operation === 'voiding', status: status as InvoiceRecordStatus }));
+  }
+
 }

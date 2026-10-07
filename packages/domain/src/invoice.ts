@@ -77,6 +77,8 @@ export const INVOICE_EVENTS = [
   'resubmitted',
   /** A corrective invoice (`invoice` in the entry) corrects it. */
   'rectified',
+  /** The user voided it: its Voiding is sent to the AEAT. */
+  'voided',
 ] as const;
 
 export type InvoiceEvent = (typeof INVOICE_EVENTS)[number];
@@ -108,6 +110,8 @@ export const invoiceSchema = z.object({
     rejection: z.object({ code: z.string(), message: z.string(), explanation: z.string() }).nullable(),
     /** The latest record is an Amendment of the first one (sent after a rejection or errors). */
     amendment: z.boolean(),
+    /** The latest record is the invoice's Voiding. */
+    voiding: z.boolean(),
     /** When the AEAT's verdict arrived (accepted, with errors or rejected). */
     confirmedAt: z.iso.datetime({ offset: true }).nullable(),
     /** The AEAT's code for the accepted record (its CSV), when the connector passes it on. */
@@ -193,7 +197,7 @@ export const InvoiceErrorCode = {
   NotFound: 'INVOICE_NOT_FOUND',
   /** The draft still has problems (`problems` in the body). */
   DraftNotReady: 'DRAFT_NOT_READY',
-  /** Without its key at the connector and a valid Representation, the issuer cannot issue. */
+  /** Without its key at the connector and a valid Representation, the issuer cannot issue (nor void). */
   CannotIssue: 'CANNOT_ISSUE',
   /** The invoice has no PDF yet: its record has no QR. */
   PdfNotAvailable: 'INVOICE_PDF_NOT_AVAILABLE',
@@ -205,6 +209,11 @@ export const InvoiceErrorCode = {
   RecipientNotReady: 'INVOICE_RECIPIENT_NOT_READY',
   /** Only an invoice the AEAT has, neither voided nor itself corrective, is rectified (isRectifiable). */
   NotRectifiable: 'INVOICE_NOT_RECTIFIABLE',
+  /**
+   * Only an issued invoice, neither rectified nor corrective, without a corrective draft and not waiting
+   * for the AEAT's verdict, is voided (isVoidable); a voided one, only to send its Voiding again.
+   */
+  NotVoidable: 'INVOICE_NOT_VOIDABLE',
 } as const;
 
 export type InvoiceErrorCode = (typeof InvoiceErrorCode)[keyof typeof InvoiceErrorCode];

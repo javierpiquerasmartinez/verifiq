@@ -13,6 +13,7 @@ const EVENTS: Record<InvoiceEvent, { label: string; icon: IconName; tone?: 'ok' 
   rejected: { label: 'Rechazada por la AEAT', icon: 'closeSmall', tone: 'danger' },
   resubmitted: { label: 'Corregida y reenviada', icon: 'arrowRight' },
   rectified: { label: 'Rectificada por', icon: 'rectify', tone: 'rect' },
+  voided: { label: 'Anulada', icon: 'ban', tone: 'danger' },
 };
 
 /** The invoice's timeline, newest first: what happened, when, and who did it («Sistema» if no one did). */

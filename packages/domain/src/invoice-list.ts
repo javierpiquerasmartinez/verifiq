@@ -5,9 +5,9 @@ import { INVOICE_RECORD_STATUSES, INVOICE_STATUSES } from './invoice.js';
 // The invoice list: the main screen. Drafts and issued invoices together, newest first.
 
 /**
- * Each invoice falls in exactly one of these, in this order: voided, rectified, with an incident (its
- * record blocked, rejected, accepted with errors or unconfirmed), pending (awaiting the AEAT) or
- * accepted. `all` is every draft and invoice.
+ * Each invoice falls in exactly one of these, in this order: voided (unless its Voiding is blocked or
+ * rejected: the AEAT still has it), rectified, with an incident (its record blocked, rejected, accepted
+ * with errors or unconfirmed), pending (awaiting the AEAT) or accepted. `all` is every draft and invoice.
  */
 export const INVOICE_LIST_FILTERS = ['all', 'drafts', 'pending', 'accepted', 'incidents', 'rectified', 'voided'] as const;
 

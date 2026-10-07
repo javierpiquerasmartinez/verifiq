@@ -17,3 +17,4 @@ export * from './record-rejections.js';
 export * from './representation.js';
 export * from './series.js';
 export * from './tax-id.js';
+export * from './voiding.js';

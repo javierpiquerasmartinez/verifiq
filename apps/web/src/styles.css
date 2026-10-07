@@ -23,6 +23,7 @@
   --danger-soft: #fbe9e6;
   --danger-line: #e8b1aa;
   --danger-ink: #5c130f;
+  --danger-hover: #821b15;
   --rect: #553a99;
   --rect-soft: #eee9f7;
   --rect-line: #c5b6e3;
@@ -356,6 +357,13 @@ ul {
 }
 .btn-secondary:hover {
   background: var(--surface-2);
+}
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+.btn-danger:hover {
+  background: var(--danger-hover);
 }
 .btn-ghost {
   background: transparent;
@@ -1123,6 +1131,18 @@ button.step:hover {
   min-width: 0;
   overflow: hidden;
 }
+/* a voided invoice stays visible, read only and dimmed */
+.invoice-voided .invoice-summary .num,
+.invoice-voided .invoice-summary dd {
+  color: var(--ink-3);
+}
+.invoice-voided .invoice-summary .num {
+  text-decoration: line-through;
+}
+.invoice-voided .invoice-document-body {
+  opacity: 0.55;
+  filter: grayscale(1);
+}
 .invoice-document-body {
   background: var(--surface-3);
   padding: 32px;
@@ -1394,6 +1414,18 @@ button.step:hover {
 }
 .mi > .ic {
   margin-top: 2px;
+}
+.mi-danger,
+.mi-danger .ic {
+  color: var(--danger);
+}
+.mi-danger small {
+  color: var(--danger-ink);
+}
+.menu-sep {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 4px;
 }
 .menu {
   position: absolute;
