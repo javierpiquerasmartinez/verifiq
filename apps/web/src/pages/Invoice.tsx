@@ -10,6 +10,7 @@ import { Icon } from '../ui/icons';
 import { InvoiceHistory } from '../ui/InvoiceHistory';
 import { DownloadPdfButton, InvoiceDocument } from '../ui/InvoicePdf';
 import { InvoiceStates, RecordState } from '../ui/InvoiceStates';
+import { isIncident, RecordIncident } from '../ui/RecordIncident';
 
 /** An issued invoice: its legal situation at a glance (both states) and the PDF made from its frozen copy. */
 export function InvoicePage() {
@@ -86,25 +87,13 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
       {record.status === 'pending-submission' && (
         <Alert tone="info">Estamos registrando la factura en la AEAT. En unos segundos aparecerá su QR.</Alert>
       )}
-      {record.status === 'blocked' && (
-        <Alert tone="danger" title="El registro no se ha podido enviar a la AEAT">
-          {record.rejection?.message} El número {invoice.number} queda asignado a esta factura.
-        </Alert>
+      {isIncident(record.status) && invoice.status === 'issued' && (
+        <RecordIncident key={record.status} invoice={invoice} incident={record.status} />
       )}
       {record.unconfirmed && (
         <Alert tone="warn" title="La AEAT aún no ha confirmado esta factura">
           Han pasado más de 24 horas desde que la emitiste y Hacienda todavía no ha respondido. Ya lo estamos revisando; no
           tienes que volver a emitirla.
-        </Alert>
-      )}
-      {record.status === 'accepted-with-errors' && (
-        <Alert tone="warn" title="La AEAT ha aceptado la factura, pero con errores">
-          {record.aeatError?.message}
-        </Alert>
-      )}
-      {record.status === 'rejected' && (
-        <Alert tone="danger" title="La AEAT ha rechazado la factura">
-          {record.aeatError?.message} El número {invoice.number} queda asignado a esta factura.
         </Alert>
       )}
 

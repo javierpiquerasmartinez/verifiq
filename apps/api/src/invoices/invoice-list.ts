@@ -3,6 +3,7 @@ import {
   AWAITING_VERDICT_STATUSES,
   INCIDENT_RECORD_STATUSES,
   INVOICE_LIST_FILTERS,
+  explainRecordRejection,
   invoiceNumberIn,
   isRecordUnconfirmed,
   parseDecimalInput,
@@ -199,6 +200,7 @@ export class InvoiceListService {
         snapshot: invoices.snapshot,
         recordStatus: record.status,
         recordCreatedAt: record.createdAt,
+        rejectionCode: record.rejectionCode,
         rejectionMessage: record.rejectionMessage,
         aeatErrorMessage: record.aeatErrorMessage,
       })
@@ -208,7 +210,10 @@ export class InvoiceListService {
       .orderBy(asc(record.createdAt), asc(invoices.id));
     return rows.map((row) => ({
       ...invoiceAndRecord(row, now),
-      message: row.recordStatus === 'blocked' ? row.rejectionMessage : (row.aeatErrorMessage ?? null),
+      message:
+        row.recordStatus === 'blocked'
+          ? explainRecordRejection({ code: row.rejectionCode ?? '', message: row.rejectionMessage ?? '' })
+          : (row.aeatErrorMessage ?? null),
     }));
   }
 
@@ -222,6 +227,7 @@ export class InvoiceListService {
         invoiceId: invoiceRecords.invoiceId,
         status: invoiceRecords.status,
         createdAt: invoiceRecords.createdAt,
+        rejectionCode: invoiceRecords.rejectionCode,
         rejectionMessage: invoiceRecords.rejectionMessage,
         aeatErrorMessage: invoiceRecords.aeatErrorMessage,
       })

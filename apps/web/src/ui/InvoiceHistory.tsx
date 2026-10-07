@@ -10,6 +10,7 @@ const EVENTS: Record<InvoiceEvent, { label: string; icon: IconName; tone?: 'ok' 
   accepted: { label: 'Aceptada por la AEAT', icon: 'check', tone: 'ok' },
   'accepted-with-errors': { label: 'Aceptada con errores por la AEAT', icon: 'mark', tone: 'warn' },
   rejected: { label: 'Rechazada por la AEAT', icon: 'closeSmall', tone: 'danger' },
+  resubmitted: { label: 'Corregida y reenviada', icon: 'arrowRight' },
 };
 
 /** The invoice's timeline, newest first: what happened, when, and who did it («Sistema» if no one did). */

@@ -14,6 +14,7 @@ import {
   DraftErrorCode,
   InvoiceErrorCode,
   invoiceListQuerySchema,
+  invoiceResubmissionSchema,
   issueInvoiceSchema,
   type Invoice,
   type InvoiceIncident,
@@ -28,7 +29,14 @@ import { parseBody, withHttpErrors } from '../issuers/http.js';
 import { CurrentIssuer } from '../issuers/issuer-context.js';
 import { decodeCursor, InvoiceListService } from './invoice-list.js';
 import { InvoicePdfNotAvailableError, InvoicePdfsService } from './invoice-pdfs.js';
-import { CannotIssueError, DraftNotReadyError, InvoiceNotFoundError, InvoicesService } from './invoices.js';
+import {
+  CannotIssueError,
+  DraftNotReadyError,
+  InvoiceNotFoundError,
+  InvoicesService,
+  NotResubmittableError,
+  RecipientNotReadyError,
+} from './invoices.js';
 
 const notFound = () => new NotFoundException({ code: InvoiceErrorCode.NotFound, message: 'Invoice not found' });
 
@@ -47,6 +55,18 @@ function httpError(error: unknown): unknown {
     return new ConflictException({
       code: InvoiceErrorCode.CannotIssue,
       message: 'The issuer needs a valid Representation to issue',
+    });
+  }
+  if (error instanceof NotResubmittableError) {
+    return new ConflictException({
+      code: InvoiceErrorCode.NotResubmittable,
+      message: 'Only an invoice whose record is blocked, rejected or accepted with errors is sent again',
+    });
+  }
+  if (error instanceof RecipientNotReadyError) {
+    return new UnprocessableEntityException({
+      code: InvoiceErrorCode.RecipientNotReady,
+      message: "The recipient's tax ID is not confirmed in the census",
     });
   }
   if (error instanceof DraftNotReadyError) {
@@ -117,6 +137,21 @@ export class InvoicesController {
   @Get(':id')
   show(@CurrentIssuer() issuerId: string, @Param('id') id: string): Promise<Invoice> {
     return run(this.invoices.find(issuerId, invoiceId(id)));
+  }
+
+  /**
+   * Corrects the copy of an invoice whose record has an incident (blocked, rejected or accepted with
+   * errors) and sends its record again, with the same number.
+   */
+  @Post(':id/resubmission')
+  resubmit(
+    @CurrentIssuer() issuerId: string,
+    @CurrentSession() session: AuthSession,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<Invoice> {
+    const correction = parseBody(invoiceResubmissionSchema, body);
+    return run(this.invoices.resubmit(issuerId, session.user.id, invoiceId(id), correction));
   }
 
   /** The stored file of the current PDF version: shown in the browser, or saved with `?download`. */

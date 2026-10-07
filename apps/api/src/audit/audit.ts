@@ -10,7 +10,9 @@ export type AuditAction =
   | 'invoice-pdf-generated'
   | 'invoice-record-accepted'
   | 'invoice-record-accepted-with-errors'
-  | 'invoice-record-rejected';
+  | 'invoice-record-rejected'
+  /** The user corrected the copy of an invoice with an incident and sent its record again. */
+  | 'invoice-record-resubmitted';
 
 export type AuditEvent = Omit<typeof auditEvents.$inferSelect, 'action'> & { action: AuditAction };
 

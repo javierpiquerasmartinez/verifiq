@@ -101,6 +101,7 @@ describe('Issuance', () => {
       record: {
         status: 'pending-submission',
         verificationUrl: null,
+        amendment: false,
         rejection: null,
         confirmedAt: null,
         registrationCode: null,

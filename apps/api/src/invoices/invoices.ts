@@ -10,15 +10,19 @@ import {
   type InvoiceEvent,
   type InvoiceHistoryEntry,
   type InvoiceRecordStatus,
+  type InvoiceResubmission,
   type InvoiceSnapshot,
   type InvoiceStatus,
+  explainRecordRejection,
+  INCIDENT_RECORD_STATUSES,
   isRecordUnconfirmed,
 } from '@verifiq/domain';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { recordAuditEvent, type AuditAction } from '../audit/audit.js';
 import { DATABASE, inTransaction, type Database, type Queryable } from '../database/database.module.js';
-import { auditEvents, invoiceRecords, invoices, issuers, seriesCounters, users } from '../database/schema.js';
+import { auditEvents, invoiceRecords, invoices, issuers, recipients, seriesCounters, users } from '../database/schema.js';
+import type { AmendmentSubmission } from '../verifactu/connector.js';
 import { DraftsService } from '../drafts/drafts.js';
 import { RepresentationService } from '../issuers/representation.js';
 import { InvoicePdfsService } from './invoice-pdfs.js';
@@ -37,10 +41,23 @@ const HISTORY_EVENTS: Record<AuditAction, InvoiceEvent> = {
   'invoice-record-accepted': 'accepted',
   'invoice-record-accepted-with-errors': 'accepted-with-errors',
   'invoice-record-rejected': 'rejected',
+  'invoice-record-resubmitted': 'resubmitted',
 };
+
+/** The connector's refusal of a blocked record, as it came and explained to the user. */
+function explainedRejection(code: string, message: string | null) {
+  const rejection = { code, message: message ?? '' };
+  return { ...rejection, explanation: explainRecordRejection(rejection) };
+}
 
 /** Without its key at the connector and a valid Representation, the issuer cannot issue. */
 export class CannotIssueError extends Error {}
+
+/** Only an issued invoice whose record is blocked, rejected or accepted with errors is corrected and sent again. */
+export class NotResubmittableError extends Error {}
+
+/** The recipient's tax ID is not confirmed in the census: sending it again would fail again. */
+export class RecipientNotReadyError extends Error {}
 
 export class DraftNotReadyError extends Error {
   constructor(readonly problems: DraftProblem[]) {
@@ -157,6 +174,114 @@ export class InvoicesService {
     return this.find(issuerId, invoiceId);
   }
 
+  /**
+   * Corrects the copy of an invoice whose record has an incident and sends its record again, with the
+   * same number (a number is never released). The recipient's data come again from its profile, where
+   * the user corrected them. A blocked record never reached the AEAT: it is sent again as it was sent
+   * (a submission, or an Amendment). After the AEAT's verdict, it is an Amendment: of a rejected record,
+   * or of one accepted with errors.
+   */
+  async resubmit(issuerId: string, userId: string, invoiceId: string, correction: InvoiceResubmission): Promise<Invoice> {
+    await inTransaction(this.db, async (tx, client) => {
+      // Resubmissions of an invoice take turns: the second one finds the record already sent again.
+      const [invoice] = await tx
+        .select()
+        .from(invoices)
+        .where(and(eq(invoices.issuerId, issuerId), eq(invoices.id, invoiceId)))
+        .for('update');
+      if (!invoice) throw new InvoiceNotFoundError();
+      const [latest] = await tx
+        .select()
+        .from(invoiceRecords)
+        .where(eq(invoiceRecords.invoiceId, invoice.id))
+        .orderBy(desc(invoiceRecords.createdAt))
+        .limit(1);
+      const incidents: readonly string[] = INCIDENT_RECORD_STATUSES;
+      if (invoice.status !== 'issued' || !latest || !incidents.includes(latest.status)) throw new NotResubmittableError();
+
+      const [recipient] = await tx
+        .select()
+        .from(recipients)
+        .where(and(eq(recipients.issuerId, issuerId), eq(recipients.id, invoice.recipientId)));
+      if (recipient?.censusStatus !== 'identified') throw new RecipientNotReadyError();
+
+      const before = invoice.snapshot as InvoiceSnapshot;
+      const after: InvoiceSnapshot = {
+        ...before,
+        recipient: {
+          name: recipient.name,
+          taxId: recipient.taxId,
+          address: recipient.address,
+          postalCode: recipient.postalCode,
+          municipality: recipient.municipality,
+          province: recipient.province,
+        },
+        operationDescription: correction.operationDescription,
+      };
+      await tx.update(invoices).set({ snapshot: after }).where(eq(invoices.id, invoice.id));
+
+      const { operation, previousRejection } = await this.resubmissionOf(tx, latest);
+      const [record] = await tx
+        .insert(invoiceRecords)
+        .values({
+          issuerId,
+          invoiceId: invoice.id,
+          status: 'pending-submission' satisfies InvoiceRecordStatus,
+          operation,
+          previousRejection,
+          idempotencyKey: randomUUID(),
+        })
+        .returning({ id: invoiceRecords.id });
+      await this.queue.enqueue({ invoiceRecordId: record!.id }, client);
+
+      const changed = <K extends 'recipient' | 'operationDescription'>(key: K) =>
+        JSON.stringify(before[key]) === JSON.stringify(after[key]) ? {} : { [key]: { before: before[key], after: after[key] } };
+      await recordAuditEvent(tx, {
+        issuerId,
+        actorUserId: userId,
+        action: 'invoice-record-resubmitted',
+        subjectType: 'invoice',
+        subjectId: invoice.id,
+        details: {
+          invoiceRecordId: record!.id,
+          previousInvoiceRecordId: latest.id,
+          previousRecordStatus: latest.status,
+          operation,
+          ...(previousRejection && { previousRejection }),
+          changes: { ...changed('recipient'), ...changed('operationDescription') },
+        },
+      });
+    });
+    return this.find(issuerId, invoiceId);
+  }
+
+  /** How the record that follows `latest` is sent. */
+  private async resubmissionOf(
+    db: Queryable,
+    latest: typeof invoiceRecords.$inferSelect,
+  ): Promise<{ operation: 'submission' | 'amendment'; previousRejection: AmendmentSubmission['previousRejection'] | null }> {
+    if (latest.status === 'blocked') {
+      return {
+        operation: latest.operation as 'submission' | 'amendment',
+        previousRejection: latest.previousRejection as AmendmentSubmission['previousRejection'] | null,
+      };
+    }
+    if (latest.status === 'accepted-with-errors') return { operation: 'amendment', previousRejection: 'none' };
+    // Rejected: an Amendment that follows a rejected Amendment says so only if the invoice ever reached
+    // the AEAT; otherwise nothing exists there and it amends a rejected record.
+    const [reached] = await db
+      .select({ id: invoiceRecords.id })
+      .from(invoiceRecords)
+      .where(
+        and(
+          eq(invoiceRecords.invoiceId, latest.invoiceId),
+          inArray(invoiceRecords.status, ['accepted', 'accepted-with-errors'] satisfies InvoiceRecordStatus[]),
+        ),
+      )
+      .limit(1);
+    return { operation: 'amendment', previousRejection: latest.operation === 'amendment' && reached ? 'amendment' : 'record' };
+  }
+
   async find(issuerId: string, id: string): Promise<Invoice> {
     const [row] = await this.db
       .select({ invoice: invoices, record: invoiceRecords })
@@ -178,9 +303,10 @@ export class InvoicesService {
       record: {
         status: recordStatus,
         verificationUrl: record.verificationUrl,
+        amendment: record.operation === 'amendment',
         rejection:
           record.status === 'blocked' && record.rejectionCode !== null
-            ? { code: record.rejectionCode, message: record.rejectionMessage ?? '' }
+            ? explainedRejection(record.rejectionCode, record.rejectionMessage)
             : null,
         confirmedAt: record.confirmedAt?.toISOString() ?? null,
         registrationCode: record.registrationCode,

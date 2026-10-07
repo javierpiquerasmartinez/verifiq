@@ -1628,3 +1628,29 @@ button.step:hover {
     line-height: 1.2;
   }
 }
+
+/* What to do about a record with an incident (invoice detail). */
+.incident {
+  padding: 24px;
+}
+.incident-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 12px;
+}
+.incident-step {
+  background: #fff;
+  border: 1px solid var(--danger-line);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  color: var(--ink);
+}
+.alert-warn .incident-step {
+  border-color: var(--warn-line);
+}

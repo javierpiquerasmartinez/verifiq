@@ -252,7 +252,7 @@ describe('Invoice PDF', () => {
 
     const events = await findAuditEvents(db, issuerId);
     expect(events.at(-1)).toEqual(
-      expect.objectContaining({ action: 'invoice-pdf-generated', actorUserId: null, subjectId: invoice.id, details: { version: 1, sha256: expect.stringMatching(/^[0-9a-f]{64}$/) } }),
+      expect.objectContaining({ action: 'invoice-pdf-generated', actorUserId: null, subjectId: invoice.id, details: { version: 1, invoiceRecordId: expect.any(String), sha256: expect.stringMatching(/^[0-9a-f]{64}$/) } }),
     );
   });
 

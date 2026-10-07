@@ -1,4 +1,4 @@
-import type { CorrectiveInvoiceType, ExemptionGround, VatRate } from '@verifiq/domain';
+import { RECORD_REJECTION_CODES, type CorrectiveInvoiceType, type ExemptionGround, type VatRate } from '@verifiq/domain';
 
 export const VERIFACTU_CONNECTOR = Symbol('VERIFACTU_CONNECTOR');
 
@@ -43,9 +43,12 @@ export type ConnectorResult<T> =
 
 export type TransientReason = 'server-error' | 'timeout' | 'network' | 'unauthorized' | 'in-progress';
 
-/** Stable rejection codes produced by Verifiq itself; the connector's own codes pass through as they come. */
+/**
+ * Stable rejection codes produced by Verifiq itself. Adapters translate the connector's codes for
+ * record data into the domain's RECORD_REJECTION_CODES; any other code passes through as it comes.
+ */
 export const REJECTION_CODES = {
-  issuerNotRegistered: 'issuer-not-registered',
+  issuerNotRegistered: RECORD_REJECTION_CODES.issuerNotRegistered,
   idempotencyKeyReused: 'idempotency-key-reused',
   notFound: 'not-found',
 } as const;
