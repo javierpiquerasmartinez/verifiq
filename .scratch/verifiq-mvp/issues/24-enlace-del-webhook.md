@@ -6,7 +6,7 @@ Spec: `../spec.md` (historia 61) · issue 11 · ADR 0001
 
 **Blocked by:** 11
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `VERIFACTI_WEBHOOK_ID` (el `id` que devolvió `POST /webhooks`) configura el webhook; exige `VERIFACTI_WEBHOOK_SECRET` (sin secreto cada entrega da 401 y Verifacti acaba desactivando el webhook)
 - [x] Al dar de alta el Emisor, `POST /nifs` lleva `webhooks: [VERIFACTI_WEBHOOK_ID]`
