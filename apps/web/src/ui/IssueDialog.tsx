@@ -50,7 +50,7 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
     try {
       const created = await issueInvoice(draft.id);
       queryClient.removeQueries({ queryKey: ['draft', draft.id] });
-      void queryClient.invalidateQueries({ queryKey: ['drafts'] });
+      void queryClient.invalidateQueries({ queryKey: ['invoices'] });
       setIssued(created);
     } catch (cause) {
       setError(issueError(cause));
@@ -164,7 +164,7 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
               <div className="row" style={{ gap: 20, padding: 18, border: '1px solid var(--line)', borderRadius: 'var(--r-lg)', flexWrap: 'nowrap' }}>
                 <TaxQr url={invoice.record.verificationUrl} number={invoice.number} />
                 <div className="stack" style={{ gap: 10 }}>
-                  <InvoiceStates invoice={invoice} />
+                  <InvoiceStates status={invoice.status} recordStatus={invoice.record.status} />
                   <p className="small ink2">
                     Hacienda suele confirmar el registro en 1–2 minutos. El PDF ya es válido y puedes descargarlo y
                     enviarlo.
@@ -173,7 +173,7 @@ export function IssueDialog({ draft, onClose }: { draft: Draft; onClose: () => v
               </div>
             ) : (
               <>
-                <InvoiceStates invoice={invoice} />
+                <InvoiceStates status={invoice.status} recordStatus={invoice.record.status} />
                 <Alert tone="danger" title="El registro no se ha podido enviar a la AEAT">
                   {invoice.record.rejection?.message} El número {invoice.number} queda asignado a esta factura.
                 </Alert>

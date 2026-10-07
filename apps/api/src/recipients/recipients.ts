@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { CensusStatus, Recipient, RecipientData, RecipientListStatus } from '@verifiq/domain';
 import { and, asc, eq, exists, ilike, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
-import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { invoices, issuers, recipients } from '../database/schema.js';
+import { escapeLike, fold, foldColumn } from '../database/search.js';
 import { VERIFACTU_CONNECTOR, type IssuerRef, type VerifactuConnector } from '../verifactu/connector.js';
 
 // Every method takes the issuer id resolved by the isolation layer (issuer-context.ts) and filters by it.
@@ -25,16 +25,6 @@ export class CensusNameMismatchError extends Error {
 export class CensusRejectedError extends Error {}
 
 export class RecipientHasInvoicesError extends Error {}
-
-const ACCENTED = 'áàäâéèëêíìïîóòöôúùüûç';
-const UNACCENTED = 'aaaaeeeeiiiioooouuuuc';
-
-/** Lowercase without accents (ñ kept), on both sides of a search: the same mapping as `foldColumn`. */
-const fold = (text: string) =>
-  [...text.normalize('NFC').toLowerCase()].map((char) => UNACCENTED[ACCENTED.indexOf(char)] ?? char).join('');
-const foldColumn = (column: AnyPgColumn) =>
-  sql`translate(lower(normalize(${column}, NFC)), ${ACCENTED}, ${UNACCENTED})`;
-const escapeLike = (text: string) => text.replace(/[\\%_]/g, '\\$&');
 
 const hasInvoices = (db: Database) =>
   exists(db.select({ one: sql`1` }).from(invoices).where(eq(invoices.recipientId, recipients.id)));

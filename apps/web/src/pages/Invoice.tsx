@@ -43,7 +43,7 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
             <h1 className="mono" style={{ fontSize: 30, fontWeight: 600, letterSpacing: '-.01em' }}>
               {invoice.number}
             </h1>
-            <InvoiceStates invoice={invoice} />
+            <InvoiceStates status={invoice.status} recordStatus={invoice.record.status} />
           </div>
           <dl className="kv" style={{ gridTemplateColumns: '150px 1fr', gap: '8px 24px' }}>
             <dt>Cliente</dt>

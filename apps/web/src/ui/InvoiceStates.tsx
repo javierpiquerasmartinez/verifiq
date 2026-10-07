@@ -1,4 +1,4 @@
-import type { Invoice, InvoiceRecordStatus } from '@verifiq/domain';
+import type { InvoiceRecordStatus, InvoiceStatus } from '@verifiq/domain';
 import { QRCodeSVG } from 'qrcode.react';
 import { Icon, type IconName } from './icons';
 
@@ -11,9 +11,12 @@ const RECORD_STATUSES: Record<InvoiceRecordStatus, { label: string; tone: string
   blocked: { label: 'Bloqueada', tone: 'blocked', icon: 'closeSmall' },
 };
 
+/** Still awaiting the AEAT's verdict more than 24 h after the Issuance. */
+const UNCONFIRMED = { label: 'Sin confirmar', tone: 'warn', icon: 'clock' } as const;
+
 /** The record's state at the AEAT, as a pill. */
-export function RecordState({ status }: { status: InvoiceRecordStatus }) {
-  const record = RECORD_STATUSES[status];
+export function RecordState({ status, unconfirmed = false }: { status: InvoiceRecordStatus; unconfirmed?: boolean }) {
+  const record = unconfirmed ? UNCONFIRMED : RECORD_STATUSES[status];
   return (
     <span className={`sr sr-${record.tone}`}>
       <span className="sr-k">AEAT</span>
@@ -25,12 +28,24 @@ export function RecordState({ status }: { status: InvoiceRecordStatus }) {
   );
 }
 
+const INVOICE_STATUSES: Record<InvoiceStatus, string> = { issued: 'Emitida', rectified: 'Rectificada', voided: 'Anulada' };
+
 /** Both states of an issued invoice: the invoice's own, and its record's at the AEAT. */
-export function InvoiceStates({ invoice }: { invoice: Invoice }) {
+export function InvoiceStates({
+  status,
+  recordStatus,
+  unconfirmed = false,
+}: {
+  status: InvoiceStatus;
+  recordStatus: InvoiceRecordStatus;
+  unconfirmed?: boolean;
+}) {
   return (
     <div className="states">
-      <span className="sf sf-issued">Emitida</span>
-      <RecordState status={invoice.record.status} />
+      <span className={`sf sf-${status}`}>
+        <span>{INVOICE_STATUSES[status]}</span>
+      </span>
+      <RecordState status={recordStatus} unconfirmed={unconfirmed} />
     </div>
   );
 }

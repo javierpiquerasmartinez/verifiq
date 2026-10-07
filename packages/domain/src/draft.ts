@@ -119,6 +119,7 @@ export const draftSummarySchema = z.object({
   id: z.uuid(),
   recipientName: z.string().nullable(),
   operationDescription: z.string(),
+  totalAmount: breakdownSchema.shape.totalAmount,
   amountDue: breakdownSchema.shape.amountDue,
   updatedAt: z.iso.datetime({ offset: true }),
 });

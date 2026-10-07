@@ -1,10 +1,10 @@
 import {
   catalogItemSchema,
   draftSchema,
-  draftSummarySchema,
   issuerSummarySchema,
-  healthResponseSchema,
   invitationSchema,
+  invoiceIncidentsSchema,
+  invoiceListSchema,
   invoiceSchema,
   nextInvoiceNumberSchema,
   onboardingSchema,
@@ -16,13 +16,14 @@ import {
   type CatalogItemDataInput,
   type Draft,
   type DraftDataInput,
-  type DraftSummary,
   type IssuerDefaults,
   type IssuerSummary,
   type FiscalDataInput,
-  type HealthResponse,
   type Invitation,
   type Invoice,
+  type InvoiceIncident,
+  type InvoiceList,
+  type InvoiceListQuery,
   type Onboarding,
   type Recipient,
   type RecipientDataInput,
@@ -59,10 +60,6 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
     throw new ApiError(response.status, typeof code === 'string' ? code : undefined, body);
   }
   return body;
-}
-
-export async function fetchHealth(): Promise<HealthResponse> {
-  return healthResponseSchema.parse(await request('/health'));
 }
 
 export async function fetchInvitation(token: string): Promise<Invitation> {
@@ -156,13 +153,6 @@ export async function setRecipientArchived(id: string, archived: boolean): Promi
   return recipientSchema.parse(await request(`/recipients/${encodeURIComponent(id)}/${action}`, { method: 'POST' }));
 }
 
-const draftListSchema = draftSummarySchema.array();
-
-/** Most recently edited first. */
-export async function fetchDrafts(): Promise<DraftSummary[]> {
-  return draftListSchema.parse(await request('/drafts'));
-}
-
 /** The api computes the amounts and the problems that still keep it from being issued. */
 export async function fetchDraft(id: string): Promise<Draft> {
   return draftSchema.parse(await request(`/drafts/${encodeURIComponent(id)}`));
@@ -207,6 +197,19 @@ export async function deleteCatalogItem(id: string): Promise<void> {
 /** Issues the draft (irreversible): it gets its number and becomes the invoice; its record is sent to the AEAT. */
 export async function issueInvoice(draftId: string): Promise<Invoice> {
   return invoiceSchema.parse(await request('/invoices', sendJson('POST', { draftId })));
+}
+
+/** A page of drafts and invoices, newest first, with how many match under each filter. */
+export async function fetchInvoiceList(query: InvoiceListQuery): Promise<InvoiceList> {
+  const search = new URLSearchParams(
+    Object.entries(query).flatMap(([key, value]) => (value === undefined ? [] : [[key, String(value)]])),
+  );
+  return invoiceListSchema.parse(await request(`/invoices?${search}`));
+}
+
+/** The invoices whose record needs the user, the longest waiting first. */
+export async function fetchInvoiceIncidents(): Promise<InvoiceIncident[]> {
+  return invoiceIncidentsSchema.parse(await request('/invoices/incidents'));
 }
 
 export async function fetchInvoice(id: string): Promise<Invoice> {
