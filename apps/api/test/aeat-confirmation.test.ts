@@ -302,10 +302,10 @@ describe('AEAT confirmation', () => {
       const { body } = await agent.get(`/invoices/${invoiceId}`).expect(200);
 
       expect(body.history).toEqual([
-        { event: 'issued', occurredAt: expect.any(String), actor: 'Lucía Ferrer', invoice: null },
-        { event: 'submitted', occurredAt: expect.any(String), actor: null, invoice: null },
-        { event: 'pdf-generated', occurredAt: expect.any(String), actor: null, invoice: null },
-        { event: 'accepted', occurredAt: expect.any(String), actor: null, invoice: null },
+        { event: 'issued', occurredAt: expect.any(String), actor: 'Lucía Ferrer', invoice: null, pdfVersion: null, withholding: null },
+        { event: 'submitted', occurredAt: expect.any(String), actor: null, invoice: null, pdfVersion: null, withholding: null },
+        { event: 'pdf-generated', occurredAt: expect.any(String), actor: null, invoice: null, pdfVersion: 1, withholding: null },
+        { event: 'accepted', occurredAt: expect.any(String), actor: null, invoice: null, pdfVersion: null, withholding: null },
       ]);
       const times = body.history.map((entry: { occurredAt: string }) => Date.parse(entry.occurredAt));
       expect(times).toEqual([...times].sort((a, b) => a - b));

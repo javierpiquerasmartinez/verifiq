@@ -27,6 +27,7 @@ import {
   type InvoiceList,
   type NextInvoiceNumber,
   type VoidedInvoice,
+  withholdingCorrectionSchema,
 } from '@verifiq/domain';
 import type { Response } from 'express';
 import { z } from 'zod';
@@ -44,6 +45,7 @@ import {
   NotRectifiableError,
   NotResubmittableError,
   NotVoidableError,
+  NotWithholdingCorrectableError,
   RecipientNotReadyError,
   RetryDayOverError,
 } from './invoices.js';
@@ -55,7 +57,7 @@ function httpError(error: unknown): unknown {
   if (error instanceof InvoicePdfNotAvailableError) {
     return new NotFoundException({
       code: InvoiceErrorCode.PdfNotAvailable,
-      message: 'The invoice has no PDF until its record has the QR',
+      message: 'The invoice has no PDF until its record has the QR, nor that version',
     });
   }
   if (error instanceof DraftNotFoundError) {
@@ -83,6 +85,12 @@ function httpError(error: unknown): unknown {
     return new ConflictException({
       code: InvoiceErrorCode.NotVoidable,
       message: 'Only an issued invoice, neither rectified nor corrective, without a corrective draft and with its verdict, is voided',
+    });
+  }
+  if (error instanceof NotWithholdingCorrectableError) {
+    return new ConflictException({
+      code: InvoiceErrorCode.NotWithholdingCorrectable,
+      message: 'Only an invoice not voided, whose latest record has its QR and without a corrective draft, has its withholding corrected',
     });
   }
   if (error instanceof RetryDayOverError) {
@@ -123,6 +131,12 @@ const listQuerySchema = invoiceListQuerySchema.transform(({ cursor, ...query }, 
     return z.NEVER;
   }
   return { ...query, cursor: decoded };
+});
+
+/** The query of a PDF download: a version, by default the current one; saved with `download`. */
+const pdfQuerySchema = z.object({
+  version: z.coerce.number().int().positive().optional(),
+  download: z.string().optional(),
 });
 
 /** Issued invoices, and the Issuance that makes them out of drafts. */
@@ -223,15 +237,34 @@ export class InvoicesController {
     return run(this.invoices.correctRecipient(issuerId, session.user.id, invoiceId(id), correction));
   }
 
-  /** The stored file of the current PDF version: shown in the browser, or saved with `?download`. */
+  /**
+   * "Corregir retención" (ADR 0005): the right IRPF withholding, with the same number and record and
+   * nothing sent to the AEAT. Its PDF gets a new version; the earlier ones stay.
+   */
+  @Post(':id/withholding-correction')
+  correctWithholding(
+    @CurrentIssuer() issuerId: string,
+    @CurrentSession() session: AuthSession,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<Invoice> {
+    const correction = parseBody(withholdingCorrectionSchema, body);
+    return run(this.invoices.correctWithholding(issuerId, session.user.id, invoiceId(id), correction));
+  }
+
+  /**
+   * The stored file of the current PDF version, or of an earlier one with `?version`: shown in the
+   * browser, or saved with `?download`.
+   */
   @Get(':id/pdf')
   async pdf(
     @CurrentIssuer() issuerId: string,
     @Param('id') id: string,
-    @Query('download') download: string | undefined,
+    @Query() query: unknown,
     @Res() response: Response,
   ): Promise<void> {
-    const pdf = await run(this.pdfs.currentFile(issuerId, invoiceId(id)));
+    const { version, download } = parseBody(pdfQuerySchema, query);
+    const pdf = await run(this.pdfs.file(issuerId, invoiceId(id), version));
     response
       .set({
         'Content-Type': 'application/pdf',

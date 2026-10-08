@@ -18,7 +18,9 @@ export type AuditAction =
   /** The user voided the invoice: its Voiding is sent to the AEAT and its number is never reused. */
   | 'invoice-voided'
   /** "Corregir destinatario": the invoice was voided or totally rectified, and a new draft prepared. */
-  | 'invoice-recipient-corrected';
+  | 'invoice-recipient-corrected'
+  /** "Corregir retención": the IRPF withholding of the invoice's copy changed, and its PDF got a new version. */
+  | 'invoice-withholding-corrected';
 
 export type AuditEvent = Omit<typeof auditEvents.$inferSelect, 'action'> & { action: AuditAction };
 

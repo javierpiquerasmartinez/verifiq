@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import type { InvoiceEvent, InvoiceHistoryEntry } from '@verifiq/domain';
-import { formatDateTime } from '../format';
+import { invoicePdfUrl } from '../api';
+import { formatDateTime, WITHHOLDING_LABELS } from '../format';
 import { Icon, type IconName } from './icons';
 
 const EVENTS: Record<InvoiceEvent, { label: string; icon: IconName; tone?: 'ok' | 'warn' | 'danger' | 'rect' }> = {
@@ -14,10 +15,14 @@ const EVENTS: Record<InvoiceEvent, { label: string; icon: IconName; tone?: 'ok' 
   resubmitted: { label: 'Corregida y reenviada', icon: 'arrowRight' },
   rectified: { label: 'Rectificada por', icon: 'rectify', tone: 'rect' },
   voided: { label: 'Anulada', icon: 'ban', tone: 'danger' },
+  'withholding-corrected': { label: 'Retención corregida', icon: 'file' },
 };
 
-/** The invoice's timeline, newest first: what happened, when, and who did it («Sistema» if no one did). */
-export function InvoiceHistory({ history }: { history: InvoiceHistoryEntry[] }) {
+/**
+ * The invoice's timeline, newest first: what happened, when, and who did it («Sistema» if no one did).
+ * Every PDF version it generated stays there, to open.
+ */
+export function InvoiceHistory({ invoiceId, history }: { invoiceId: string; history: InvoiceHistoryEntry[] }) {
   return (
     <section className="card card-pad stack" style={{ gap: 18 }} aria-labelledby="invoice-history">
       <h2 className="h3" id="invoice-history">
@@ -40,6 +45,19 @@ export function InvoiceHistory({ history }: { history: InvoiceHistoryEntry[] }) 
                       <Link to="/invoices/$invoiceId" params={{ invoiceId: entry.invoice.id }} className="lnk mono">
                         {entry.invoice.number}
                       </Link>
+                    </>
+                  )}
+                  {entry.withholding && (
+                    <>
+                      : {WITHHOLDING_LABELS[entry.withholding.before]} → {WITHHOLDING_LABELS[entry.withholding.after]}
+                    </>
+                  )}
+                  {entry.pdfVersion !== null && (
+                    <>
+                      {' '}
+                      <a href={invoicePdfUrl(invoiceId, { version: entry.pdfVersion })} target="_blank" rel="noreferrer" className="lnk">
+                        versión {entry.pdfVersion}
+                      </a>
                     </>
                   )}
                 </p>
