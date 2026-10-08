@@ -272,6 +272,9 @@ export function invoicePdfUrl(id: string, { download = false, version }: { downl
   return `${apiUrl}/invoices/${encodeURIComponent(id)}/pdf${search && `?${search}`}`;
 }
 
+/** Every issued invoice, for the accountant: a ZIP with their current PDFs and a summary CSV. */
+export const invoiceExportUrl = `${apiUrl}/invoices/export`;
+
 /** The number the next Issuance in the series assigns, unless another one comes first. */
 export async function fetchNextInvoiceNumber(series: 'ordinary' | 'corrective' = 'ordinary'): Promise<string> {
   return nextInvoiceNumberSchema.parse(await request(`/invoices/next-number?series=${series}`)).number;

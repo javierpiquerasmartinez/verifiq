@@ -9,6 +9,7 @@ export * from './format.js';
 export * from './health.js';
 export * from './iban.js';
 export * from './invoice.js';
+export * from './invoice-export.js';
 export * from './invoice-list.js';
 export * from './issuer.js';
 export * from './onboarding.js';
