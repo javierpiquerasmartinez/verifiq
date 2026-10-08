@@ -29,3 +29,13 @@ export function formatDateTime(instant: string): string {
   const parts = Object.fromEntries(DATE_TIME.formatToParts(new Date(instant)).map(({ type, value }) => [type, value]));
   return `${parts.day}/${parts.month}/${parts.year} · ${parts.hour}:${parts.minute}`;
 }
+
+/** The day of an instant in Spanish time: "01/08/2026". */
+export const formatDate = (instant: string) => DATE.format(new Date(instant));
+
+const DATE = new Intl.DateTimeFormat('es-ES', {
+  timeZone: 'Europe/Madrid',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
