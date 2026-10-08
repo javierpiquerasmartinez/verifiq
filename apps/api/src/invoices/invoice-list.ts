@@ -60,6 +60,7 @@ export function latestRecords(db: Database, now: Date, issuerId?: string) {
       invoiceId: invoiceRecords.invoiceId,
       status: invoiceRecords.status,
       createdAt: invoiceRecords.createdAt,
+      updatedAt: invoiceRecords.updatedAt,
       confirmedAt: invoiceRecords.confirmedAt,
       aeatErrorCode: invoiceRecords.aeatErrorCode,
       rejectionCode: invoiceRecords.rejectionCode,

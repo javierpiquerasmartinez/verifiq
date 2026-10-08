@@ -56,22 +56,25 @@ export type OperatorIssuer = z.infer<typeof operatorIssuerSchema>;
 
 export const operatorIssuerListSchema = operatorIssuerSchema.array();
 
-/** Why a record alerts the operator: still without the AEAT's verdict after 24 h, or rejected by the AEAT. */
-export const RECORD_ALERT_KINDS = ['unconfirmed', 'rejected'] as const;
+/**
+ * Why a record alerts the operator: still without the AEAT's verdict after 24 h, rejected by the AEAT,
+ * or blocked (refused by the connector before reaching the AEAT; it waits for the user's Resubmission).
+ */
+export const RECORD_ALERT_KINDS = ['unconfirmed', 'rejected', 'blocked'] as const;
 
 export type RecordAlertKind = (typeof RECORD_ALERT_KINDS)[number];
 
-/** The latest record of an invoice, stuck or rejected. */
+/** The latest record of an invoice, stuck, rejected or blocked. */
 export const recordAlertSchema = z.object({
   invoiceRecordId: z.uuid(),
   kind: z.enum(RECORD_ALERT_KINDS),
   issuer: z.object({ id: z.uuid(), name: z.string(), taxId: z.string() }),
   /** To talk about it with the user: the invoice's number, nothing of its content. */
   invoiceNumber: z.string(),
-  /** Unconfirmed: when it was issued. Rejected: when the AEAT's verdict arrived. */
+  /** Unconfirmed: when it was issued. Rejected: when the AEAT's verdict arrived. Blocked: when the connector refused it. */
   since: z.iso.datetime(),
-  /** The AEAT's error code; its message may name the recipient, so it is left out. */
-  aeatErrorCode: z.string().nullable(),
+  /** The AEAT's error code, or the connector's when blocked; their messages may name the recipient, so they are left out. */
+  errorCode: z.string().nullable(),
 });
 
 export type RecordAlert = z.infer<typeof recordAlertSchema>;

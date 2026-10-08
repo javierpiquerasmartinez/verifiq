@@ -5,6 +5,7 @@ import {
   unconfirmedBefore,
   type OperatorIssuer,
   type RecordAlert,
+  type RecordAlertKind,
 } from '@verifiq/domain';
 import { and, asc, eq, inArray, lte, or, sql } from 'drizzle-orm';
 import { DATABASE, type Database } from '../database/database.module.js';
@@ -67,8 +68,8 @@ export class OperatorPanelService {
   }
 
   /**
-   * The invoices whose latest record the AEAT rejected, or that is still without its verdict 24 h after
-   * the Issuance (a Voiding included), the longest waiting first.
+   * The invoices whose latest record the AEAT rejected, the connector blocked, or that is still without
+   * its verdict 24 h after the Issuance (a Voiding included), the longest waiting first.
    */
   async alerts(): Promise<RecordAlert[]> {
     const now = new Date();
@@ -78,8 +79,10 @@ export class OperatorPanelService {
         invoiceRecordId: record.id,
         status: record.status,
         createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
         confirmedAt: record.confirmedAt,
         aeatErrorCode: record.aeatErrorCode,
+        rejectionCode: record.rejectionCode,
         series: invoices.series,
         number: invoices.number,
         issuerId: issuers.id,
@@ -91,21 +94,24 @@ export class OperatorPanelService {
       .innerJoin(issuers, eq(issuers.id, invoices.issuerId))
       .where(
         or(
-          eq(record.status, 'rejected'),
+          inArray(record.status, ['rejected', 'blocked']),
           and(inArray(record.status, [...AWAITING_VERDICT_STATUSES]), lte(record.createdAt, unconfirmedBefore(now))),
         ),
       )
-      .orderBy(asc(sql`coalesce(${record.confirmedAt}, ${record.createdAt})`), asc(record.id));
-    return rows.map((row) => {
-      const rejected = row.status === 'rejected';
-      return {
-        invoiceRecordId: row.invoiceRecordId,
-        kind: rejected ? 'rejected' : 'unconfirmed',
-        issuer: { id: row.issuerId, name: row.issuerName, taxId: row.issuerTaxId },
-        invoiceNumber: invoiceNumberIn(row.series, row.number),
-        since: ((rejected ? row.confirmedAt : null) ?? row.createdAt).toISOString(),
-        aeatErrorCode: rejected ? row.aeatErrorCode : null,
-      };
-    });
+    const since = (row: (typeof rows)[number]) =>
+      row.status === 'rejected' ? (row.confirmedAt ?? row.createdAt) : row.status === 'blocked' ? row.updatedAt : row.createdAt;
+    return rows
+      .map((row) => {
+        const kind: RecordAlertKind = row.status === 'rejected' || row.status === 'blocked' ? row.status : 'unconfirmed';
+        return {
+          invoiceRecordId: row.invoiceRecordId,
+          kind,
+          issuer: { id: row.issuerId, name: row.issuerName, taxId: row.issuerTaxId },
+          invoiceNumber: invoiceNumberIn(row.series, row.number),
+          since: since(row).toISOString(),
+          errorCode: kind === 'rejected' ? row.aeatErrorCode : kind === 'blocked' ? row.rejectionCode : null,
+        };
+      })
+      .sort((a, b) => a.since.localeCompare(b.since) || a.invoiceRecordId.localeCompare(b.invoiceRecordId));
   }
 }

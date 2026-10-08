@@ -6,6 +6,7 @@ import type {
   OperatorInvitation,
   OperatorIssuer,
   RecordAlert,
+  RecordAlertKind,
   RepresentationError,
   RepresentationState,
 } from '@verifiq/domain';
@@ -112,8 +113,17 @@ function Empty({ children }: { children: ReactNode }) {
   );
 }
 
+/** The `tag-*` styles. */
+type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'neutral';
+
+const ALERT_LABELS: Record<RecordAlertKind, { label: string; tone: Tone }> = {
+  rejected: { label: 'Rechazado', tone: 'danger' },
+  blocked: { label: 'Bloqueado', tone: 'danger' },
+  unconfirmed: { label: 'Sin confirmar 24 h', tone: 'warn' },
+};
+
 function Alerts({ alerts }: { alerts: RecordAlert[] }) {
-  if (alerts.length === 0) return <Empty>Ningún registro rechazado ni sin confirmar.</Empty>;
+  if (alerts.length === 0) return <Empty>Ningún registro rechazado, bloqueado ni sin confirmar.</Empty>;
   return (
     <div className="card" style={{ overflow: 'hidden' }}>
       <table className="tbl">
@@ -123,18 +133,14 @@ function Alerts({ alerts }: { alerts: RecordAlert[] }) {
             <th>Emisor</th>
             <th style={{ width: 170 }}>Factura</th>
             <th style={{ width: 190 }}>Desde</th>
-            <th style={{ width: 150 }}>Código AEAT</th>
+            <th style={{ width: 220 }}>Código de error</th>
           </tr>
         </thead>
         <tbody>
           {alerts.map((alert) => (
             <tr key={alert.invoiceRecordId}>
               <td>
-                {alert.kind === 'rejected' ? (
-                  <span className="tag tag-danger">Rechazado</span>
-                ) : (
-                  <span className="tag tag-warn">Sin confirmar 24 h</span>
-                )}
+                <span className={`tag tag-${ALERT_LABELS[alert.kind].tone}`}>{ALERT_LABELS[alert.kind].label}</span>
               </td>
               <td>
                 {alert.issuer.name}
@@ -142,7 +148,7 @@ function Alerts({ alerts }: { alerts: RecordAlert[] }) {
               </td>
               <td className="mono">{alert.invoiceNumber}</td>
               <td className="num">{formatDateTime(alert.since)}</td>
-              <td className="mono">{alert.aeatErrorCode ?? <span className="muted">—</span>}</td>
+              <td className="mono">{alert.errorCode ?? <span className="muted">—</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -150,9 +156,6 @@ function Alerts({ alerts }: { alerts: RecordAlert[] }) {
     </div>
   );
 }
-
-/** The `tag-*` styles. */
-type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'neutral';
 
 const REPRESENTATION_LABELS: Record<Exclude<RepresentationState, 'error'>, { label: string; tone: Tone }> = {
   'not-required': { label: 'No necesaria', tone: 'neutral' },

@@ -54,8 +54,18 @@ describe('Operator panel', () => {
     province: 'Valencia',
   });
 
-  /** Issues an invoice to a new recipient and sends its record: it waits for the AEAT's verdict. */
-  async function submittedInvoice(agent: Agent, { concept = 'Odontología conservadora', description = 'Servicios odontológicos agosto 2026' } = {}) {
+  /**
+   * Issues an invoice to a new recipient and sends its record: it waits for the AEAT's verdict, or is
+   * blocked if the connector `refuses` it.
+   */
+  async function submittedInvoice(
+    agent: Agent,
+    {
+      concept = 'Odontología conservadora',
+      description = 'Servicios odontológicos agosto 2026',
+      refuses,
+    }: { concept?: string; description?: string; refuses?: { code: string; message: string } } = {},
+  ) {
     const data = recipient();
     connector.census.set(data.taxId, data.name);
     const { body: created } = await agent.post('/recipients').send(data).expect(201);
@@ -70,6 +80,7 @@ describe('Operator panel', () => {
       })
       .expect(201);
     const { body: invoice } = await agent.post('/invoices').send({ draftId: draft.id }).expect(201);
+    if (refuses) connector.failNext({ kind: 'rejected', ...refuses }, 'submitRecord');
     await worker.runPending();
     const { rows } = await db.$client.query<{ id: string; connector_record_id: string }>(
       'SELECT id, connector_record_id FROM invoice_records WHERE invoice_id = $1',
@@ -268,8 +279,25 @@ describe('Operator panel', () => {
           issuer: { id: issuerId, name: fiscalData().name, taxId },
           invoiceNumber: invoice.number,
           since: expect.any(String),
-          aeatErrorCode: '1100',
+          errorCode: '1100',
         },
+      ]);
+    });
+
+    it('alerts of a record the connector blocked, with its code', async () => {
+      const { agent, issuerId } = await issuingUser();
+      const { invoice, recordId } = await submittedInvoice(agent, {
+        refuses: { code: 'recipient-not-in-census', message: 'El NIF/NOMBRE no está registrado' },
+      });
+
+      expect(await alertsOf(issuerId)).toEqual([
+        expect.objectContaining({
+          invoiceRecordId: recordId,
+          kind: 'blocked',
+          invoiceNumber: invoice.number,
+          since: expect.any(String),
+          errorCode: 'recipient-not-in-census',
+        }),
       ]);
     });
 
@@ -283,7 +311,7 @@ describe('Operator panel', () => {
       const alerts = await alertsOf(issuerId);
 
       expect(alerts).toEqual([
-        expect.objectContaining({ invoiceRecordId: stuck.recordId, kind: 'unconfirmed', aeatErrorCode: null }),
+        expect.objectContaining({ invoiceRecordId: stuck.recordId, kind: 'unconfirmed', errorCode: null }),
       ]);
     });
 
@@ -308,6 +336,11 @@ describe('Operator panel', () => {
     });
     const stuck = await submittedInvoice(agent, { concept, description });
     await age(stuck.recordId, 30);
+    const blocked = await submittedInvoice(agent, {
+      concept,
+      description,
+      refuses: { code: 'recipient-not-in-census', message: `El NIF/NOMBRE (${concept}) no está registrado` },
+    });
 
     const responses = await Promise.all(
       ['/operator/issuers', '/operator/alerts', '/operator/invitations'].map((path) => operator.get(path).expect(200)),
@@ -323,6 +356,9 @@ describe('Operator panel', () => {
         description,
         rejected.invoice.id,
         stuck.invoice.id,
+        blocked.recipient.name,
+        blocked.recipient.taxId,
+        blocked.invoice.id,
         // The amounts, as they travel.
         '2340.00',
         '1989.00',
