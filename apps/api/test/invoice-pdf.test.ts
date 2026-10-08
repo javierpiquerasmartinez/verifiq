@@ -83,7 +83,13 @@ describe('Invoice PDF', () => {
     return { ...user, issuerId };
   }
 
-  async function issue(agent: Agent) {
+  const monthlyLines = [
+    line('Odontología conservadora', '2340'),
+    line('Endodoncias', '1650'),
+    line('Material', '100', { kind: 'taxed', rate: 21 }),
+  ];
+
+  async function issue(agent: Agent, lines = monthlyLines) {
     const recipient = {
       name: 'Clínica Dental Ruzafa SL',
       taxId: uniqueTaxId(),
@@ -100,7 +106,7 @@ describe('Invoice PDF', () => {
         recipientId: created.id,
         billingPeriod: { start: '2026-08-01', end: '2026-08-31' },
         operationDescription: 'Servicios odontológicos agosto 2026',
-        lines: [line('Odontología conservadora', '2340'), line('Endodoncias', '1650'), line('Material', '100', { kind: 'taxed', rate: 21 })],
+        lines,
         withholding: 15,
       })
       .expect(201);
@@ -193,6 +199,29 @@ describe('Invoice PDF', () => {
     }
     // Only the QR: the issuer has no logo.
     expect(imagesIn(pdf.body)).toBe(1);
+  });
+
+  it('prints one exempt base and one mention per exemption ground', async () => {
+    const { agent } = await issuingUser();
+    const { invoice } = await issue(agent, [
+      line('Odontología conservadora', '2340'),
+      line('Fisioterapia', '60', { kind: 'exempt', ground: 'healthcare' }),
+      line('Charla', '300', { kind: 'exempt', ground: 'otherArticle20' }),
+    ]);
+
+    await worker.runPending();
+
+    const text = await textOf((await download(agent, invoice.id).expect(200)).body);
+    for (const content of [
+      'Base imponible (exenta) 60,00 €',
+      'Base imponible (exenta) 2.340,00 €',
+      'Base imponible (exenta) 300,00 €',
+      'Operación exenta de IVA en virtud del artículo 20.Uno.3º de la Ley 37/1992',
+      'Operación exenta de IVA en virtud del artículo 20.Uno.5º de la Ley 37/1992',
+      'Operación exenta de IVA en virtud del artículo 20 de la Ley 37/1992',
+    ]) {
+      expect(text).toContain(content);
+    }
   });
 
   it('includes the logo when the issuer has one', async () => {

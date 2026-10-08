@@ -1,6 +1,4 @@
 import {
-  EXEMPTION_GROUND_IDS,
-  exemptionGround,
   fiscalDataSchema,
   IssuerErrorCode,
   LOGO_CONTENT_TYPES,
@@ -13,13 +11,14 @@ import {
   type FiscalData,
   type IssuerDefaults,
   type Onboarding,
-  type VatTreatment,
   type WithholdingRate,
 } from '@verifiq/domain';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError, logoUrl, removeLogo, uploadLogo } from '../api';
+import { EXEMPTION_GROUND_REQUIRED, vatChoiceOf, vatOfChoice, type VatChoice } from '../draft-lines';
 import { WITHHOLDING_LABELS } from '../format';
 import { Alert, Field, Select, Seg } from './components';
+import { ExemptionGroundSelect } from './ExemptionGroundSelect';
 
 // The issuer's data and defaults: the onboarding wizard fills them, the settings edit them.
 
@@ -242,32 +241,20 @@ export function FiscalDataForm({
   );
 }
 
-type VatChoice = 'exempt' | `${(typeof VAT_RATES)[number]}`;
-
-function vatChoiceOf(vat: VatTreatment): VatChoice {
-  return vat.kind === 'exempt' ? 'exempt' : `${vat.rate}`;
-}
-
 /** The withholding and the VAT every new invoice starts with. */
 export function DefaultsForm({ onboarding, save, onSaved, actions }: IssuerFormProps<IssuerDefaults>) {
   const initial = onboarding.defaults;
   const [withholding, setWithholding] = useState<WithholdingRate>(initial?.withholding ?? 15);
   const [vat, setVat] = useState<VatChoice>(initial ? vatChoiceOf(initial.vat) : '21');
-  const [ground, setGround] = useState<ExemptionGroundId>(
-    initial?.vat.kind === 'exempt' ? initial.vat.ground : EXEMPTION_GROUND_IDS[0],
-  );
+  const [ground, setGround] = useState<ExemptionGroundId | ''>(initial?.vat.kind === 'exempt' ? initial.vat.ground : '');
+  const [groundError, setGroundError] = useState<string>();
   const { pending, error, run } = useSubmit();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const defaults: IssuerDefaults = {
-      withholding,
-      vat:
-        vat === 'exempt'
-          ? { kind: 'exempt', ground }
-          : { kind: 'taxed', rate: Number(vat) as (typeof VAT_RATES)[number] },
-    };
-    await run(async () => onSaved(await save(defaults)));
+    const chosen = vatOfChoice(vat, ground);
+    if (!chosen) return setGroundError(EXEMPTION_GROUND_REQUIRED);
+    await run(async () => onSaved(await save({ withholding, vat: chosen })));
   }
 
   return (
@@ -294,18 +281,15 @@ export function DefaultsForm({ onboarding, save, onSaved, actions }: IssuerFormP
         ))}
       </Select>
       {vat === 'exempt' && (
-        <Select
-          label="Supuesto de exención"
+        <ExemptionGroundSelect
           value={ground}
-          onChange={(event) => setGround(event.target.value as ExemptionGroundId)}
+          onChange={(chosen) => {
+            setGround(chosen);
+            setGroundError(undefined);
+          }}
           help="Determina la mención legal que se imprime en tus facturas."
-        >
-          {EXEMPTION_GROUND_IDS.map((id) => (
-            <option key={id} value={id}>
-              {exemptionGround(id).label}
-            </option>
-          ))}
-        </Select>
+          error={groundError}
+        />
       )}
       {actions(pending)}
     </form>

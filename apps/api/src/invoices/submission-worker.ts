@@ -7,6 +7,7 @@ import {
   voidingFlagsOf,
   type InvoiceRecordStatus,
   type InvoiceSnapshot,
+  type VerifactuExemptionCode,
 } from '@verifiq/domain';
 import { and, asc, eq, lt } from 'drizzle-orm';
 import { recordAuditEvent } from '../audit/audit.js';
@@ -44,7 +45,7 @@ export function recordInvoiceOf(
   const { breakdown } = snapshot;
   // Copies issued before corrective invoices existed have no correction.
   const correction = snapshot.correction ?? null;
-  const exemptBases = new Map<string, string[]>();
+  const exemptBases = new Map<VerifactuExemptionCode, string[]>();
   for (const { ground, base } of breakdown.exempt) {
     const code = exemptionGround(ground).verifactuCode;
     exemptBases.set(code, [...(exemptBases.get(code) ?? []), base]);
@@ -54,7 +55,7 @@ export function recordInvoiceOf(
     ...[...exemptBases].map(([code, bases]): RecordLine => ({
       kind: 'exempt',
       taxBase: sumAmounts(bases),
-      exemptionCode: code as 'E1',
+      exemptionCode: code,
     })),
   ];
   return {

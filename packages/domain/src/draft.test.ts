@@ -28,6 +28,20 @@ describe('defaultOperationDescription', () => {
     );
   });
 
+  it.each([
+    ['healthcare', 'Servicios sanitarios septiembre 2026'],
+    ['dentistry', 'Servicios odontológicos septiembre 2026'],
+    ['education', 'Servicios de enseñanza septiembre 2026'],
+    ['privateTuition', 'Clases particulares septiembre 2026'],
+    ['insuranceMediation', 'Servicios de mediación de seguros septiembre 2026'],
+    ['authorsAndArtists', 'Servicios profesionales septiembre 2026'],
+    ['otherArticle20', 'Servicios profesionales septiembre 2026'],
+  ] as const)('names the services after the exemption ground: %s', (ground, expected) => {
+    expect(defaultOperationDescription({ start: '2026-09-01', end: '2026-09-30' }, { kind: 'exempt', ground })).toBe(
+      expected,
+    );
+  });
+
   it('calls taxed services professional services', () => {
     expect(defaultOperationDescription({ start: '2026-09-01', end: '2026-09-30' }, { kind: 'taxed', rate: 21 })).toBe(
       'Servicios profesionales septiembre 2026',
