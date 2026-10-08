@@ -38,12 +38,19 @@ La fecha de firma («En Valencia, a 8 de octubre de 2026») está fija en el có
 - Decidir cuándo se re-firma: ¿en cada release o solo cuando cambia el texto o lo que el sistema hace?
 - Decidir si basta con el histórico de git o si hay que guardar una copia por versión (por ejemplo, un PDF por release).
 
-## 5. Revisión legal del texto completo
+## 5. Entregar la declaración al darse de alta
+
+La declaración debe entregarse al cliente cuando adquiere el producto (`docs/research/verifactu-verifacti.md` §14). Hoy solo se puede consultar: está en el pie de página y en Ajustes, pero nadie se la entrega al Usuario.
+
+- Enlazarla en el paso de condiciones del alta, junto a los términos de uso y el contrato de encargo, o en el email de invitación.
+- Decidir si hace falta dejar constancia de la entrega (por ejemplo, la versión vista, como se hace con la aceptación de los términos).
+
+## 6. Revisión legal del texto completo
 
 - Revisar con un asesor los campos a) a l) y la frase de cumplimiento del campo k).
 - Confirmar que los datos del productor (nombre, NIF, dirección) son los que deben figurar.
 
-## 6. Responsabilidades fuera de la declaración (relacionado)
+## 7. Responsabilidades fuera de la declaración (relacionado)
 
 La declaración responsable la firma solo el productor, y solo certifica que el software cumple. No dice nada de quién responde del contenido de cada factura. Ese reparto va en los términos de uso y en el contrato de encargo, que siguen pendientes del operador (spec, «Further Notes»):
 
