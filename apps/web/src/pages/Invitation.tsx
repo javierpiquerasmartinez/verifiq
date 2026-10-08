@@ -14,6 +14,10 @@ const PROBLEMS: Record<string, { title: string; text: string }> = {
     title: 'Esta invitación ya se ha usado',
     text: 'Si ya configuraste la verificación en dos pasos, entra con tu email y contraseña. Si no la terminaste, pide una nueva invitación.',
   },
+  [AuthErrorCode.InvitationRevoked]: {
+    title: 'Esta invitación se ha retirado',
+    text: 'Quien te invitó la ha anulado. Si crees que es un error, pídele una nueva.',
+  },
   [AuthErrorCode.InvitationNotFound]: {
     title: 'Esta invitación no es válida',
     text: 'Comprueba que has copiado el enlace completo o pide una nueva invitación.',

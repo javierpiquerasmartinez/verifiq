@@ -1,5 +1,5 @@
 import { AuthErrorCode } from '@verifiq/domain';
-import { twoFactorClient } from 'better-auth/client/plugins';
+import { inferAdditionalFields, twoFactorClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 import { apiUrl } from './api';
 
@@ -7,7 +7,8 @@ import { apiUrl } from './api';
 export const authClient = createAuthClient({
   baseURL: new URL(`${apiUrl}/auth`, window.location.origin).toString(),
   fetchOptions: { credentials: 'include' },
-  plugins: [twoFactorClient()],
+  // The user's role (the domain's UserRole) drives which part of the app it reaches.
+  plugins: [twoFactorClient(), inferAdditionalFields({ user: { role: { type: 'string', input: false } } })],
 });
 
 export type SessionUser = NonNullable<

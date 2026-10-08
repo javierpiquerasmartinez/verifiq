@@ -1,6 +1,11 @@
 import {
   catalogItemSchema,
   correctedRecipientSchema,
+  createdInvitationSchema,
+  operatorInvitationListSchema,
+  operatorInvitationSchema,
+  operatorIssuerListSchema,
+  recordAlertListSchema,
   draftSchema,
   issuerSummarySchema,
   invitationSchema,
@@ -17,6 +22,11 @@ import {
   type CatalogItem,
   type CatalogItemDataInput,
   type CorrectedRecipient,
+  type CreatedInvitation,
+  type NewInvitation,
+  type OperatorInvitation,
+  type OperatorIssuer,
+  type RecordAlert,
   type Draft,
   type DraftDataInput,
   type IssuerDefaults,
@@ -278,4 +288,29 @@ export const invoiceExportUrl = `${apiUrl}/invoices/export`;
 /** The number the next Issuance in the series assigns, unless another one comes first. */
 export async function fetchNextInvoiceNumber(series: 'ordinary' | 'corrective' = 'ordinary'): Promise<string> {
   return nextInvoiceNumberSchema.parse(await request(`/invoices/next-number?series=${series}`)).number;
+}
+
+// --- The operator's panel.
+
+/** Every issuer, with its Representation, how many invoices it has and how many have an incident. */
+export async function fetchOperatorIssuers(): Promise<OperatorIssuer[]> {
+  return operatorIssuerListSchema.parse(await request('/operator/issuers'));
+}
+
+/** Records the AEAT rejected or left unconfirmed for 24 h, the longest waiting first. */
+export async function fetchRecordAlerts(): Promise<RecordAlert[]> {
+  return recordAlertListSchema.parse(await request('/operator/alerts'));
+}
+
+export async function fetchOperatorInvitations(): Promise<OperatorInvitation[]> {
+  return operatorInvitationListSchema.parse(await request('/operator/invitations'));
+}
+
+/** Emails the invitation; its link comes back this once. */
+export async function createOperatorInvitation(body: NewInvitation): Promise<CreatedInvitation> {
+  return createdInvitationSchema.parse(await request('/operator/invitations', sendJson('POST', body)));
+}
+
+export async function revokeOperatorInvitation(id: string): Promise<OperatorInvitation> {
+  return operatorInvitationSchema.parse(await request(`/operator/invitations/${encodeURIComponent(id)}/revoke`, { method: 'POST' }));
 }

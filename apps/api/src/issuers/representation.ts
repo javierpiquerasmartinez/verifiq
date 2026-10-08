@@ -152,24 +152,7 @@ export class RepresentationService {
   }
 
   private view(row: IssuerRow, stale: boolean): Representation {
-    if (!row.connectorRegisteredAt && row.connectorRejection) {
-      return { state: 'error', error: 'issuer-not-accepted', signingUrl: null, stale, canIssue: false };
-    }
-    const registered = row.connectorRegisteredAt !== null;
-    if (!this.options.representationRequired) {
-      return { state: 'not-required', error: null, signingUrl: null, stale, canIssue: registered };
-    }
-    const state = (row.representationState ?? 'none') as ConnectorState;
-    switch (state) {
-      case 'none':
-        return { state: 'not-started', error: null, signingUrl: null, stale, canIssue: false };
-      case 'pending':
-        return { state: 'pending', error: null, signingUrl: row.representationSigningUrl, stale, canIssue: false };
-      case 'signed':
-        return { state: 'signed', error: null, signingUrl: null, stale, canIssue: registered };
-      default:
-        return { state: 'error', error: state, signingUrl: null, stale, canIssue: false };
-    }
+    return knownRepresentation(row, this.options, stale);
   }
 
   private async find(issuerId: string): Promise<IssuerRow> {
@@ -185,6 +168,35 @@ export class RepresentationService {
       .where(eq(issuers.id, issuerId))
       .returning();
     return row!;
+  }
+}
+
+/**
+ * The Representation as last known on the issuer's row: what the connector reported last, or that it
+ * refused the issuer. `stale` says the connector could not be asked now.
+ */
+export function knownRepresentation(
+  row: Pick<IssuerRow, 'connectorRegisteredAt' | 'connectorRejection' | 'representationState' | 'representationSigningUrl'>,
+  { representationRequired }: RepresentationOptions,
+  stale: boolean,
+): Representation {
+  if (!row.connectorRegisteredAt && row.connectorRejection) {
+    return { state: 'error', error: 'issuer-not-accepted', signingUrl: null, stale, canIssue: false };
+  }
+  const registered = row.connectorRegisteredAt !== null;
+  if (!representationRequired) {
+    return { state: 'not-required', error: null, signingUrl: null, stale, canIssue: registered };
+  }
+  const state = (row.representationState ?? 'none') as ConnectorState;
+  switch (state) {
+    case 'none':
+      return { state: 'not-started', error: null, signingUrl: null, stale, canIssue: false };
+    case 'pending':
+      return { state: 'pending', error: null, signingUrl: row.representationSigningUrl, stale, canIssue: false };
+    case 'signed':
+      return { state: 'signed', error: null, signingUrl: null, stale, canIssue: registered };
+    default:
+      return { state: 'error', error: state, signingUrl: null, stale, canIssue: false };
   }
 }
 

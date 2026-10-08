@@ -6,10 +6,10 @@ Spec: `../spec.md` (historias 1, 91–93)
 
 **Blocked by:** 06; 11; `design.html`
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Rol operador separado del de Usuario
-- [ ] Crear y revocar invitaciones desde la UI
-- [ ] Listado de Emisores: nombre, NIF, estado de Representación, nº de facturas, incidencias abiertas
-- [ ] Alertas de Registros Sin confirmar o Rechazados
-- [ ] Ningún endpoint del operador devuelve facturas, líneas ni Destinatarios (test)
+- [x] Rol operador separado del de Usuario
+- [x] Crear y revocar invitaciones desde la UI
+- [x] Listado de Emisores: nombre, NIF, estado de Representación, nº de facturas, incidencias abiertas
+- [x] Alertas de Registros Sin confirmar o Rechazados
+- [x] Ningún endpoint del operador devuelve facturas, líneas ni Destinatarios (test)

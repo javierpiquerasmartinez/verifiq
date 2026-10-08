@@ -23,7 +23,7 @@ export class IssuersModule {
         { provide: REPRESENTATION_OPTIONS, useValue: representation },
         RepresentationService,
       ],
-      exports: [RepresentationService],
+      exports: [RepresentationService, REPRESENTATION_OPTIONS],
     };
   }
 }

@@ -16,6 +16,11 @@ Persona que inicia sesión en Verifiq y actúa en nombre de un Emisor.
 _En código_: `User`
 _Avoid_: Cliente, cuenta
 
+**Operador**:
+Quien opera el SaaS: invita a los Usuarios y vigila la salud operativa de los Emisores desde su panel. Su cuenta es aparte de la de los Usuarios: no actúa por ningún Emisor y nunca ve sus facturas ni sus Destinatarios.
+_En código_: `operator` (rol del usuario)
+_Avoid_: Admin, administrador, soporte
+
 **Destinatario**:
 Persona o entidad a la que el Emisor factura. En la interfaz puede mostrarse como "Clientes".
 _En código_: `Recipient`

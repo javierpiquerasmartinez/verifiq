@@ -48,6 +48,41 @@ const newestFirst = (a: Cursor, b: Cursor) => b.at - a.at || (a.id < b.id ? 1 : 
 const isAfter = (item: Cursor, cursor: Cursor | null) => cursor === null || newestFirst(cursor, item) < 0;
 
 
+/**
+ * Each invoice's latest record, the one filter it falls under (see INVOICE_LIST_FILTERS) and the
+ * instant it is sorted by: its Issuance, in epoch milliseconds so a cursor holds it exactly. Of the
+ * issuer's invoices or, for the operator's panel only, of every issuer's.
+ */
+export function latestRecords(db: Database, now: Date, issuerId?: string) {
+  const record = db
+    .selectDistinctOn([invoiceRecords.invoiceId], {
+      id: invoiceRecords.id,
+      invoiceId: invoiceRecords.invoiceId,
+      status: invoiceRecords.status,
+      createdAt: invoiceRecords.createdAt,
+      confirmedAt: invoiceRecords.confirmedAt,
+      aeatErrorCode: invoiceRecords.aeatErrorCode,
+      rejectionCode: invoiceRecords.rejectionCode,
+      rejectionMessage: invoiceRecords.rejectionMessage,
+      aeatErrorMessage: invoiceRecords.aeatErrorMessage,
+    })
+    .from(invoiceRecords)
+    .where(issuerId === undefined ? undefined : eq(invoiceRecords.issuerId, issuerId))
+    .orderBy(invoiceRecords.invoiceId, desc(invoiceRecords.createdAt))
+    .as('record');
+  // The same rules as INVOICE_LIST_FILTERS and isRecordUnconfirmed, in SQL so the database can filter and count.
+  const awaiting = inArray(record.status, [...AWAITING_VERDICT_STATUSES]);
+  const category = sql<Exclude<InvoiceListFilter, 'all' | 'drafts'>>`CASE
+    WHEN ${invoices.status} = 'voided' AND ${record.status} NOT IN ('blocked', 'rejected') THEN 'voided'
+    WHEN ${invoices.status} = 'rectified' THEN 'rectified'
+    WHEN ${inArray(record.status, [...INCIDENT_RECORD_STATUSES])} OR (${awaiting} AND ${record.createdAt} <= ${unconfirmedBefore(now).toISOString()}::timestamptz) THEN 'incidents'
+    WHEN ${awaiting} THEN 'pending'
+    ELSE 'accepted'
+  END`;
+  const sortedAt = sql`(extract(epoch from date_trunc('milliseconds', ${invoices.createdAt})) * 1000)::bigint`.mapWith(Number);
+  return { record, category, sortedAt };
+}
+
 /** What an amount typed in the search reads as, with 2 decimals ("3.366" → "3366.00"), or null. */
 function searchedAmount(text: string): string | null {
   const amount = parseDecimalInput(text.replace(/[€\s]/g, '').replace(/^[-−]/, ''), 2);
@@ -121,7 +156,7 @@ export class InvoiceListService {
           (amount !== null && [item.totalAmount, item.amountDue].some((value) => unsigned(value) === amount)),
       );
 
-    const { record, category, sortedAt } = this.latestRecords(issuerId, now);
+    const { record, category, sortedAt } = latestRecords(this.db, now, issuerId);
     const matching = and(eq(invoices.issuerId, issuerId), search ? this.matches(search, amount) : undefined);
     const counted = await this.db
       .select({ category, count: sql<number>`count(*)::int` })
@@ -194,7 +229,7 @@ export class InvoiceListService {
   /** Invoices whose record needs the user, the longest waiting first. */
   async incidents(issuerId: string): Promise<InvoiceIncident[]> {
     const now = new Date();
-    const { record, category } = this.latestRecords(issuerId, now);
+    const { record, category } = latestRecords(this.db, now, issuerId);
     const rows = await this.db
       .select({
         id: invoices.id,
@@ -218,37 +253,6 @@ export class InvoiceListService {
           ? explainRecordRejection({ code: row.rejectionCode ?? '', message: row.rejectionMessage ?? '' })
           : (row.aeatErrorMessage ?? null),
     }));
-  }
-
-  /**
-   * Each invoice's latest record, the one filter it falls under (see INVOICE_LIST_FILTERS) and the
-   * instant it is sorted by: its Issuance, in epoch milliseconds so a cursor holds it exactly.
-   */
-  private latestRecords(issuerId: string, now: Date) {
-    const record = this.db
-      .selectDistinctOn([invoiceRecords.invoiceId], {
-        invoiceId: invoiceRecords.invoiceId,
-        status: invoiceRecords.status,
-        createdAt: invoiceRecords.createdAt,
-        rejectionCode: invoiceRecords.rejectionCode,
-        rejectionMessage: invoiceRecords.rejectionMessage,
-        aeatErrorMessage: invoiceRecords.aeatErrorMessage,
-      })
-      .from(invoiceRecords)
-      .where(eq(invoiceRecords.issuerId, issuerId))
-      .orderBy(invoiceRecords.invoiceId, desc(invoiceRecords.createdAt))
-      .as('record');
-    // The same rules as INVOICE_LIST_FILTERS and isRecordUnconfirmed, in SQL so the database can filter and count.
-    const awaiting = inArray(record.status, [...AWAITING_VERDICT_STATUSES]);
-    const category = sql<Exclude<InvoiceListFilter, 'all' | 'drafts'>>`CASE
-      WHEN ${invoices.status} = 'voided' AND ${record.status} NOT IN ('blocked', 'rejected') THEN 'voided'
-      WHEN ${invoices.status} = 'rectified' THEN 'rectified'
-      WHEN ${inArray(record.status, [...INCIDENT_RECORD_STATUSES])} OR (${awaiting} AND ${record.createdAt} <= ${unconfirmedBefore(now).toISOString()}::timestamptz) THEN 'incidents'
-      WHEN ${awaiting} THEN 'pending'
-      ELSE 'accepted'
-    END`;
-    const sortedAt = sql`(extract(epoch from date_trunc('milliseconds', ${invoices.createdAt})) * 1000)::bigint`.mapWith(Number);
-    return { record, category, sortedAt };
   }
 
   /** The invoice's number, its recipient's name (as issued) or one of its amounts matches the search. */

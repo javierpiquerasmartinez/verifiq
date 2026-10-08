@@ -27,13 +27,15 @@ Schema in `apps/api/src/database/schema.ts`; versioned SQL migrations in `apps/a
 
 ## Access
 
-There is no public sign-up. The operator invites a user from the API's environment (locally, or the Render shell):
+There is no public sign-up. Users are invited by the operator, whose account is separate: it reaches only its panel (`/operator` on the web) and never an issuer's invoices or recipients, while users never reach the panel. The operator's own account is invited once from the API's environment (locally, or the Render shell):
 
 ```bash
-pnpm invite lucia@example.com
+pnpm invite --operator operator@example.com
 ```
 
-It prints a single-use link (`APP_URL/invitation/<token>`, valid for 7 days) and emails it. The user sets a password and must set up TOTP 2FA (with recovery codes) before reaching anything else. Until 2FA is set up the password alone never opens a session: a user who abandons the set-up needs a new invitation, which resumes the account. Auth is Better Auth mounted on `/auth`, with data in our Postgres; sessions are httpOnly cookies that expire after 1 hour of inactivity and 7 days at most (a trigger on `sessions`). Sign-in, 2FA and password recovery are rate-limited per client IP.
+From the panel the operator then invites and revokes users, and follows each issuer's Representation, invoices and open incidents, and the records the AEAT rejected or left unconfirmed for 24 h. `pnpm invite lucia@example.com` still invites a user from the shell.
+
+Each invitation is a single-use link (`APP_URL/invitation/<token>`, valid for 7 days), emailed to the invited person and shown once to the operator. The user sets a password and must set up TOTP 2FA (with recovery codes) before reaching anything else. Until 2FA is set up the password alone never opens a session: a user who abandons the set-up needs a new invitation, which resumes the account. Auth is Better Auth mounted on `/auth`, with data in our Postgres; sessions are httpOnly cookies that expire after 1 hour of inactivity and 7 days at most (a trigger on `sessions`). Sign-in, 2FA and password recovery are rate-limited per client IP.
 
 ## Version
 

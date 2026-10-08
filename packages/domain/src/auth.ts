@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { USER_ROLES } from './operator.js';
 
 export const PASSWORD_MIN_LENGTH = 10;
 export const PASSWORD_MAX_LENGTH = 128;
@@ -23,12 +24,15 @@ export const AuthErrorCode = {
   InvitationNotFound: 'INVITATION_NOT_FOUND',
   InvitationExpired: 'INVITATION_EXPIRED',
   InvitationUsed: 'INVITATION_USED',
+  InvitationRevoked: 'INVITATION_REVOKED',
   EmailTaken: 'EMAIL_TAKEN',
   Unauthenticated: 'UNAUTHENTICATED',
   TwoFactorRequired: 'TWO_FACTOR_REQUIRED',
   /** Right password, but 2FA was never set up: only a new invitation can resume the account. */
   TwoFactorSetupIncomplete: 'TWO_FACTOR_SETUP_INCOMPLETE',
   ValidationFailed: 'VALIDATION_FAILED',
+  /** The endpoint is for the other role: users reach their issuer's data, the operator its panel. */
+  RoleNotAllowed: 'ROLE_NOT_ALLOWED',
 } as const;
 
 export type AuthErrorCode = (typeof AuthErrorCode)[keyof typeof AuthErrorCode];
@@ -38,6 +42,7 @@ export const meSchema = z.object({
   id: z.string(),
   email: z.email(),
   name: z.string(),
+  role: z.enum(USER_ROLES),
 });
 
 export type Me = z.infer<typeof meSchema>;

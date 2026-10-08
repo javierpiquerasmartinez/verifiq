@@ -88,6 +88,10 @@ export function createAuth(db: Database, mailer: Mailer, options: AuthOptions) {
     user: {
       changeEmail: { enabled: false },
       deleteUser: { enabled: false },
+      // The domain's UserRole, set by the invitation (invitations/) and never by the user.
+      additionalFields: {
+        role: { type: 'string', required: false, input: false, defaultValue: 'user' },
+      },
     },
     rateLimit: {
       enabled: true,

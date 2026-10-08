@@ -805,6 +805,14 @@ button.step:hover {
   background: var(--surface-3);
   color: var(--ink-2);
 }
+.tag-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.tag-info {
+  background: var(--info-soft);
+  color: var(--info);
+}
 
 /* key-value */
 .kv {

@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import type { UserRole } from '@verifiq/domain';
 import { randomInt, randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { expect } from 'vitest';
@@ -24,14 +25,14 @@ export function browser(app: INestApplication): Agent {
 export const uniqueEmail = () => `user-${randomUUID()}@example.com`;
 
 /** What the operator script does: returns the token of the link. */
-export async function invite(app: INestApplication, email = uniqueEmail()) {
-  const { token } = await createInvitation(app.get<Database>(DATABASE), { email });
+export async function invite(app: INestApplication, email = uniqueEmail(), role: UserRole = 'user') {
+  const { token } = await createInvitation(app.get<Database>(DATABASE), { email, role });
   return { token, email };
 }
 
 /** An invited user who has set a password: signed in, 2FA not set up yet. */
-export async function invitedUser(app: INestApplication) {
-  const { token, email } = await invite(app);
+export async function invitedUser(app: INestApplication, role: UserRole = 'user') {
+  const { token, email } = await invite(app, uniqueEmail(), role);
   const agent = browser(app);
   await agent
     .post(`/invitations/${token}/accept`)
@@ -49,11 +50,14 @@ export async function setUpTwoFactor(agent: Agent) {
 }
 
 /** A user with 2FA set up, signed in on `agent`. */
-export async function activeUser(app: INestApplication) {
-  const { agent, email } = await invitedUser(app);
+export async function activeUser(app: INestApplication, role: UserRole = 'user') {
+  const { agent, email } = await invitedUser(app, role);
   const { secret, backupCodes } = await setUpTwoFactor(agent);
   return { agent, email, secret, backupCodes };
 }
+
+/** The operator (invited with `pnpm invite --operator`), with 2FA set up and signed in on `agent`. */
+export const activeOperator = (app: INestApplication) => activeUser(app, 'operator');
 
 /** Full sign-in on a fresh browser: password, then the TOTP code. */
 export async function signIn(app: INestApplication, email: string, secret: string) {
