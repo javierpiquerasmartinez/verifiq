@@ -48,6 +48,17 @@ describe('invitationEmail', () => {
     expect(html).toContain('no se creará ninguna cuenta');
   });
 
+  it('shows the app logo, sent inline with the email', () => {
+    expect(email.html).toContain('<img src="cid:verifiq-logo"');
+    expect(email.inlineImages).toEqual([
+      { contentId: 'verifiq-logo', filename: 'verifiq.png', content: expect.any(Buffer) },
+    ]);
+    // A PNG file starts with this signature.
+    expect(email.inlineImages![0]!.content.subarray(0, 8)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+  });
+
   it('escapes the link in the HTML version', () => {
     const html = invitationEmail('lucia@example.com', 'https://app.example.com/invitation/a"b<c&d', EXPIRES_AT).html!;
     expect(html).toContain('https://app.example.com/invitation/a&quot;b&lt;c&amp;d');
@@ -124,7 +135,7 @@ describe('loginNotificationEmail', () => {
       userAgent: '<img src=x onerror=alert(1)>',
     });
     expect(email.html).toContain('&lt;img src=x onerror=alert(1)&gt;');
-    expect(email.html).not.toContain('<img');
+    expect(email.html).not.toContain('<img src=x');
   });
 });
 
