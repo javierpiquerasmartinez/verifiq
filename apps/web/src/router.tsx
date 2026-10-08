@@ -4,10 +4,12 @@ import {
   createRouter,
   Outlet,
   redirect,
+  stripSearchParams,
 } from '@tanstack/react-router';
 import { z } from 'zod';
 import { fetchOnboarding } from './api';
 import { currentUser } from './auth-client';
+import { invitationsSearchSchema } from './operator-invitations';
 import { CatalogItemPage, NewCatalogItemPage } from './pages/CatalogItem';
 import { CatalogItemsPage } from './pages/CatalogItems';
 import { DraftPage, NewDraftPage } from './pages/Draft';
@@ -19,6 +21,7 @@ import { InvoicePage } from './pages/Invoice';
 import { LoginPage } from './pages/Login';
 import { OnboardingPage } from './pages/Onboarding';
 import { OperatorPage } from './pages/Operator';
+import { OperatorInvitationsPage } from './pages/OperatorInvitations';
 import { NewRecipientPage, RecipientPage } from './pages/Recipient';
 import { RecipientsPage } from './pages/Recipients';
 import { RepresentationStepPage } from './pages/RepresentationStep';
@@ -171,6 +174,17 @@ const operatorRoute = createRoute({
   component: OperatorPage,
 });
 
+/** Every invitation the operator sent; its search, filter and sort live in the URL. */
+const operatorInvitationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/operator/invitations',
+  beforeLoad: requireOperator,
+  validateSearch: invitationsSearchSchema,
+  // The defaults stay out of the URL: the panel's link is plain /operator/invitations.
+  search: { middlewares: [stripSearchParams(invitationsSearchSchema.parse({}))] },
+  component: OperatorInvitationsPage,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/sign-in',
@@ -231,6 +245,7 @@ const routeTree = rootRoute.addChildren([
   onboardingRoute,
   representationStepRoute,
   operatorRoute,
+  operatorInvitationsRoute,
   loginRoute,
   invitationRoute,
   setUpTwoFactorRoute,

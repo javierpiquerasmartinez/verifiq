@@ -2,7 +2,7 @@ import {
   catalogItemSchema,
   correctedRecipientSchema,
   createdInvitationSchema,
-  operatorInvitationListSchema,
+  invitationListSchema,
   operatorInvitationSchema,
   operatorIssuerListSchema,
   recordAlertListSchema,
@@ -24,6 +24,9 @@ import {
   type CorrectedRecipient,
   type CreatedInvitation,
   type NewInvitation,
+  type InvitationList,
+  type InvitationListQuery,
+  type InvitationStatus,
   type OperatorInvitation,
   type OperatorIssuer,
   type RecordAlert,
@@ -312,8 +315,24 @@ export async function fetchRecordAlerts(): Promise<RecordAlert[]> {
   return recordAlertListSchema.parse(await request('/operator/alerts'));
 }
 
-export async function fetchOperatorInvitations(): Promise<OperatorInvitation[]> {
-  return operatorInvitationListSchema.parse(await request('/operator/invitations'));
+/** A page of the invitations, searched, filtered and sorted, with how many there are of each status. */
+export async function fetchOperatorInvitations(query: InvitationListQuery): Promise<InvitationList> {
+  const search = new URLSearchParams(
+    Object.entries(query).flatMap(([key, value]) => (value === undefined ? [] : [[key, String(value)]])),
+  );
+  return invitationListSchema.parse(await request(`/operator/invitations?${search}`));
+}
+
+/** Every invitation under `status`, page after page. */
+export async function fetchAllOperatorInvitations(status: InvitationStatus): Promise<OperatorInvitation[]> {
+  const all: OperatorInvitation[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await fetchOperatorInvitations({ status, cursor, limit: 200 });
+    all.push(...page.items);
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor);
+  return all;
 }
 
 /** Emails the invitation; its link comes back this once. */

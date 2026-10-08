@@ -1797,3 +1797,15 @@ textarea.input {
 .alert-warn .incident-step {
   border-color: var(--warn-line);
 }
+/* A sortable column header: reads as the header, works as a button. */
+.th-sort {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.th-sort:hover {
+  color: var(--ink);
+}

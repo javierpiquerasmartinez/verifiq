@@ -1,10 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DATABASE, type Database } from '../src/database/database.module.js';
 import { SubmissionWorker } from '../src/invoices/submission-worker.js';
 import { FakeVerifactuConnector } from '../src/verifactu/fake-connector.js';
-import { activeOperator, activeUser, browser, PASSWORD, uniqueEmail, type Agent } from './access.js';
+import { activeOperator, activeUser, browser, invite, PASSWORD, uniqueEmail, type Agent } from './access.js';
 import { completeOnboarding, fiscalData, onboardedUser, uniqueTaxId } from './issuer.js';
 import { createTestApp, FakeMailer, WEB_ORIGIN } from './test-app.js';
 
@@ -139,6 +140,26 @@ describe('Operator panel', () => {
   });
 
   describe('invitations', () => {
+    /** Starts every email of a test, so a search for it lists only that test's invitations. */
+    const uniqueTag = () => `t${randomUUID().slice(0, 8)}`;
+
+    const invitation = async (email = uniqueEmail()) =>
+      (await operator.post('/operator/invitations').send({ email }).expect(201)).body as { id: string; url: string };
+
+    /** An invitation sent `offset` ms from now (negative: in the past). */
+    async function invitedAt(email: string, offset: number) {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(Date.now() + offset);
+      try {
+        return await invitation(email);
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+
+    const accept = (invited: { url: string }) =>
+      browser(app).post(`/invitations/${tokenOf(invited.url)}/accept`).send({ name: 'Lucía Ferrer', password: PASSWORD }).expect(200);
+
     it('invites a user by email, with a link that works once', async () => {
       const email = uniqueEmail();
 
@@ -155,29 +176,126 @@ describe('Operator panel', () => {
       expect((await agent.get('/auth/get-session').expect(200)).body.user.role).toBe('user');
     });
 
-    it('lists invitations, newest first, with their status', async () => {
-      const pending = uniqueEmail();
-      const accepted = uniqueEmail();
-      vi.useFakeTimers({ toFake: ['Date'] });
-      vi.setSystemTime(Date.now() - 8 * 24 * HOUR);
-      const { body: expired } = await operator.post('/operator/invitations').send({ email: uniqueEmail() }).expect(201);
-      vi.useRealTimers();
-      const { body: used } = await operator.post('/operator/invitations').send({ email: accepted }).expect(201);
-      await browser(app)
-        .post(`/invitations/${tokenOf(used.url)}/accept`)
-        .send({ name: 'Lucía Ferrer', password: PASSWORD })
-        .expect(200);
-      const { body: open } = await operator.post('/operator/invitations').send({ email: pending }).expect(201);
+    it('lists invitations of every status, newest first', async () => {
+      const tag = uniqueTag();
+      const expired = await invitedAt(`${tag}-expired@example.com`, -8 * 24 * HOUR);
+      const used = await invitation(`${tag}-accepted@example.com`);
+      await accept(used);
+      const revoked = await invitation(`${tag}-revoked@example.com`);
+      await operator.post(`/operator/invitations/${revoked.id}/revoke`).expect(200);
+      const open = await invitation(`${tag}-pending@example.com`);
 
-      const { body: list } = await operator.get('/operator/invitations').expect(200);
+      const { body: list } = await operator.get('/operator/invitations').query({ q: tag }).expect(200);
 
-      const ids = list.map((invitation: { id: string }) => invitation.id);
-      expect(ids.indexOf(open.id)).toBeLessThan(ids.indexOf(used.id));
-      expect(ids.indexOf(used.id)).toBeLessThan(ids.indexOf(expired.id));
-      const statusOf = (id: string) => list.find((invitation: { id: string }) => invitation.id === id)?.status;
-      expect([statusOf(open.id), statusOf(used.id), statusOf(expired.id)]).toEqual(['pending', 'accepted', 'expired']);
+      expect(list.items.map((item: { id: string; status: string }) => [item.id, item.status])).toEqual([
+        [open.id, 'pending'],
+        [revoked.id, 'revoked'],
+        [used.id, 'accepted'],
+        [expired.id, 'expired'],
+      ]);
+      expect(list.nextCursor).toBeNull();
       // The link is shown only when it is created.
-      expect(list.find((invitation: { id: string }) => invitation.id === open.id)).not.toHaveProperty('url');
+      expect(list.items[0]).not.toHaveProperty('url');
+    });
+
+    it('searches by email without case or accents, and filters by status with the counts of each', async () => {
+      const tag = uniqueTag();
+      await invitedAt(`${tag}-old@example.com`, -8 * 24 * HOUR);
+      const jose = await invitation(`${tag}-jose@example.com`);
+      const marta = await invitation(`${tag}-marta@example.com`);
+      await operator.post(`/operator/invitations/${marta.id}/revoke`).expect(200);
+
+      const { body: found } = await operator.get('/operator/invitations').query({ q: `${tag.toUpperCase()}-JOSÉ` }).expect(200);
+      const { body: pending } = await operator.get('/operator/invitations').query({ q: tag, status: 'pending' }).expect(200);
+
+      expect(found.items.map((item: { id: string }) => item.id)).toEqual([jose.id]);
+      expect(found.counts).toEqual({ all: 1, pending: 1, accepted: 0, expired: 0, revoked: 0 });
+      expect(pending.items.map((item: { id: string }) => item.id)).toEqual([jose.id]);
+      // The counts are of the search, whatever the filter.
+      expect(pending.counts).toEqual({ all: 3, pending: 1, accepted: 0, expired: 1, revoked: 1 });
+    });
+
+    it('sorts by when it was sent, when it expires or its email, and pages through all of them', async () => {
+      const tag = uniqueTag();
+      // Sent (ms from a base, a fraction below a millisecond), and expiring (hours from now).
+      const plan = { a: [3.4, 1], b: [1, 3], c: [3.1, 2], d: [2, 4], e: [0, 5] } as const;
+      const ids: Record<string, string> = {};
+      for (const [name, [sent, expires]] of Object.entries(plan)) {
+        const { id } = await invitation(`${tag}-${name}@example.com`);
+        ids[name] = id;
+        await db.$client.query(
+          `UPDATE invitations SET created_at = '2026-10-01T09:00:00Z'::timestamptz + make_interval(secs => $2 / 1000.0),
+             expires_at = now() + make_interval(hours => $3) WHERE id = $1`,
+          [id, sent, expires],
+        );
+      }
+      const nameOf = new Map(Object.entries(ids).map(([name, id]) => [id, name]));
+
+      async function pages(query: Record<string, string>) {
+        const names: string[] = [];
+        let cursor: string | null = null;
+        do {
+          const { body }: { body: { items: { id: string }[]; nextCursor: string | null } } = await operator
+            .get('/operator/invitations')
+            .query({ ...query, q: tag, limit: '2', ...(cursor ? { cursor } : {}) })
+            .expect(200);
+          names.push(...body.items.map((item) => nameOf.get(item.id)!));
+          cursor = body.nextCursor;
+        } while (cursor);
+        return names;
+      }
+
+      // a and c were sent in the same millisecond: either goes first, but always the same way.
+      const newest = await pages({});
+      expect(newest.slice(0, 2).sort()).toEqual(['a', 'c']);
+      expect(newest.slice(2)).toEqual(['d', 'b', 'e']);
+      expect(await pages({ sort: 'sent', order: 'asc' })).toEqual(['e', 'b', 'd', ...newest.slice(0, 2).reverse()]);
+      expect(await pages({ sort: 'expires', order: 'asc' })).toEqual(['a', 'c', 'b', 'd', 'e']);
+      expect(await pages({ sort: 'expires', order: 'desc' })).toEqual(['e', 'd', 'b', 'c', 'a']);
+      expect(await pages({ sort: 'email', order: 'asc' })).toEqual(['a', 'b', 'c', 'd', 'e']);
+      expect(await pages({ sort: 'email', order: 'desc', status: 'pending' })).toEqual(['e', 'd', 'c', 'b', 'a']);
+    });
+
+    it('rejects a query it does not understand', async () => {
+      for (const query of [{ status: 'gone' }, { sort: 'name' }, { order: 'up' }, { limit: '0' }, { cursor: 'not-a-cursor' }]) {
+        const response = await operator.get('/operator/invitations').query(query).expect(400);
+        expect(response.body.code, JSON.stringify(query)).toBe('VALIDATION_FAILED');
+      }
+    });
+
+    it('leaves the operator invitations out', async () => {
+      const email = `${uniqueTag()}-operator@example.com`;
+      await invite(app, email, 'operator');
+
+      const { body: list } = await operator.get('/operator/invitations').query({ q: email }).expect(200);
+
+      expect(list.items).toEqual([]);
+      expect(list.counts.all).toBe(0);
+    });
+
+    it('shows when an invitation was accepted or revoked, and the issuer its user onboarded', async () => {
+      const onboarded = await onboardedUser(app);
+      const tag = uniqueTag();
+      const unfinished = await invitation(`${tag}-unfinished@example.com`);
+      await accept(unfinished);
+      const revoked = await invitation(`${tag}-revoked@example.com`);
+      await operator.post(`/operator/invitations/${revoked.id}/revoke`).expect(200);
+
+      const { body: mine } = await operator.get('/operator/invitations').query({ q: onboarded.email }).expect(200);
+      const { body: list } = await operator.get('/operator/invitations').query({ q: tag }).expect(200);
+
+      expect(mine.items).toEqual([
+        expect.objectContaining({
+          status: 'accepted',
+          acceptedAt: expect.any(String),
+          revokedAt: null,
+          issuer: { id: await issuerIdOf(onboarded.taxId), name: fiscalData().name, taxId: onboarded.taxId },
+        }),
+      ]);
+      const byId = new Map(list.items.map((item: { id: string }) => [item.id, item]));
+      // Its user has not onboarded an issuer yet.
+      expect(byId.get(unfinished.id)).toMatchObject({ status: 'accepted', acceptedAt: expect.any(String), issuer: null });
+      expect(byId.get(revoked.id)).toMatchObject({ status: 'revoked', acceptedAt: null, revokedAt: expect.any(String), issuer: null });
     });
 
     it('revokes a pending invitation: its link stops working', async () => {
@@ -326,7 +444,7 @@ describe('Operator panel', () => {
   });
 
   it('no operator endpoint returns invoices, their lines or recipients', async () => {
-    const { agent } = await issuingUser();
+    const { agent, email } = await issuingUser();
     const concept = 'Endodoncia molar 36 paciente R. G.';
     const description = 'Tratamientos de la consulta de Russafa';
     const rejected = await submittedInvoice(agent, { concept, description });
@@ -343,8 +461,15 @@ describe('Operator panel', () => {
     });
 
     const responses = await Promise.all(
-      ['/operator/issuers', '/operator/alerts', '/operator/invitations'].map((path) => operator.get(path).expect(200)),
+      [
+        '/operator/issuers',
+        '/operator/alerts',
+        '/operator/invitations',
+        // The user's own invitation, which names its issuer.
+        `/operator/invitations?q=${encodeURIComponent(email)}`,
+      ].map((path) => operator.get(path).expect(200)),
     );
+    expect(responses.at(-1)!.body.items).toEqual([expect.objectContaining({ email, issuer: expect.any(Object) })]);
 
     for (const { text } of responses) {
       for (const secret of [

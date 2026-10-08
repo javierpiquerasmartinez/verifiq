@@ -1,11 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { AuthErrorCode, type InvitationStatus, type OperatorInvitation, type UserRole } from '@verifiq/domain';
-import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import { AuthErrorCode, type OperatorInvitation, type UserRole } from '@verifiq/domain';
+import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { Auth } from '../auth/auth.js';
 import { invitationEmail } from '../auth/emails.js';
 import type { Database } from '../database/database.module.js';
 import { invitations } from '../database/schema.js';
 import type { Mailer } from '../mail/mailer.js';
+import { findOperatorInvitation } from './invitation-list.js';
 
 export const INVITATION_TTL_DAYS = 7;
 
@@ -25,7 +26,18 @@ export async function createInvitation(
     .insert(invitations)
     .values({ email: email.trim().toLowerCase(), role, tokenHash: hashToken(token), expiresAt })
     .returning();
-  return { token, invitation: toOperatorInvitation(row!) };
+  // Just sent: pending, and nobody has used it yet.
+  const invitation: OperatorInvitation = {
+    id: row!.id,
+    email: row!.email,
+    status: 'pending',
+    createdAt: row!.createdAt.toISOString(),
+    expiresAt: row!.expiresAt.toISOString(),
+    acceptedAt: null,
+    revokedAt: null,
+    issuer: null,
+  };
+  return { token, invitation };
 }
 
 /** Creates the invitation and emails its link (`appUrl` is the web app's), which it returns this once. */
@@ -40,35 +52,6 @@ export async function inviteByEmail(
   return { url, invitation };
 }
 
-type InvitationRow = typeof invitations.$inferSelect;
-
-function statusOf(invitation: InvitationRow, now = new Date()): InvitationStatus {
-  if (invitation.acceptedAt) return 'accepted';
-  if (invitation.revokedAt) return 'revoked';
-  return invitation.expiresAt <= now ? 'expired' : 'pending';
-}
-
-function toOperatorInvitation(row: InvitationRow): OperatorInvitation {
-  return {
-    id: row.id,
-    email: row.email,
-    status: statusOf(row),
-    createdAt: row.createdAt.toISOString(),
-    expiresAt: row.expiresAt.toISOString(),
-  };
-}
-
-/** The latest invitations of users (the operator's own are left out), newest first. */
-export async function listInvitations(db: Database): Promise<OperatorInvitation[]> {
-  const rows = await db
-    .select()
-    .from(invitations)
-    .where(eq(invitations.role, 'user'))
-    .orderBy(desc(invitations.createdAt), desc(invitations.id))
-    .limit(200);
-  return rows.map(toOperatorInvitation);
-}
-
 /** The invitation was used: there is an account behind it, which revoking would not remove. */
 export class InvitationUsedError extends Error {}
 
@@ -77,19 +60,13 @@ export class InvitationUsedError extends Error {}
  * changes nothing. Null when there is no such invitation.
  */
 export async function revokeInvitation(db: Database, id: string): Promise<OperatorInvitation | null> {
-  const [revoked] = await db
+  await db
     .update(invitations)
     .set({ revokedAt: new Date() })
-    .where(and(eq(invitations.id, id), eq(invitations.role, 'user'), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)))
-    .returning();
-  if (revoked) return toOperatorInvitation(revoked);
-  const [row] = await db
-    .select()
-    .from(invitations)
-    .where(and(eq(invitations.id, id), eq(invitations.role, 'user')));
-  if (!row) return null;
-  if (row.acceptedAt) throw new InvitationUsedError();
-  return toOperatorInvitation(row);
+    .where(and(eq(invitations.id, id), eq(invitations.role, 'user'), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
+  const invitation = await findOperatorInvitation(db, id);
+  if (invitation?.status === 'accepted') throw new InvitationUsedError();
+  return invitation;
 }
 
 export type InvitationProblem =
