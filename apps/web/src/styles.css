@@ -180,6 +180,35 @@ ul {
   text-decoration: none;
   letter-spacing: -0.01em;
 }
+/* the operator's header: dark, so it is never mistaken for an issuer's app */
+.topbar-admin {
+  background: var(--ink);
+  border-bottom-color: var(--ink);
+  color: #fff;
+}
+.topbar-admin .brand {
+  color: #fff;
+}
+.topbar-admin .tag {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+.topbar-admin .who {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px 16px;
+  color: #c9d0d5;
+}
+.topbar-admin .btn-ghost {
+  color: #c9d0d5;
+}
+.topbar-admin .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
 .issuer {
   display: flex;
   flex-direction: column;

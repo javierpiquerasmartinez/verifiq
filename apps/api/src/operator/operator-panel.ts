@@ -59,7 +59,7 @@ export class OperatorPanelService {
         id: row.id,
         name: row.name,
         taxId: row.taxId,
-        onboardingCompleted: row.onboardingCompletedAt !== null,
+        onboardedAt: row.onboardingCompletedAt?.toISOString() ?? null,
         representation: { state, error },
         invoiceCount: row.invoiceCount ?? 0,
         openIncidents: row.openIncidents ?? 0,

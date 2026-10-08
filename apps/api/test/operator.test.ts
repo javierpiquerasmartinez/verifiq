@@ -229,7 +229,7 @@ describe('Operator panel', () => {
         id: issuerId,
         name: fiscalData().name,
         taxId,
-        onboardingCompleted: true,
+        onboardedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
         representation: { state: 'signed', error: null },
         invoiceCount: 2,
         openIncidents: 1,
@@ -244,7 +244,7 @@ describe('Operator panel', () => {
       const { body } = await operator.get('/operator/issuers').expect(200);
 
       expect(body.find((issuer: { taxId: string }) => issuer.taxId === taxId)).toMatchObject({
-        onboardingCompleted: false,
+        onboardedAt: null,
         representation: { state: 'not-started', error: null },
         invoiceCount: 0,
         openIncidents: 0,

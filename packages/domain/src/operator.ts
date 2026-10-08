@@ -41,7 +41,8 @@ export const operatorIssuerSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   taxId: z.string(),
-  onboardingCompleted: z.boolean(),
+  /** When it completed its onboarding (its "alta"); null while still onboarding. */
+  onboardedAt: z.iso.datetime().nullable(),
   /** The last state the connector reported (the operator's panel never asks it). */
   representation: z.object({
     state: z.enum(REPRESENTATION_STATES),

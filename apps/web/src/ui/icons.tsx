@@ -70,6 +70,12 @@ const paths = {
       <path d="M5.6 5.6l12.8 12.8" />
     </>
   ),
+  mail: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3 7l9 6 9-6" />
+    </>
+  ),
   swap: <path d="M16 3l4 4-4 4M20 7H8M8 21l-4-4 4-4M4 17h12" />,
   link: (
     <>
@@ -90,14 +96,15 @@ export function Icon({ name, size, spin }: { name: IconName; size?: 'xs' | 'lg';
   );
 }
 
-export function BrandMark() {
+/** `inverted`: white, for a dark background. */
+export function BrandMark({ inverted = false }: { inverted?: boolean }) {
   return (
     <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
-      <rect width="28" height="28" rx="7" fill="#0D4A57" />
+      <rect width="28" height="28" rx="7" fill={inverted ? '#fff' : '#0D4A57'} />
       <path
         d="M8 14.5l4 4 8-9"
         fill="none"
-        stroke="#fff"
+        stroke={inverted ? '#141E26' : '#fff'}
         strokeWidth="2.4"
         strokeLinecap="round"
         strokeLinejoin="round"

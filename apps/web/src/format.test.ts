@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decimalInputOf, formatDateTime, parseDecimalInput } from './format';
+import { decimalInputOf, formatDate, formatDateTime, parseDecimalInput } from './format';
 
 describe('parseDecimalInput', () => {
   it.each([
@@ -55,5 +55,12 @@ describe('formatDateTime', () => {
     ['2026-12-31T23:05:00.000Z', '01/01/2027 · 00:05'],
   ])('shows %j in Spanish time as %j', (instant, expected) => {
     expect(formatDateTime(instant)).toBe(expected);
+  });
+});
+
+describe('formatDate', () => {
+  it('shows the day in Spanish time', () => {
+    expect(formatDate('2026-07-14T08:00:00.000Z')).toBe('14/07/2026');
+    expect(formatDate('2026-12-31T23:05:00.000Z')).toBe('01/01/2027');
   });
 });
