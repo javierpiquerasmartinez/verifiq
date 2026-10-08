@@ -9,6 +9,7 @@ import { HealthController } from './health/health.controller.js';
 import { InvitationsController } from './invitations/invitations.controller.js';
 import { InvoicesModule, SubmissionModule } from './invoices/invoices.module.js';
 import { MailModule } from './mail/mail.module.js';
+import { OperatorModule } from './operator/operator.module.js';
 import type { Mailer } from './mail/mailer.js';
 import { RecipientsModule } from './recipients/recipients.module.js';
 import type { ObjectStorage } from './storage/object-storage.js';
@@ -50,6 +51,7 @@ export class AppModule {
         CatalogItemsModule,
         SubmissionModule.forRoot({ databaseUrl: options.databaseUrl, ...options.submission }),
         InvoicesModule,
+        OperatorModule.forRoot({ appUrl: options.auth.appUrl }),
       ],
       controllers: [HealthController, InvitationsController],
       providers: [{ provide: APP_VERSION, useValue: options.version }],

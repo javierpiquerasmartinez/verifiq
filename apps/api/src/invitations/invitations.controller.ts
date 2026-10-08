@@ -24,19 +24,14 @@ import {
   EmailTakenError,
   establishAccount,
   findInvitation,
+  INVITATION_PROBLEM_MESSAGES,
   linkInvitationToUser,
   releaseInvitation,
   type InvitationProblem,
 } from './invitations.js';
 
-const PROBLEM_MESSAGES: Record<InvitationProblem, string> = {
-  [AuthErrorCode.InvitationNotFound]: 'This invitation does not exist',
-  [AuthErrorCode.InvitationExpired]: 'This invitation has expired',
-  [AuthErrorCode.InvitationUsed]: 'This invitation has already been used',
-};
-
 function invitationError(problem: InvitationProblem) {
-  const body = { code: problem, message: PROBLEM_MESSAGES[problem] };
+  const body = { code: problem, message: INVITATION_PROBLEM_MESSAGES[problem] };
   return problem === AuthErrorCode.InvitationNotFound
     ? new NotFoundException(body)
     : new GoneException(body);
@@ -77,10 +72,10 @@ export class InvitationsController {
 
     const invitation = await claimInvitation(this.db, token);
     if (!invitation.ok) throw invitationError(invitation.problem);
-    const { email } = invitation;
+    const { email, role } = invitation;
 
     try {
-      const userId = await establishAccount(this.auth, { email, name, password });
+      const userId = await establishAccount(this.auth, { email, name, password, role });
       await linkInvitationToUser(this.db, invitation.id, userId);
     } catch (error) {
       await releaseInvitation(this.db, invitation.id);

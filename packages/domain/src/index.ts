@@ -13,6 +13,7 @@ export * from './invoice-export.js';
 export * from './invoice-list.js';
 export * from './issuer.js';
 export * from './onboarding.js';
+export * from './operator.js';
 export * from './recipient.js';
 export * from './record-rejections.js';
 export * from './representation.js';

@@ -1,16 +1,17 @@
 import { Controller, Get, Module, type DynamicModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import type { Me } from '@verifiq/domain';
+import type { Me, UserRole } from '@verifiq/domain';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { MAILER, type Mailer } from '../mail/mailer.js';
 import { AUTH, createAuth, type AuthOptions } from './auth.js';
-import { CurrentSession, SessionGuard, type AuthSession } from './session.guard.js';
+import { AnyRole, CurrentSession, SessionGuard, type AuthSession } from './session.guard.js';
 
+@AnyRole()
 @Controller('me')
 class MeController {
   @Get()
   me(@CurrentSession() { user }: AuthSession): Me {
-    return { id: user.id, email: user.email, name: user.name };
+    return { id: user.id, email: user.email, name: user.name, role: user.role as UserRole };
   }
 }
 

@@ -18,6 +18,7 @@ import { InvitationPage } from './pages/Invitation';
 import { InvoicePage } from './pages/Invoice';
 import { LoginPage } from './pages/Login';
 import { OnboardingPage } from './pages/Onboarding';
+import { OperatorPage } from './pages/Operator';
 import { NewRecipientPage, RecipientPage } from './pages/Recipient';
 import { RecipientsPage } from './pages/Recipients';
 import { RepresentationStepPage } from './pages/RepresentationStep';
@@ -28,11 +29,25 @@ import { SetUpTwoFactorPage } from './pages/SetUpTwoFactor';
 const rootRoute = createRootRoute({ component: Outlet });
 
 /** A session with 2FA set up, or a redirect to what is missing. */
-async function requireActiveUser() {
+async function requireSignedIn() {
   const user = await currentUser();
   if (!user) throw redirect({ to: '/sign-in' });
   if (!user.twoFactorEnabled) throw redirect({ to: '/set-up-2fa' });
   return user;
+}
+
+/** A user acting for its issuer: the operator goes to its panel. */
+async function requireActiveUser() {
+  const user = await requireSignedIn();
+  if (user.role === 'operator') throw redirect({ to: '/operator' });
+  return user;
+}
+
+/** The operator: users go to their app. */
+async function requireOperator() {
+  const user = await requireSignedIn();
+  if (user.role !== 'operator') throw redirect({ to: '/' });
+  return { user };
 }
 
 /** The app: needs a session with 2FA set up and the issuer onboarding complete. */
@@ -147,6 +162,14 @@ const onboardingRoute = createRoute({
   component: OnboardingPage,
 });
 
+/** The operator's panel: invitations, issuers and alerts; never an issuer's invoices or recipients. */
+const operatorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/operator',
+  beforeLoad: requireOperator,
+  component: OperatorPage,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/sign-in',
@@ -199,6 +222,7 @@ const routeTree = rootRoute.addChildren([
   settingsRoute,
   onboardingRoute,
   representationStepRoute,
+  operatorRoute,
   loginRoute,
   invitationRoute,
   setUpTwoFactorRoute,

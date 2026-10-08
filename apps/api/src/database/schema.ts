@@ -17,20 +17,27 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
+import type { UserRole } from '@verifiq/domain';
 import type { PreviousRejection, RecordOperation } from '../verifactu/connector.js';
 
 // --- Better Auth tables (see auth/auth.ts). Property names are the field names Better Auth expects.
 
-export const users = pgTable('users', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  emailVerified: boolean('email_verified').notNull().default(false),
-  image: text('image'),
-  twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const users = pgTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    email: text('email').notNull().unique(),
+    emailVerified: boolean('email_verified').notNull().default(false),
+    image: text('image'),
+    twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
+    // The domain's UserRole: a user acts for its issuer, the operator only reaches its panel.
+    role: text('role').$type<UserRole>().notNull().default('user'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('users_role_check', sql`${table.role} IN ('user', 'operator')`)],
+);
 
 export const sessions = pgTable(
   'sessions',
@@ -113,16 +120,27 @@ export const rateLimits = pgTable('rate_limits', {
 
 // --- Invitations: the only way to create a user (no public sign-up).
 
-export const invitations = pgTable('invitations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  email: text('email').notNull(),
-  // SHA-256 of the token sent in the link; the token itself is never stored.
-  tokenHash: text('token_hash').notNull().unique(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  acceptedAt: timestamp('accepted_at', { withTimezone: true }),
-  userId: text('user_id').references(() => users.id),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const invitations = pgTable(
+  'invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    // The role the account gets. Only the operator script invites operators.
+    role: text('role').$type<UserRole>().notNull().default('user'),
+    // SHA-256 of the token sent in the link; the token itself is never stored.
+    tokenHash: text('token_hash').notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    // The operator withdrew it before it was used: its link no longer works.
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    userId: text('user_id').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('invitations_role_check', sql`${table.role} IN ('user', 'operator')`),
+    check('invitations_revoked_check', sql`${table.revokedAt} IS NULL OR ${table.acceptedAt} IS NULL`),
+  ],
+);
 
 // --- Issuers: the unit of data isolation. Every business row belongs to one (issuer_id).
 
