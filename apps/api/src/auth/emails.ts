@@ -14,16 +14,19 @@ export function invitationEmail(to: string, url: string, expiresAt: Date): Email
     preview: `Crea tu contraseña. El enlace caduca el ${expiry}.`,
     heading: 'Te han invitado a Verifiq',
     blocks: [
-      { paragraph: 'Hola:' },
+      { kind: 'paragraph', text: 'Hola:' },
       {
-        paragraph: 'Te han invitado a Verifiq, la aplicación para emitir tus facturas con VERI*FACTU.',
+        kind: 'paragraph',
+        text: 'Te han invitado a Verifiq, la aplicación para emitir tus facturas con VERI*FACTU.',
       },
       {
-        paragraph: 'Abre este enlace para crear tu contraseña y configurar la verificación en dos pasos:',
+        kind: 'paragraph',
+        text: 'Abre este enlace para crear tu contraseña y configurar la verificación en dos pasos:',
       },
-      { button: 'Crear mi contraseña', url },
+      { kind: 'button', label: 'Crear mi contraseña', url },
       {
-        notice: ['El enlace sirve una sola vez y caduca el ', { strong: expiry }, '.'],
+        kind: 'notice',
+        text: ['El enlace sirve una sola vez y caduca el ', { strong: expiry }, '.'],
       },
     ],
     aside: 'Si no esperabas esta invitación, puedes ignorar este correo: no se creará ninguna cuenta.',
@@ -36,13 +39,14 @@ export function passwordResetEmail(to: string, url: string): EmailMessage {
     preview: 'Elige una contraseña nueva. El enlace caduca en 1 hora.',
     heading: 'Restablece tu contraseña',
     blocks: [
-      { paragraph: 'Hola:' },
+      { kind: 'paragraph', text: 'Hola:' },
       {
-        paragraph: 'Hemos recibido una solicitud para restablecer tu contraseña de Verifiq.',
+        kind: 'paragraph',
+        text: 'Hemos recibido una solicitud para restablecer tu contraseña de Verifiq.',
       },
-      { paragraph: 'Abre este enlace para elegir una nueva:' },
-      { button: 'Elegir nueva contraseña', url },
-      { notice: ['El enlace caduca en ', { strong: '1 hora' }, '.'] },
+      { kind: 'paragraph', text: 'Abre este enlace para elegir una nueva:' },
+      { kind: 'button', label: 'Elegir nueva contraseña', url },
+      { kind: 'notice', text: ['El enlace caduca en ', { strong: '1 hora' }, '.'] },
     ],
     aside: 'Si no lo has pedido tú, ignora este mensaje: tu contraseña no cambiará.',
   });
@@ -58,17 +62,19 @@ export function loginNotificationEmail(
     preview: `Se ha iniciado sesión en tu cuenta el ${when}.`,
     heading: 'Nuevo inicio de sesión',
     blocks: [
-      { paragraph: 'Hola:' },
-      { paragraph: 'Se ha iniciado sesión en tu cuenta de Verifiq.' },
+      { kind: 'paragraph', text: 'Hola:' },
+      { kind: 'paragraph', text: 'Se ha iniciado sesión en tu cuenta de Verifiq.' },
       {
-        details: [
+        kind: 'details',
+        rows: [
           ['Fecha', when],
           ['Dirección IP', ipAddress ?? 'desconocida'],
           ['Navegador', userAgent ?? 'desconocido'],
         ],
       },
       {
-        notice: 'Si no has sido tú, cambia tu contraseña cuanto antes desde «¿Has olvidado tu contraseña?».',
+        kind: 'notice',
+        text: 'Si no has sido tú, cambia tu contraseña cuanto antes desde «¿Has olvidado tu contraseña?».',
       },
     ],
   });

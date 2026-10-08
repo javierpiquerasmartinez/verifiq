@@ -7,16 +7,19 @@ export function representationLinkEmail(to: string, url: string): EmailMessage {
     preview: 'Solo necesitas tu DNI, sin certificado digital.',
     heading: 'Firma la autorización',
     blocks: [
-      { paragraph: 'Hola:' },
+      { kind: 'paragraph', text: 'Hola:' },
       {
-        paragraph: 'Para que Verifiq pueda registrar tus facturas en la AEAT, falta que firmes la autorización.',
+        kind: 'paragraph',
+        text: 'Para que Verifiq pueda registrar tus facturas en la AEAT, falta que firmes la autorización.',
       },
       {
-        paragraph: 'Abre este enlace y verifica tu identidad con tu DNI; no necesitas certificado digital:',
+        kind: 'paragraph',
+        text: 'Abre este enlace y verifica tu identidad con tu DNI; no necesitas certificado digital:',
       },
-      { button: 'Firmar la autorización', url },
+      { kind: 'button', label: 'Firmar la autorización', url },
       {
-        notice: 'Mientras no la firmes podrás preparar clientes, artículos y borradores, pero no emitir facturas.',
+        kind: 'notice',
+        text: 'Mientras no la firmes podrás preparar clientes, artículos y borradores, pero no emitir facturas.',
       },
     ],
   });
