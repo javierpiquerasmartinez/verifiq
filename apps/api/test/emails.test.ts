@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { invitationEmail } from '../src/auth/emails.js';
 
-const URL = 'https://app.example.com/invitation/Hw7A1xrwltcTXSFViz6CNBpbkwKhJPomS10L2ekxSt4';
+const INVITATION_URL = 'https://app.example.com/invitation/Hw7A1xrwltcTXSFViz6CNBpbkwKhJPomS10L2ekxSt4';
 const EXPIRES_AT = new Date('2026-10-15T08:03:00Z');
 
 describe('invitationEmail', () => {
-  const email = invitationEmail('lucia@example.com', URL, EXPIRES_AT);
+  const email = invitationEmail('lucia@example.com', INVITATION_URL, EXPIRES_AT);
 
   it('is addressed to the invited user', () => {
     expect(email.to).toBe('lucia@example.com');
@@ -21,7 +21,7 @@ describe('invitationEmail', () => {
         '',
         'Abre este enlace para crear tu contraseña y configurar la verificación en dos pasos:',
         '',
-        URL,
+        INVITATION_URL,
         '',
         'El enlace sirve una sola vez y caduca el 15 de octubre de 2026 a las 10:03.',
         '',
@@ -37,9 +37,9 @@ describe('invitationEmail', () => {
     const html = email.html!;
     expect(html).toContain('<html lang="es">');
     expect(html).toContain('Crea tu contraseña. El enlace caduca el 15 de octubre de 2026 a las 10:03.');
-    expect(html).toContain(`<a href="${URL}"`);
+    expect(html).toContain(`<a href="${INVITATION_URL}"`);
     expect(html).toContain('Crear mi contraseña</a>');
-    expect(html).toContain(`>${URL}</a>`);
+    expect(html).toContain(`>${INVITATION_URL}</a>`);
     expect(html).toContain('<strong');
     expect(html).toContain('15 de octubre de 2026 a las 10:03</strong>');
     expect(html).toContain('no se creará ninguna cuenta');
