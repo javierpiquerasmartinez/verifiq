@@ -33,6 +33,7 @@ export function OperatorPage() {
   const alerts = useQuery({ queryKey: ['operator', 'alerts'], queryFn: fetchRecordAlerts, retry: false });
   const invitations = useQuery({ queryKey: ['operator', 'invitations'], queryFn: fetchOperatorInvitations, retry: false });
   useSessionExpiry(issuers.error ?? alerts.error ?? invitations.error);
+  const groups = alerts.data && alertGroups(alerts.data);
 
   return (
     <OperatorShell>
@@ -47,14 +48,14 @@ export function OperatorPage() {
             <h2 className="h3" id="alerts">
               Alertas de registro
             </h2>
-            {alerts.data && <OpenAlerts count={alertGroups(alerts.data).length} />}
+            {groups && <OpenAlerts count={groups.length} />}
           </div>
           {alerts.isError && (
             <div className="card-pad">
               <Alert tone="danger">No se han podido cargar las alertas. Recarga la página.</Alert>
             </div>
           )}
-          {alerts.data && <Alerts groups={alertGroups(alerts.data)} />}
+          {groups && <Alerts groups={groups} />}
         </section>
         <NewInvitation />
       </div>
@@ -74,7 +75,7 @@ function OperatorShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="app">
-      <header className="topbar topbar-admin">
+      <header className="topbar topbar-operator">
         <div className="topbar-in">
           <span className="brand">
             <BrandMark inverted />
@@ -266,9 +267,16 @@ function Issuers({
                   <td>
                     <RepresentationTag representation={row.issuer.representation} />
                   </td>
-                  <td className="r num">{row.issuer.invoiceCount}</td>
+                  <td className="r num">
+                    {row.issuer.invoiceCount}
+                    {row.issuer.openIncidents > 0 && (
+                      <div className="xs" style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                        {row.issuer.openIncidents === 1 ? '1 con incidencia' : `${row.issuer.openIncidents} con incidencias`}
+                      </div>
+                    )}
+                  </td>
                   <td className="num">
-                    {row.issuer.onboardedAt ? formatDate(row.issuer.onboardedAt) : <span className="muted">En curso</span>}
+                    {row.issuer.onboardingCompletedAt ? formatDate(row.issuer.onboardingCompletedAt) : <span className="muted">En curso</span>}
                   </td>
                   <td />
                 </tr>
@@ -278,6 +286,9 @@ function Issuers({
                   <td className="muted">—</td>
                   <td>
                     <span className="tag tag-neutral">{INVITATION_LABELS[row.invitation.status]}</span>
+                    {row.invitation.status === 'pending' && (
+                      <div className="xs muted">Caduca el {formatDateTime(row.invitation.expiresAt)}</div>
+                    )}
                   </td>
                   <td className="r muted">—</td>
                   <td className="num">{formatDate(row.invitation.createdAt)}</td>

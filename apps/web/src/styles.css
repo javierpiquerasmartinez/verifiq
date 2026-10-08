@@ -181,19 +181,19 @@ ul {
   letter-spacing: -0.01em;
 }
 /* the operator's header: dark, so it is never mistaken for an issuer's app */
-.topbar-admin {
+.topbar-operator {
   background: var(--ink);
   border-bottom-color: var(--ink);
   color: #fff;
 }
-.topbar-admin .brand {
+.topbar-operator .brand {
   color: #fff;
 }
-.topbar-admin .tag {
+.topbar-operator .tag {
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
 }
-.topbar-admin .who {
+.topbar-operator .who {
   margin-left: auto;
   display: flex;
   flex-wrap: wrap;
@@ -202,10 +202,10 @@ ul {
   gap: 4px 16px;
   color: #c9d0d5;
 }
-.topbar-admin .btn-ghost {
+.topbar-operator .btn-ghost {
   color: #c9d0d5;
 }
-.topbar-admin .btn-ghost:hover {
+.topbar-operator .btn-ghost:hover {
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
 }

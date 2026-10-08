@@ -31,6 +31,11 @@ export function formatDateTime(instant: string): string {
 }
 
 /** The day of an instant in Spanish time: "01/08/2026". */
-export function formatDate(instant: string): string {
-  return formatDateTime(instant).split(' · ')[0]!;
-}
+export const formatDate = (instant: string) => DATE.format(new Date(instant));
+
+const DATE = new Intl.DateTimeFormat('es-ES', {
+  timeZone: 'Europe/Madrid',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});

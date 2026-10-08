@@ -52,7 +52,7 @@ describe('alertGroups', () => {
 
 const issuer = (overrides: Partial<OperatorIssuer>): OperatorIssuer => ({
   ...lucia,
-  onboardedAt: '2026-07-14T10:00:00.000Z',
+  onboardingCompletedAt: '2026-07-14T10:00:00.000Z',
   representation: { state: 'signed', error: null },
   invoiceCount: 24,
   openIncidents: 0,
