@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import type {
   CreatedInvitation,
   OperatorInvitation,
@@ -12,7 +12,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import {
   ApiError,
   createOperatorInvitation,
-  fetchOperatorInvitations,
+  fetchAllOperatorInvitations,
   fetchOperatorIssuers,
   fetchRecordAlerts,
   revokeOperatorInvitation,
@@ -24,6 +24,12 @@ import { useSessionExpiry } from '../session';
 import { Alert, Field } from '../ui/components';
 import { BrandMark, Icon } from '../ui/icons';
 
+/** The invitations still waiting to become an issuer, newest first. */
+async function fetchWaitingInvitations(): Promise<OperatorInvitation[]> {
+  const [pending, expired] = await Promise.all([fetchAllOperatorInvitations('pending'), fetchAllOperatorInvitations('expired')]);
+  return [...pending, ...expired].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 /**
  * The operator's panel: who to let in, and the operational health of every issuer. It never shows
  * an issuer's invoices or recipients (spec, story 93).
@@ -31,17 +37,14 @@ import { BrandMark, Icon } from '../ui/icons';
 export function OperatorPage() {
   const issuers = useQuery({ queryKey: ['operator', 'issuers'], queryFn: fetchOperatorIssuers, retry: false });
   const alerts = useQuery({ queryKey: ['operator', 'alerts'], queryFn: fetchRecordAlerts, retry: false });
-  const invitations = useQuery({ queryKey: ['operator', 'invitations'], queryFn: fetchOperatorInvitations, retry: false });
+  const invitations = useQuery({ queryKey: ['operator', 'invitations', 'waiting'], queryFn: fetchWaitingInvitations, retry: false });
   useSessionExpiry(issuers.error ?? alerts.error ?? invitations.error);
   const groups = alerts.data && alertGroups(alerts.data);
 
   return (
     <OperatorShell>
       <h1 className="sr-only">Panel del operador</h1>
-      <div className="alert alert-neutral" style={{ padding: '12px 16px' }}>
-        <Icon name="shield" />
-        <p className="small">Este panel nunca muestra facturas ni datos de los clientes de los Emisores.</p>
-      </div>
+      <NoBusinessData />
       <div className="row" style={{ gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <section className="card" style={{ flex: '1 1 560px', minWidth: 0, overflow: 'hidden' }} aria-labelledby="alerts">
           <div className="card-head">
@@ -64,7 +67,7 @@ export function OperatorPage() {
   );
 }
 
-function OperatorShell({ children }: { children: ReactNode }) {
+export function OperatorShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const session = authClient.useSession();
 
@@ -95,6 +98,16 @@ function OperatorShell({ children }: { children: ReactNode }) {
       <main className="page stack" style={{ gap: 28 }}>
         {children}
       </main>
+    </div>
+  );
+}
+
+/** Story 93: the operator never sees an issuer's business. */
+export function NoBusinessData() {
+  return (
+    <div className="alert alert-neutral" style={{ padding: '12px 16px' }}>
+      <Icon name="shield" />
+      <p className="small">Este panel nunca muestra facturas ni datos de los clientes de los Emisores.</p>
     </div>
   );
 }
@@ -214,6 +227,9 @@ function Issuers({
         <h2 className="h3" id="issuers">
           Emisores
         </h2>
+        <Link to="/operator/invitations" className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>
+          Ver todas las invitaciones
+        </Link>
         <label className="affix" style={{ width: 300, maxWidth: '100%' }}>
           <span className="sr-only">Buscar emisor</span>
           <Icon name="search" />

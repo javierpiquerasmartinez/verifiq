@@ -9,10 +9,13 @@ import {
   HttpCode,
   Param,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   AuthErrorCode,
+  invitationListQuerySchema,
   newInvitationSchema,
+  type InvitationList,
   type CreatedInvitation,
   type OperatorInvitation,
   type OperatorIssuer,
@@ -20,14 +23,15 @@ import {
 } from '@verifiq/domain';
 import { z } from 'zod';
 import { OperatorOnly } from '../auth/session.guard.js';
+import { parseBody } from '../issuers/http.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import {
   INVITATION_PROBLEM_MESSAGES,
   InvitationUsedError,
   inviteByEmail,
-  listInvitations,
   revokeInvitation,
 } from '../invitations/invitations.js';
+import { decodeInvitationCursor, listInvitations } from '../invitations/invitation-list.js';
 import { MAILER, type Mailer } from '../mail/mailer.js';
 import { OPERATOR_OPTIONS, type OperatorOptions } from './operator.options.js';
 import { OperatorPanelService } from './operator-panel.js';
@@ -37,6 +41,15 @@ const invitationNotFound = () =>
     code: AuthErrorCode.InvitationNotFound,
     message: INVITATION_PROBLEM_MESSAGES[AuthErrorCode.InvitationNotFound],
   });
+
+const listQuerySchema = invitationListQuerySchema.transform(({ cursor, ...query }, context) => {
+  const decoded = cursor === undefined ? null : decodeInvitationCursor(cursor, query.sort);
+  if (cursor !== undefined && decoded === null) {
+    context.addIssue({ code: 'custom', path: ['cursor'], message: 'Not a cursor of this list' });
+    return z.NEVER;
+  }
+  return { ...query, cursor: decoded };
+});
 
 /** The operator's panel: invitations and the operational health of every issuer. */
 @OperatorOnly()
@@ -59,9 +72,10 @@ export class OperatorController {
     return this.panel.alerts();
   }
 
+  /** Every user's invitation, searched, filtered, sorted and paged. */
   @Get('invitations')
-  invitations(): Promise<OperatorInvitation[]> {
-    return listInvitations(this.db);
+  invitations(@Query() query: unknown): Promise<InvitationList> {
+    return listInvitations(this.db, parseBody(listQuerySchema, query));
   }
 
   /** Invites a user: emails the link, and returns it this once for the operator to pass on. */

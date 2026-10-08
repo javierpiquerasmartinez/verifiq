@@ -65,6 +65,9 @@ const invitation = (overrides: Partial<OperatorInvitation>): OperatorInvitation 
   status: 'pending',
   createdAt: '2026-10-01T09:00:00.000Z',
   expiresAt: '2026-10-08T09:00:00.000Z',
+  acceptedAt: null,
+  revokedAt: null,
+  issuer: null,
   ...overrides,
 });
 

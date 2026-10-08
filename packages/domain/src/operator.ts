@@ -25,6 +25,10 @@ export const operatorInvitationSchema = z.object({
   status: z.enum(INVITATION_STATUSES),
   createdAt: z.iso.datetime(),
   expiresAt: z.iso.datetime(),
+  acceptedAt: z.iso.datetime().nullable(),
+  revokedAt: z.iso.datetime().nullable(),
+  /** Accepted: the issuer its user onboarded, null while it has none. Only who it is (story 93). */
+  issuer: z.object({ id: z.uuid(), name: z.string(), taxId: z.string() }).nullable(),
 });
 
 export type OperatorInvitation = z.infer<typeof operatorInvitationSchema>;
@@ -34,7 +38,43 @@ export const createdInvitationSchema = operatorInvitationSchema.extend({ url: z.
 
 export type CreatedInvitation = z.infer<typeof createdInvitationSchema>;
 
-export const operatorInvitationListSchema = operatorInvitationSchema.array();
+export const INVITATION_LIST_FILTERS = ['all', ...INVITATION_STATUSES] as const;
+
+export type InvitationListFilter = (typeof INVITATION_LIST_FILTERS)[number];
+
+/** What the list is sorted by: when it was sent, when it expires, or its email. */
+export const INVITATION_LIST_SORTS = ['sent', 'expires', 'email'] as const;
+
+export type InvitationListSort = (typeof INVITATION_LIST_SORTS)[number];
+
+export const SORT_ORDERS = ['asc', 'desc'] as const;
+
+export type SortOrder = (typeof SORT_ORDERS)[number];
+
+export const INVITATION_LIST_PAGE_SIZE = 50;
+
+/** Query of GET /operator/invitations. `q` matches the email, without case or accents. */
+export const invitationListQuerySchema = z.object({
+  q: z.string().trim().max(200).default(''),
+  status: z.enum(INVITATION_LIST_FILTERS).default('all'),
+  sort: z.enum(INVITATION_LIST_SORTS).default('sent'),
+  order: z.enum(SORT_ORDERS).default('desc'),
+  /** The previous page's `nextCursor`, under the same query. */
+  cursor: z.string().max(400).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(INVITATION_LIST_PAGE_SIZE),
+});
+
+export type InvitationListQuery = z.input<typeof invitationListQuerySchema>;
+
+/** Response of GET /operator/invitations: a page, and how many match the search under each filter. */
+export const invitationListSchema = z.object({
+  items: z.array(operatorInvitationSchema),
+  /** For the next page; null on the last one. */
+  nextCursor: z.string().nullable(),
+  counts: z.record(z.enum(INVITATION_LIST_FILTERS), z.number().int().nonnegative()),
+});
+
+export type InvitationList = z.infer<typeof invitationListSchema>;
 
 /** An issuer as the operator sees it: who it is and how it is doing, never its business data. */
 export const operatorIssuerSchema = z.object({
