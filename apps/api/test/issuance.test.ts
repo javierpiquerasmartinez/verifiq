@@ -323,6 +323,28 @@ describe('Issuance', () => {
       });
     });
 
+    it('sends exempt lines of different grounds as a single E1 exempt base', async () => {
+      const { agent, issuerId } = await issuingUser();
+      const recipient = await createRecipient(agent);
+      const { body: draft } = await agent
+        .post('/drafts')
+        .send({
+          ...monthlyDraft(recipient.id),
+          lines: [
+            line('Odontología conservadora', '2340'),
+            line('Fisioterapia', '60', { kind: 'exempt', ground: 'healthcare' }),
+            line('Charla', '300', { kind: 'exempt', ground: 'otherArticle20' }),
+          ],
+        })
+        .expect(201);
+      await agent.post('/invoices').send({ draftId: draft.id }).expect(201);
+
+      await worker.runPending();
+
+      const [submission] = submissionsOf(issuerId);
+      expect(submission!.invoice.lines).toEqual([{ kind: 'exempt', taxBase: '2700.00', exemptionCode: 'E1' }]);
+    });
+
     it('leaves nothing pending once sent', async () => {
       const { agent, issuerId } = await issuingUser();
       await issue(agent);

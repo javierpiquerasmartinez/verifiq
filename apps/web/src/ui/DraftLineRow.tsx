@@ -1,7 +1,8 @@
-import { EXEMPTION_GROUND_IDS, exemptionGround, VAT_RATES, type ExemptionGroundId, type VatTreatment } from '@verifiq/domain';
+import { exemptionGround, VAT_RATES, type ExemptionGroundId, type VatTreatment } from '@verifiq/domain';
 import { lineConceptField } from '../draft-problems';
 import { vatChoiceOf, vatFor, type LineErrors, type LineState, type VatChoice } from '../draft-lines';
 import { formatAmount } from '../format';
+import { ExemptionGroundOptions } from './ExemptionGroundSelect';
 import { Icon } from './icons';
 
 /** One line of the draft editor: concept, quantity, unit price, discount, VAT and its base. */
@@ -105,7 +106,7 @@ export function DraftLineRow({
   );
 }
 
-/** The exemption ground of an exempt line: its label, and a choice when the catalogue has more than one. */
+/** The exemption ground of an exempt line, inherited from its catalog item or the issuer and changeable. */
 function ExemptionGroundPicker({
   line,
   value,
@@ -115,24 +116,21 @@ function ExemptionGroundPicker({
   value: ExemptionGroundId;
   onChange: (ground: ExemptionGroundId) => void;
 }) {
-  if (EXEMPTION_GROUND_IDS.length === 1) {
-    return <p className="xs muted">Exenta: {exemptionGround(value).label}</p>;
-  }
+  const { help } = exemptionGround(value);
   return (
-    <span className="sel" style={{ maxWidth: 520 }}>
-      <select
-        className="input"
-        aria-label={`Supuesto de exención de la línea ${line + 1}`}
-        value={value}
-        onChange={(event) => onChange(event.target.value as ExemptionGroundId)}
-      >
-        {EXEMPTION_GROUND_IDS.map((id) => (
-          <option key={id} value={id}>
-            {exemptionGround(id).label}
-          </option>
-        ))}
-      </select>
-      <Icon name="chevron" />
-    </span>
+    <>
+      <span className="sel" style={{ maxWidth: 520 }}>
+        <select
+          className="input"
+          aria-label={`Supuesto de exención de la línea ${line + 1}`}
+          value={value}
+          onChange={(event) => onChange(event.target.value as ExemptionGroundId)}
+        >
+          <ExemptionGroundOptions />
+        </select>
+        <Icon name="chevron" />
+      </span>
+      {help && <p className="xs muted">{help}</p>}
+    </>
   );
 }

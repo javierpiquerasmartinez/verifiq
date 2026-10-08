@@ -83,9 +83,10 @@ export function Seg<T extends string | number>({
 export function Select({
   label,
   help,
+  error,
   children,
   ...select
-}: SelectHTMLAttributes<HTMLSelectElement> & { label: string; help?: ReactNode }) {
+}: SelectHTMLAttributes<HTMLSelectElement> & { label: string; help?: ReactNode; error?: string }) {
   const id = useId();
   return (
     <div className="field">
@@ -93,15 +94,27 @@ export function Select({
         {label}
       </label>
       <span className="sel">
-        <select id={id} className="input" aria-describedby={help ? `${id}-hint` : undefined} {...select}>
+        <select
+          id={id}
+          className="input"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error || help ? `${id}-hint` : undefined}
+          {...select}
+        >
           {children}
         </select>
         <Icon name="chevron" />
       </span>
-      {help && (
-        <p className="help" id={`${id}-hint`}>
-          {help}
+      {error ? (
+        <p className="err" id={`${id}-hint`}>
+          {error}
         </p>
+      ) : (
+        help && (
+          <p className="help" id={`${id}-hint`}>
+            {help}
+          </p>
+        )
       )}
     </div>
   );

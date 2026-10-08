@@ -1,21 +1,14 @@
-import {
-  catalogItemDataSchema,
-  EXEMPTION_GROUND_IDS,
-  exemptionGround,
-  VAT_RATES,
-  type CatalogItem,
-  type ExemptionGroundId,
-  type VatTreatment,
-} from '@verifiq/domain';
+import { catalogItemDataSchema, VAT_RATES, type CatalogItem, type ExemptionGroundId, type VatTreatment } from '@verifiq/domain';
 import { useState, type FormEvent } from 'react';
 import { createCatalogItem, updateCatalogItem } from '../api';
-import { vatChoiceOf, vatFor, type VatChoice } from '../draft-lines';
+import { EXEMPTION_GROUND_REQUIRED, vatChoiceOf, vatOfChoice, type VatChoice } from '../draft-lines';
 import { decimalInputOf, parseDecimalInput } from '../format';
 import { Alert, Field, Select } from './components';
+import { ExemptionGroundSelect } from './ExemptionGroundSelect';
 
 /**
- * Create or edit a CatalogItem ("Artículo"). A new one starts with the issuer's default VAT.
- * Saving it never changes the lines already copied from it.
+ * Create or edit a CatalogItem ("Artículo"). A new one starts with the issuer's default VAT; turning
+ * it exempt afterwards asks for its exemption ground. Saving it never changes the lines already copied from it.
  */
 export function CatalogItemForm({
   item,
@@ -30,8 +23,10 @@ export function CatalogItemForm({
 }) {
   const [name, setName] = useState(item?.name ?? '');
   const [price, setPrice] = useState(item ? decimalInputOf(item.defaultUnitPrice) : '');
-  const [vat, setVat] = useState<VatTreatment>(item?.defaultVat ?? defaultVat);
-  const [errors, setErrors] = useState<{ name?: string; price?: string }>({});
+  const initialVat = item?.defaultVat ?? defaultVat;
+  const [vat, setVat] = useState<VatChoice>(vatChoiceOf(initialVat));
+  const [ground, setGround] = useState<ExemptionGroundId | ''>(initialVat.kind === 'exempt' ? initialVat.ground : '');
+  const [errors, setErrors] = useState<{ name?: string; price?: string; ground?: string }>({});
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
 
@@ -39,11 +34,13 @@ export function CatalogItemForm({
     event.preventDefault();
     setError(undefined);
     const defaultUnitPrice = parseDecimalInput(price, 4);
-    const parsed = catalogItemDataSchema.safeParse({ name, defaultUnitPrice, defaultVat: vat });
+    const chosenVat = vatOfChoice(vat, ground);
+    const parsed = catalogItemDataSchema.safeParse({ name, defaultUnitPrice, defaultVat: chosenVat });
     if (!parsed.success) {
       return setErrors({
         name: name.trim() ? undefined : 'Escribe el nombre del artículo: será el concepto de la línea.',
         price: defaultUnitPrice === null ? 'Precio no válido: un importe positivo con hasta 4 decimales.' : undefined,
+        ground: chosenVat ? undefined : EXEMPTION_GROUND_REQUIRED,
       });
     }
     setPending(true);
@@ -86,11 +83,7 @@ export function CatalogItemForm({
           help="Sin IVA. Podrás cambiarlo en cada factura."
           error={errors.price}
         />
-        <Select
-          label="IVA por defecto"
-          value={vatChoiceOf(vat)}
-          onChange={(event) => setVat(vatFor(event.target.value as VatChoice, vat, defaultVat))}
-        >
+        <Select label="IVA por defecto" value={vat} onChange={(event) => setVat(event.target.value as VatChoice)}>
           <option value="exempt">Exenta</option>
           {VAT_RATES.map((rate) => (
             <option key={rate} value={`${rate}`}>
@@ -99,19 +92,16 @@ export function CatalogItemForm({
           ))}
         </Select>
       </div>
-      {vat.kind === 'exempt' && (
-        <Select
-          label="Supuesto de exención"
-          value={vat.ground}
-          onChange={(event) => setVat({ kind: 'exempt', ground: event.target.value as ExemptionGroundId })}
+      {vat === 'exempt' && (
+        <ExemptionGroundSelect
+          value={ground}
+          onChange={(chosen) => {
+            setGround(chosen);
+            setErrors((current) => ({ ...current, ground: undefined }));
+          }}
           help="Determina la mención legal que se imprime en la factura."
-        >
-          {EXEMPTION_GROUND_IDS.map((id) => (
-            <option key={id} value={id}>
-              {exemptionGround(id).label}
-            </option>
-          ))}
-        </Select>
+          error={errors.ground}
+        />
       )}
       <div className="row">
         <button className="btn btn-primary" disabled={pending}>

@@ -1,4 +1,4 @@
-import { RECORD_REJECTION_CODES, type CorrectiveInvoiceType, type ExemptionGround, type VatRate } from '@verifiq/domain';
+import { RECORD_REJECTION_CODES, type CorrectiveInvoiceType, type VatRate, type VerifactuExemptionCode } from '@verifiq/domain';
 
 export const VERIFACTU_CONNECTOR = Symbol('VERIFACTU_CONNECTOR');
 
@@ -121,7 +121,7 @@ export interface InvoiceKey {
 /** A tax breakdown row of the record: one per VAT rate or exemption ground, never per item. */
 export type RecordLine =
   | { kind: 'taxed'; taxBase: string; vatRate: VatRate; taxAmount: string }
-  | { kind: 'exempt'; taxBase: string; exemptionCode: ExemptionGround['verifactuCode'] };
+  | { kind: 'exempt'; taxBase: string; exemptionCode: VerifactuExemptionCode };
 
 export interface RecordInvoice extends InvoiceKey {
   type: RecordInvoiceType;

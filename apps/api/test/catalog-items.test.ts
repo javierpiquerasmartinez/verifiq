@@ -82,7 +82,7 @@ describe('Catalog items', () => {
     ['a negative price', { defaultUnitPrice: '-45' }],
     ['a price that is not a decimal', { defaultUnitPrice: '45,5' }],
     ['an exempt VAT without exemption ground', { defaultVat: { kind: 'exempt' } }],
-    ['an exemption ground outside the catalogue', { defaultVat: { kind: 'exempt', ground: 'education' } }],
+    ['an exemption ground outside the catalogue', { defaultVat: { kind: 'exempt', ground: 'medicine' } }],
   ])('refuses %s', async (_, change) => {
     const { agent } = await onboardedUser(app);
 

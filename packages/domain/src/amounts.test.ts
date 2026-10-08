@@ -52,6 +52,35 @@ describe('computeBreakdown', () => {
     expect(breakdown.amountDue).toBe('1335.48');
   });
 
+  it('one exempt base and one mention per exemption ground, in catalogue order', () => {
+    const breakdown = computeBreakdown({
+      lines: [
+        line('1', '300', { kind: 'exempt', ground: 'otherArticle20' }),
+        line('1', '1000', exempt),
+        line('1', '80', { kind: 'exempt', ground: 'healthcare' }),
+        line('1', '200', exempt),
+      ],
+      withholding: 15,
+    });
+
+    expect(breakdown.exempt).toEqual([
+      {
+        ground: 'healthcare',
+        base: '80.00',
+        mention:
+          'Operación exenta de IVA en virtud del artículo 20.Uno.3º de la Ley 37/1992, del Impuesto sobre el Valor Añadido.',
+      },
+      { ground: 'dentistry', base: '1200.00', mention },
+      {
+        ground: 'otherArticle20',
+        base: '300.00',
+        mention: 'Operación exenta de IVA en virtud del artículo 20 de la Ley 37/1992, del Impuesto sobre el Valor Añadido.',
+      },
+    ]);
+    expect(breakdown.taxBase).toBe('1580.00');
+    expect(breakdown.totalAmount).toBe('1580.00');
+  });
+
   it('no withholding', () => {
     const breakdown = computeBreakdown({ lines: [line('1', '100', taxed(21))], withholding: 0 });
     expect(breakdown.withholding).toEqual({ rate: 0, amount: '0.00' });
