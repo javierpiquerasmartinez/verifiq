@@ -1,3 +1,4 @@
+import { LOGO } from './logo.js';
 import type { EmailMessage } from './mailer.js';
 
 /** Text within a notice; `{ strong }` is highlighted in the HTML version. */
@@ -33,6 +34,7 @@ export function composeEmail(to: string, content: EmailContent): EmailMessage {
     subject: content.subject,
     text: plainText(content),
     html: html(content),
+    inlineImages: [LOGO],
   };
 }
 
@@ -144,7 +146,7 @@ function html({ subject, preview, heading, blocks, aside }: EmailContent): strin
 @media (max-width: 600px) {
   .outer { padding: 24px 16px 32px !important; }
   .header { padding-bottom: 16px !important; }
-  .logo { width: 26px !important; height: 26px !important; line-height: 26px !important; }
+  .logo img { width: 26px !important; height: 26px !important; }
   .wordmark { font-size: 17px !important; }
   .card { padding: 28px 22px !important; }
   .card h1 { margin-bottom: 18px !important; font-size: 22px !important; }
@@ -166,7 +168,7 @@ function html({ subject, preview, heading, blocks, aside }: EmailContent): strin
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; border-collapse: collapse">
 <tr><td class="header" style="padding: 0 0 20px">
 <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse: collapse"><tr>
-<td class="logo" width="28" height="28" align="center" style="width: 28px; height: 28px; background: ${BRAND}; border-radius: 7px; color: #FFFFFF; font-size: 16px; font-weight: 700; line-height: 28px">&#10003;</td>
+<td class="logo" width="28" style="width: 28px"><img src="cid:${LOGO.contentId}" width="28" height="28" alt="" style="display: block; width: 28px; height: 28px; border: 0"></td>
 <td class="wordmark" style="padding-left: 10px; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: ${INK}">Verifiq</td>
 </tr></table>
 </td></tr>
