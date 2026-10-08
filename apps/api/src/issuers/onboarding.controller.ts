@@ -22,6 +22,7 @@ import {
   acceptTerms,
   confirmSeries,
   findOnboarding,
+  OnboardingCompletedError,
   TaxIdTakenError,
   saveDefaults,
   saveFiscalData,
@@ -41,6 +42,9 @@ function stepError(error: unknown): unknown {
   }
   if (error instanceof SeriesAlreadyConfirmedError) {
     return conflict(IssuerErrorCode.SeriesAlreadyConfirmed, 'The series is confirmed and cannot change');
+  }
+  if (error instanceof OnboardingCompletedError) {
+    return conflict(IssuerErrorCode.OnboardingCompleted, 'Onboarding is complete: edit the issuer from the settings');
   }
   if (error instanceof TaxIdTakenError) {
     return conflict(IssuerErrorCode.TaxIdTaken, 'There is already an issuer with this tax ID');

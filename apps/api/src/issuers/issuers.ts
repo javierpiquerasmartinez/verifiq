@@ -2,6 +2,7 @@ import {
   LEGAL_DOCUMENTS,
   type IssuerDefaults,
   type IssuerSummary,
+  type EditableFiscalData,
   type FiscalData,
   type LegalDocument,
   type Onboarding,
@@ -24,6 +25,9 @@ export class TaxIdTakenError extends Error {}
 export class StepPendingError extends Error {}
 
 export class SeriesAlreadyConfirmedError extends Error {}
+
+/** An onboarding step was sent once onboarding is complete: the settings edit the issuer now. */
+export class OnboardingCompletedError extends Error {}
 
 function fiscalDataOf(row: IssuerRow): FiscalData {
   return {
@@ -113,8 +117,12 @@ function isTaxIdConflict(error: unknown): boolean {
   return pgError.code === '23505' && pgError.constraint === 'issuers_tax_id_unique';
 }
 
+/** The issuer, while its onboarding is not complete. */
+const inOnboarding = (issuerId: string) => and(eq(issuers.id, issuerId), isNull(issuers.onboardingCompletedAt));
+
 /**
- * Step 1. The first save creates the issuer and the user's membership; later saves update it.
+ * Step 1. The first save creates the issuer and the user's membership; later saves update it,
+ * until onboarding is complete.
  * Returns the issuer id.
  */
 export async function saveFiscalData(
@@ -123,25 +131,22 @@ export async function saveFiscalData(
   data: FiscalData,
 ): Promise<string> {
   try {
-    if (issuerId) {
-      await db
-        .update(issuers)
-        .set({ ...data, updatedAt: new Date() })
-        .where(eq(issuers.id, issuerId));
-      return issuerId;
-    }
     return await db.transaction(async (tx) => {
       // Serialises the user's requests, so two simultaneous first saves create one issuer.
       await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update');
-      const [existing] = await tx
-        .select({ issuerId: issuerMemberships.issuerId })
-        .from(issuerMemberships)
-        .where(eq(issuerMemberships.userId, userId));
+      const [existing] = issuerId
+        ? [{ issuerId }]
+        : await tx
+            .select({ issuerId: issuerMemberships.issuerId })
+            .from(issuerMemberships)
+            .where(eq(issuerMemberships.userId, userId));
       if (existing) {
-        await tx
+        const updated = await tx
           .update(issuers)
           .set({ ...data, updatedAt: new Date() })
-          .where(eq(issuers.id, existing.issuerId));
+          .where(inOnboarding(existing.issuerId))
+          .returning({ id: issuers.id });
+        if (updated.length === 0) throw new OnboardingCompletedError();
         return existing.issuerId;
       }
       const [created] = await tx.insert(issuers).values(data).returning({ id: issuers.id });
@@ -154,22 +159,39 @@ export async function saveFiscalData(
   }
 }
 
+/** Settings: the fiscal data of an onboarded issuer, except its tax ID. Issued invoices keep their copy. */
+export async function updateFiscalData(db: Database, issuerId: string, data: EditableFiscalData): Promise<void> {
+  await db
+    .update(issuers)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(issuers.id, issuerId));
+}
+
+const defaultsColumns = ({ withholding, vat }: IssuerDefaults) => ({
+  defaultWithholding: withholding,
+  defaultVatRate: vat.kind === 'taxed' ? vat.rate : null,
+  defaultExemptionGround: vat.kind === 'exempt' ? vat.ground : null,
+  updatedAt: new Date(),
+});
+
 /** Step 2. */
 export async function saveDefaults(
   db: Database,
   issuerId: string | null,
-  { withholding, vat }: IssuerDefaults,
+  defaults: IssuerDefaults,
 ): Promise<void> {
   if (!issuerId) throw new StepPendingError();
-  await db
+  const updated = await db
     .update(issuers)
-    .set({
-      defaultWithholding: withholding,
-      defaultVatRate: vat.kind === 'taxed' ? vat.rate : null,
-      defaultExemptionGround: vat.kind === 'exempt' ? vat.ground : null,
-      updatedAt: new Date(),
-    })
-    .where(eq(issuers.id, issuerId));
+    .set(defaultsColumns(defaults))
+    .where(inOnboarding(issuerId))
+    .returning({ id: issuers.id });
+  if (updated.length === 0) throw new OnboardingCompletedError();
+}
+
+/** Settings: the defaults of an onboarded issuer. They only reach the drafts created afterwards. */
+export async function updateDefaults(db: Database, issuerId: string, defaults: IssuerDefaults): Promise<void> {
+  await db.update(issuers).set(defaultsColumns(defaults)).where(eq(issuers.id, issuerId));
 }
 
 /** Step 3: chosen once (ADR 0004); numbering starts at 1 in each series. */

@@ -10,12 +10,26 @@ import {
   Res,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
-import { IssuerErrorCode, type IssuerSummary } from '@verifiq/domain';
+import {
+  editableFiscalDataSchema,
+  issuerDefaultsSchema,
+  IssuerErrorCode,
+  type IssuerSummary,
+  type Onboarding,
+} from '@verifiq/domain';
 import type { Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { OBJECT_STORAGE, type ObjectStorage } from '../storage/object-storage.js';
-import { findLogoKey, findSummary, replaceLogoKey } from './issuers.js';
+import { parseBody } from './http.js';
+import {
+  findLogoKey,
+  findOnboarding,
+  findSummary,
+  replaceLogoKey,
+  updateDefaults,
+  updateFiscalData,
+} from './issuers.js';
 import { CurrentIssuer, OnboardingIssuer } from './issuer-context.js';
 import { RepresentationService } from './representation.js';
 
@@ -42,7 +56,10 @@ function requireIssuer(issuerId: string | null): string {
 const logoNotFound = () =>
   new NotFoundException({ code: IssuerErrorCode.LogoNotFound, message: 'There is no logo' });
 
-/** The issuer of the session. The logo can be set from onboarding step 1 on. */
+/**
+ * The issuer of the session. The logo can be set from onboarding step 1 on; the rest of its data is
+ * edited here once onboarding is complete (the settings). Responses are the issuer as GET /onboarding.
+ */
 @Controller('issuer')
 export class IssuerController {
   constructor(
@@ -58,6 +75,18 @@ export class IssuerController {
       this.representation.canIssue(issuerId),
     ]);
     return { ...summary, canIssue };
+  }
+
+  @Put('fiscal-data')
+  async updateFiscalData(@CurrentIssuer() issuerId: string, @Body() body: unknown): Promise<Onboarding> {
+    await updateFiscalData(this.db, issuerId, parseBody(editableFiscalDataSchema, body));
+    return findOnboarding(this.db, issuerId);
+  }
+
+  @Put('defaults')
+  async updateDefaults(@CurrentIssuer() issuerId: string, @Body() body: unknown): Promise<Onboarding> {
+    await updateDefaults(this.db, issuerId, parseBody(issuerDefaultsSchema, body));
+    return findOnboarding(this.db, issuerId);
   }
 
   /** Raw PNG or JPEG body (see configureHttp), up to LOGO_MAX_BYTES. */
