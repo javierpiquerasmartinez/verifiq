@@ -10,6 +10,9 @@ import { createTestApp, FakeMailer, WEB_ORIGIN } from './test-app.js';
 
 const HOUR = 3_600_000;
 
+/** The token at the end of an invitation's link. */
+const tokenOf = (url: string) => new URL(url).pathname.replace('/invitation/', '');
+
 describe('Operator panel', () => {
   let app: INestApplication;
   let db: Database;
@@ -134,7 +137,7 @@ describe('Operator panel', () => {
       const url = new URL(created.url);
       expect(url.origin).toBe(WEB_ORIGIN);
       expect(mailer.to(email).at(-1)?.text).toContain(created.url);
-      const token = url.pathname.replace('/invitation/', '');
+      const token = tokenOf(created.url);
       const agent = browser(app);
       await agent.post(`/invitations/${token}/accept`).send({ name: 'Lucía Ferrer', password: PASSWORD }).expect(200);
       // Invitations from the panel are for users.
@@ -150,7 +153,7 @@ describe('Operator panel', () => {
       vi.useRealTimers();
       const { body: used } = await operator.post('/operator/invitations').send({ email: accepted }).expect(201);
       await browser(app)
-        .post(`/invitations/${new URL(used.url).pathname.split('/').at(-1)}/accept`)
+        .post(`/invitations/${tokenOf(used.url)}/accept`)
         .send({ name: 'Lucía Ferrer', password: PASSWORD })
         .expect(200);
       const { body: open } = await operator.post('/operator/invitations').send({ email: pending }).expect(201);
@@ -168,7 +171,7 @@ describe('Operator panel', () => {
 
     it('revokes a pending invitation: its link stops working', async () => {
       const { body: created } = await operator.post('/operator/invitations').send({ email: uniqueEmail() }).expect(201);
-      const token = new URL(created.url).pathname.split('/').at(-1);
+      const token = tokenOf(created.url);
 
       const { body: revoked } = await operator.post(`/operator/invitations/${created.id}/revoke`).expect(200);
 
@@ -185,7 +188,7 @@ describe('Operator panel', () => {
     it('cannot revoke an accepted invitation', async () => {
       const { body: created } = await operator.post('/operator/invitations').send({ email: uniqueEmail() }).expect(201);
       await browser(app)
-        .post(`/invitations/${new URL(created.url).pathname.split('/').at(-1)}/accept`)
+        .post(`/invitations/${tokenOf(created.url)}/accept`)
         .send({ name: 'Lucía Ferrer', password: PASSWORD })
         .expect(200);
 

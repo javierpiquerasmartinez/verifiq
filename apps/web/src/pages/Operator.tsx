@@ -151,7 +151,10 @@ function Alerts({ alerts }: { alerts: RecordAlert[] }) {
   );
 }
 
-const REPRESENTATION_LABELS: Record<Exclude<RepresentationState, 'error'>, { label: string; tone: string }> = {
+/** The `tag-*` styles. */
+type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'neutral';
+
+const REPRESENTATION_LABELS: Record<Exclude<RepresentationState, 'error'>, { label: string; tone: Tone }> = {
   'not-required': { label: 'No necesaria', tone: 'neutral' },
   'not-started': { label: 'Sin firmar', tone: 'neutral' },
   pending: { label: 'Pendiente de firma', tone: 'warn' },
@@ -166,7 +169,7 @@ const REPRESENTATION_ERROR_LABELS: Record<RepresentationError, string> = {
 };
 
 function RepresentationTag({ representation }: { representation: OperatorIssuer['representation'] }) {
-  const { label, tone } =
+  const { label, tone }: { label: string; tone: Tone } =
     representation.state === 'error'
       ? { label: representation.error ? REPRESENTATION_ERROR_LABELS[representation.error] : 'Error', tone: 'danger' }
       : REPRESENTATION_LABELS[representation.state];
@@ -286,7 +289,7 @@ function NewInvitation() {
   );
 }
 
-const INVITATION_STATUS_LABELS: Record<InvitationStatus, { label: string; tone: string }> = {
+const INVITATION_STATUS_LABELS: Record<InvitationStatus, { label: string; tone: Tone }> = {
   pending: { label: 'Pendiente', tone: 'info' },
   accepted: { label: 'Aceptada', tone: 'ok' },
   expired: { label: 'Caducada', tone: 'neutral' },

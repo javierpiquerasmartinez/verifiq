@@ -2,8 +2,10 @@ import { createHash, randomBytes } from 'node:crypto';
 import { AuthErrorCode, type InvitationStatus, type OperatorInvitation, type UserRole } from '@verifiq/domain';
 import { and, desc, eq, gt, isNull } from 'drizzle-orm';
 import type { Auth } from '../auth/auth.js';
+import { invitationEmail } from '../auth/emails.js';
 import type { Database } from '../database/database.module.js';
 import { invitations } from '../database/schema.js';
+import type { Mailer } from '../mail/mailer.js';
 
 export const INVITATION_TTL_DAYS = 7;
 
@@ -26,8 +28,17 @@ export async function createInvitation(
   return { token, invitation: toOperatorInvitation(row!) };
 }
 
-/** The link of the invitation in the web app. */
-export const invitationUrl = (appUrl: string, token: string) => new URL(`/invitation/${token}`, appUrl).toString();
+/** Creates the invitation and emails its link (`appUrl` is the web app's), which it returns this once. */
+export async function inviteByEmail(
+  db: Database,
+  mailer: Mailer,
+  { appUrl, email, role }: { appUrl: string; email: string; role?: UserRole },
+): Promise<{ url: string; invitation: OperatorInvitation }> {
+  const { token, invitation } = await createInvitation(db, { email, role });
+  const url = new URL(`/invitation/${token}`, appUrl).toString();
+  await mailer.send(invitationEmail(invitation.email, url, new Date(invitation.expiresAt)));
+  return { url, invitation };
+}
 
 type InvitationRow = typeof invitations.$inferSelect;
 
@@ -47,14 +58,14 @@ function toOperatorInvitation(row: InvitationRow): OperatorInvitation {
   };
 }
 
-/** The invitations of users (the operator's own are left out), newest first. */
-export async function listInvitations(db: Database, limit = 200): Promise<OperatorInvitation[]> {
+/** The latest invitations of users (the operator's own are left out), newest first. */
+export async function listInvitations(db: Database): Promise<OperatorInvitation[]> {
   const rows = await db
     .select()
     .from(invitations)
     .where(eq(invitations.role, 'user'))
     .orderBy(desc(invitations.createdAt), desc(invitations.id))
-    .limit(limit);
+    .limit(200);
   return rows.map(toOperatorInvitation);
 }
 
@@ -62,7 +73,7 @@ export async function listInvitations(db: Database, limit = 200): Promise<Operat
 export class InvitationUsedError extends Error {}
 
 /**
- * Withdraws a user's invitation that was not used yet, so its link stops working; revoking it again
+ * Revokes a user's invitation that was not used yet, so its link stops working; revoking it again
  * changes nothing. Null when there is no such invitation.
  */
 export async function revokeInvitation(db: Database, id: string): Promise<OperatorInvitation | null> {
@@ -86,6 +97,13 @@ export type InvitationProblem =
   | typeof AuthErrorCode.InvitationExpired
   | typeof AuthErrorCode.InvitationUsed
   | typeof AuthErrorCode.InvitationRevoked;
+
+export const INVITATION_PROBLEM_MESSAGES: Record<InvitationProblem, string> = {
+  [AuthErrorCode.InvitationNotFound]: 'This invitation does not exist',
+  [AuthErrorCode.InvitationExpired]: 'This invitation has expired',
+  [AuthErrorCode.InvitationUsed]: 'This invitation has already been used',
+  [AuthErrorCode.InvitationRevoked]: 'This invitation was revoked',
+};
 
 export type InvitationLookup =
   | { ok: true; id: string; email: string; role: UserRole }

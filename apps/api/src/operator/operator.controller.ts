@@ -6,9 +6,9 @@ import {
   Get,
   Inject,
   NotFoundException,
+  HttpCode,
   Param,
   Post,
-  HttpCode,
 } from '@nestjs/common';
 import {
   AuthErrorCode,
@@ -19,13 +19,12 @@ import {
   type RecordAlert,
 } from '@verifiq/domain';
 import { z } from 'zod';
-import { invitationEmail } from '../auth/emails.js';
 import { OperatorOnly } from '../auth/session.guard.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import {
-  createInvitation,
+  INVITATION_PROBLEM_MESSAGES,
   InvitationUsedError,
-  invitationUrl,
+  inviteByEmail,
   listInvitations,
   revokeInvitation,
 } from '../invitations/invitations.js';
@@ -34,7 +33,10 @@ import { OPERATOR_OPTIONS, type OperatorOptions } from './operator.options.js';
 import { OperatorPanelService } from './operator-panel.js';
 
 const invitationNotFound = () =>
-  new NotFoundException({ code: AuthErrorCode.InvitationNotFound, message: 'This invitation does not exist' });
+  new NotFoundException({
+    code: AuthErrorCode.InvitationNotFound,
+    message: INVITATION_PROBLEM_MESSAGES[AuthErrorCode.InvitationNotFound],
+  });
 
 /** The operator's panel: invitations and the operational health of every issuer. */
 @OperatorOnly()
@@ -69,10 +71,10 @@ export class OperatorController {
     if (!parsed.success) {
       throw new BadRequestException({ code: AuthErrorCode.ValidationFailed, issues: parsed.error.issues });
     }
-    const { email } = parsed.data;
-    const { token, invitation } = await createInvitation(this.db, { email });
-    const url = invitationUrl(this.options.appUrl, token);
-    await this.mailer.send(invitationEmail(email, url, new Date(invitation.expiresAt)));
+    const { url, invitation } = await inviteByEmail(this.db, this.mailer, {
+      appUrl: this.options.appUrl,
+      email: parsed.data.email,
+    });
     return { ...invitation, url };
   }
 
@@ -88,7 +90,7 @@ export class OperatorController {
       if (error instanceof InvitationUsedError) {
         throw new ConflictException({
           code: AuthErrorCode.InvitationUsed,
-          message: 'This invitation has already been used',
+          message: INVITATION_PROBLEM_MESSAGES[AuthErrorCode.InvitationUsed],
         });
       }
       throw error;
