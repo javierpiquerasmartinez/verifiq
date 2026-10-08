@@ -3,43 +3,18 @@ import { useNavigate } from '@tanstack/react-router';
 import {
   DEFAULT_CORRECTIVE_PREFIX,
   DEFAULT_SERIES_PREFIX,
-  IssuerErrorCode,
-  fiscalDataSchema,
   invoiceNumber,
-  VAT_RATES,
   LEGAL_DOCUMENTS,
-  LOGO_CONTENT_TYPES,
-  LOGO_MAX_BYTES,
-  normalizeTaxId,
-  parseTaxId,
-  WITHHOLDING_RATES,
   seriesSchema,
-  EXEMPTION_GROUND_IDS,
-  exemptionGround,
-  type IssuerDefaults,
-  type FiscalData,
-  type VatTreatment,
   type Onboarding,
   type OnboardingStep,
-  type WithholdingRate,
-  type ExemptionGroundId,
 } from '@verifiq/domain';
 import { useEffect, useState, type FormEvent } from 'react';
-import {
-  acceptTerms,
-  ApiError,
-  confirmSeries,
-  fetchOnboarding,
-  logoUrl,
-  removeLogo,
-  saveDefaults,
-  saveFiscalData,
-  uploadLogo,
-} from '../api';
+import { acceptTerms, confirmSeries, fetchOnboarding, saveDefaults, saveFiscalData } from '../api';
 import { authClient } from '../auth-client';
-import { WITHHOLDING_LABELS } from '../format';
 import { useSessionExpiry } from '../session';
-import { AccessLayout, Alert, Field, Select, Seg } from '../ui/components';
+import { AccessLayout, Alert, Field } from '../ui/components';
+import { DefaultsForm, FiscalDataForm, useSubmit } from '../ui/IssuerForms';
 import { Stepper } from '../ui/Stepper';
 
 const STEP_TITLES: Record<OnboardingStep, { title: string; subtitle: string }> = {
@@ -64,25 +39,6 @@ const STEP_TITLES: Record<OnboardingStep, { title: string; subtitle: string }> =
 /** The year of today's date in Spain, which names the series of the invoices issued now. */
 const currentYear = () =>
   Number(new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', year: 'numeric' }).format(new Date()));
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    switch (error.code) {
-      case IssuerErrorCode.TaxIdTaken:
-        return 'Ya hay un Emisor dado de alta con este NIF. Si es el tuyo, escríbenos.';
-      case IssuerErrorCode.SeriesAlreadyConfirmed:
-        return 'Tu numeración ya estaba confirmada y no se puede cambiar.';
-      case IssuerErrorCode.LegalVersionOutdated:
-        return 'Las condiciones se han actualizado mientras tanto. Recarga la página y vuelve a leerlas.';
-      case IssuerErrorCode.LogoInvalid:
-        return 'El logo debe ser una imagen PNG o JPEG.';
-      case IssuerErrorCode.OnboardingStepPending:
-        return 'Falta completar un paso anterior.';
-    }
-    if (error.status === 413) return 'El logo ocupa demasiado: como máximo 1 MB.';
-  }
-  return 'No se ha podido guardar. Vuelve a intentarlo.';
-}
 
 /**
  * Issuer onboarding: four steps, each saved as it is completed, resumable at any time. Step 5,
@@ -150,252 +106,38 @@ interface StepProps {
   onSaved: (next: Onboarding) => void;
 }
 
-function useSubmit() {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string>();
-  async function run(work: () => Promise<void>) {
-    setPending(true);
-    setError(undefined);
-    try {
-      await work();
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setPending(false);
-    }
-  }
-  return { pending, error, run };
-}
-
-const EMPTY_FISCAL_DATA: Record<keyof FiscalData, string> = {
-  name: '',
-  taxId: '',
-  address: '',
-  postalCode: '',
-  municipality: '',
-  province: '',
-  email: '',
-  phone: '',
-  iban: '',
-};
-
-const FIELD_ERRORS: Record<keyof FiscalData, string> = {
-  name: 'Escribe tu nombre completo o razón social (hasta 120 caracteres).',
-  taxId: 'El NIF no es válido: revisa los números y la letra.',
-  address: 'Escribe tu domicilio fiscal.',
-  postalCode: 'El código postal debe tener 5 cifras.',
-  municipality: 'Escribe el municipio.',
-  province: 'Escribe la provincia.',
-  email: 'El email no es válido.',
-  phone: 'El teléfono no es válido.',
-  iban: 'El IBAN no es válido: revisa las cifras.',
-};
-
 function FiscalDataStep({ onboarding, onSaved }: StepProps & { onboarding: Onboarding }) {
-  const [values, setValues] = useState<Record<keyof FiscalData, string>>(() => ({
-    ...EMPTY_FISCAL_DATA,
-    ...Object.fromEntries(
-      Object.entries(onboarding.fiscalData ?? {}).map(([key, value]) => [key, value ?? '']),
-    ),
-  }));
-  const [errors, setErrors] = useState<Partial<Record<keyof FiscalData, string>>>({});
-  const [logo, setLogo] = useState<File | null>(null);
-  const [logoError, setLogoError] = useState<string>();
-  const [hasLogo, setHasLogo] = useState(onboarding.hasLogo);
-  const [logoVersion, setLogoVersion] = useState(() => Date.now());
-  const { pending, error, run } = useSubmit();
-
-  const set = (key: keyof FiscalData) => (event: { target: { value: string } }) => {
-    setValues((current) => ({ ...current, [key]: event.target.value }));
-    setErrors((current) => ({ ...current, [key]: undefined }));
-  };
-
-  // Validated as typed once it has the length of a tax ID, so a typo shows up before saving.
-  const taxId = normalizeTaxId(values.taxId);
-  const taxIdError = errors.taxId ?? (taxId.length >= 9 && !parseTaxId(taxId).valid ? FIELD_ERRORS.taxId : undefined);
-
-  function pickLogo(file: File | undefined) {
-    setLogoError(undefined);
-    if (!file) return setLogo(null);
-    if (!(LOGO_CONTENT_TYPES as readonly string[]).includes(file.type)) {
-      return setLogoError('El logo debe ser una imagen PNG o JPEG.');
-    }
-    if (file.size > LOGO_MAX_BYTES) return setLogoError('El logo ocupa demasiado: como máximo 1 MB.');
-    setLogo(file);
-  }
-
-  async function dropLogo() {
-    await run(async () => {
-      await removeLogo();
-      setHasLogo(false);
-    });
-  }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const parsed = fiscalDataSchema.safeParse(values);
-    if (!parsed.success) {
-      const fieldErrors: Partial<Record<keyof FiscalData, string>> = {};
-      for (const issue of parsed.error.issues) {
-        const key = issue.path[0] as keyof FiscalData;
-        fieldErrors[key] = FIELD_ERRORS[key];
-      }
-      return setErrors(fieldErrors);
-    }
-    await run(async () => {
-      const next = await saveFiscalData(parsed.data);
-      // The issuer exists once its fiscal data is saved: only then can it have a logo.
-      if (logo) {
-        await uploadLogo(logo);
-        setLogo(null);
-        setLogoVersion(Date.now());
-      }
-      onSaved({ ...next, hasLogo: next.hasLogo || Boolean(logo) });
-    });
-  }
-
-  const field = (key: keyof FiscalData) => ({ value: values[key], onChange: set(key), error: errors[key] });
-
   return (
-    <form className="stack" onSubmit={submit} noValidate>
-      {error && <Alert tone="danger">{error}</Alert>}
-      <Field label="Nombre completo o razón social" autoComplete="name" required {...field('name')} />
-      <Field
-        label="NIF"
-        autoComplete="off"
-        required
-        className="input mono"
-        help="Tu DNI con la letra, o tu NIE."
-        {...field('taxId')}
-        error={taxIdError}
-      />
-      <div className="grid">
-        <div className="span3">
-          <Field label="Domicilio fiscal" autoComplete="street-address" required {...field('address')} />
-        </div>
-        <Field label="Código postal" inputMode="numeric" autoComplete="postal-code" maxLength={5} required {...field('postalCode')} />
-        <Field label="Municipio" autoComplete="address-level2" required {...field('municipality')} />
-        <Field label="Provincia" autoComplete="address-level1" required {...field('province')} />
-      </div>
-
-      <hr className="divider" />
-      <div>
-        <h2 className="h3">Opcional</h2>
-        <p className="small muted">Si los indicas, aparecerán en tus facturas.</p>
-      </div>
-      <div className="grid">
-        <div className="span2">
-          <Field label="Email" type="email" autoComplete="email" {...field('email')} />
-        </div>
-        <Field label="Teléfono" type="tel" autoComplete="tel" {...field('phone')} />
-        <div className="span3">
-          <Field
-            label="IBAN"
-            className="input mono"
-            help="Para que tus clientes sepan dónde pagarte."
-            {...field('iban')}
-          />
-        </div>
-      </div>
-      <div className="field">
-        <span className="label">Logo</span>
-        {hasLogo && !logo && (
-          <div className="logo-box">
-            <img src={logoUrl(logoVersion)} alt="Tu logo actual" />
-            <button type="button" className="btn btn-ghost" onClick={dropLogo} disabled={pending}>
-              Quitar logo
-            </button>
-          </div>
-        )}
-        <input
-          type="file"
-          accept={LOGO_CONTENT_TYPES.join(',')}
-          aria-label={hasLogo ? 'Cambiar el logo' : 'Subir un logo'}
-          onChange={(event) => pickLogo(event.target.files?.[0])}
-        />
-        {logoError ? <p className="err">{logoError}</p> : <p className="help">PNG o JPEG, hasta 1 MB.</p>}
-      </div>
-
-      <button className="btn btn-primary btn-block" disabled={pending}>
-        {pending ? 'Guardando…' : 'Guardar y continuar'}
-      </button>
-    </form>
+    <FiscalDataForm
+      onboarding={onboarding}
+      save={saveFiscalData}
+      onSaved={onSaved}
+      actions={(pending) => (
+        <button className="btn btn-primary btn-block" disabled={pending}>
+          {pending ? 'Guardando…' : 'Guardar y continuar'}
+        </button>
+      )}
+    />
   );
-}
-
-type VatChoice = 'exempt' | `${(typeof VAT_RATES)[number]}`;
-
-function vatChoiceOf(vat: VatTreatment): VatChoice {
-  return vat.kind === 'exempt' ? 'exempt' : `${vat.rate}`;
 }
 
 function DefaultsStep({ onboarding, onSaved, onBack }: StepProps & { onboarding: Onboarding; onBack: () => void }) {
-  const initial = onboarding.defaults;
-  const [withholding, setWithholding] = useState<WithholdingRate>(initial?.withholding ?? 15);
-  const [vat, setVat] = useState<VatChoice>(initial ? vatChoiceOf(initial.vat) : '21');
-  const [ground, setGround] = useState<ExemptionGroundId>(
-    initial?.vat.kind === 'exempt' ? initial.vat.ground : EXEMPTION_GROUND_IDS[0],
-  );
-  const { pending, error, run } = useSubmit();
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const defaults: IssuerDefaults = {
-      withholding,
-      vat:
-        vat === 'exempt'
-          ? { kind: 'exempt', ground }
-          : { kind: 'taxed', rate: Number(vat) as (typeof VAT_RATES)[number] },
-    };
-    await run(async () => onSaved(await saveDefaults(defaults)));
-  }
-
   return (
-    <form className="stack" onSubmit={submit}>
-      {error && <Alert tone="danger">{error}</Alert>}
-      <div className="field">
-        <span className="label">Retención de IRPF</span>
-        <Seg
-          label="Retención de IRPF"
-          options={WITHHOLDING_RATES.map((rate) => ({ value: rate, label: WITHHOLDING_LABELS[rate] }))}
-          value={withholding}
-          onChange={setWithholding}
-        />
-        <p className="help">
-          Lo habitual para profesionales es el 15 %; el 7 % durante los tres primeros años de actividad.
-        </p>
-      </div>
-      <Select label="IVA" value={vat} onChange={(event) => setVat(event.target.value as VatChoice)}>
-        <option value="exempt">Exenta</option>
-        {VAT_RATES.map((rate) => (
-          <option key={rate} value={`${rate}`}>
-            {rate} %
-          </option>
-        ))}
-      </Select>
-      {vat === 'exempt' && (
-        <Select
-          label="Supuesto de exención"
-          value={ground}
-          onChange={(event) => setGround(event.target.value as ExemptionGroundId)}
-          help="Determina la mención legal que se imprime en tus facturas."
-        >
-          {EXEMPTION_GROUND_IDS.map((id) => (
-            <option key={id} value={id}>
-              {exemptionGround(id).label}
-            </option>
-          ))}
-        </Select>
+    <DefaultsForm
+      onboarding={onboarding}
+      save={saveDefaults}
+      onSaved={onSaved}
+      actions={(pending) => (
+        <div className="row">
+          <button type="button" className="btn btn-secondary" onClick={onBack}>
+            Atrás
+          </button>
+          <button className="btn btn-primary" style={{ flex: 1 }} disabled={pending}>
+            {pending ? 'Guardando…' : 'Guardar y continuar'}
+          </button>
+        </div>
       )}
-      <div className="row">
-        <button type="button" className="btn btn-secondary" onClick={onBack}>
-          Atrás
-        </button>
-        <button className="btn btn-primary" style={{ flex: 1 }} disabled={pending}>
-          {pending ? 'Guardando…' : 'Guardar y continuar'}
-        </button>
-      </div>
-    </form>
+    />
   );
 }
 

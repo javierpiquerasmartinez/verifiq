@@ -31,6 +31,7 @@ import {
   type DraftDataInput,
   type IssuerDefaults,
   type IssuerSummary,
+  type EditableFiscalDataInput,
   type FiscalDataInput,
   type Invitation,
   type Invoice,
@@ -112,6 +113,15 @@ export async function confirmSeries(body: Series): Promise<Onboarding> {
 
 export async function acceptTerms(body: AcceptTerms): Promise<Onboarding> {
   return onboardingSchema.parse(await request('/onboarding/terms', sendJson('POST', body)));
+}
+
+/** Settings: the issuer's fiscal data, except its tax ID. Answers the issuer as GET /onboarding. */
+export async function updateIssuerFiscalData(body: EditableFiscalDataInput): Promise<Onboarding> {
+  return onboardingSchema.parse(await request('/issuer/fiscal-data', sendJson('PUT', body)));
+}
+
+export async function updateIssuerDefaults(body: IssuerDefaults): Promise<Onboarding> {
+  return onboardingSchema.parse(await request('/issuer/defaults', sendJson('PUT', body)));
 }
 
 export async function fetchIssuer(): Promise<IssuerSummary> {

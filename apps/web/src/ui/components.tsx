@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 import { useId } from 'react';
 import { BrandMark, Icon } from './icons';
@@ -134,7 +135,10 @@ export function AccessLayout({
         {children}
       </main>
       {footer && <div className="access-foot">{footer}</div>}
-      <footer className="access-foot">Verifiq {__APP_VERSION__} · Sistema de facturación VERI*FACTU</footer>
+      <footer className="access-foot">
+        Verifiq {__APP_VERSION__} · <Link to="/responsible-declaration">Declaración responsable</Link> · Sistema de
+        facturación VERI*FACTU
+      </footer>
     </div>
   );
 }

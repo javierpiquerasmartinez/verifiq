@@ -303,6 +303,27 @@ ul {
   font-size: 13px;
   color: var(--ink-3);
 }
+.access-foot a,
+.foot a {
+  color: inherit;
+}
+
+/* responsible declaration: each field of the Orden, label over its value */
+.declaration {
+  margin: 0;
+  gap: 6px;
+}
+.declaration dt {
+  font-weight: 600;
+  margin-top: 10px;
+}
+.declaration dd {
+  margin: 0;
+  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .stack {
   display: flex;
   flex-direction: column;
