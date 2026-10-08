@@ -26,7 +26,17 @@ export async function createInvitation(
     .insert(invitations)
     .values({ email: email.trim().toLowerCase(), role, tokenHash: hashToken(token), expiresAt })
     .returning();
-  const invitation = (await findOperatorInvitation(db, row!.id, role))!;
+  // Just sent: pending, and nobody has used it yet.
+  const invitation: OperatorInvitation = {
+    id: row!.id,
+    email: row!.email,
+    status: 'pending',
+    createdAt: row!.createdAt.toISOString(),
+    expiresAt: row!.expiresAt.toISOString(),
+    acceptedAt: null,
+    revokedAt: null,
+    issuer: null,
+  };
   return { token, invitation };
 }
 

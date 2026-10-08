@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { invitationsSearch, nextSort } from './operator-invitations';
+import { nextSort, readInvitationsSearch } from './operator-invitations';
 
-describe('invitationsSearch', () => {
+describe('readInvitationsSearch', () => {
   it('shows every invitation, the most recently sent first, by default', () => {
-    expect(invitationsSearch({})).toEqual({ q: '', status: 'all', sort: 'sent', order: 'desc' });
+    expect(readInvitationsSearch({})).toEqual({ q: '', status: 'all', sort: 'sent', order: 'desc' });
   });
 
   it('reads the search, filter and sort of the URL', () => {
-    expect(invitationsSearch({ q: 'lucia', status: 'revoked', sort: 'email', order: 'asc' })).toEqual({
+    expect(readInvitationsSearch({ q: 'lucia', status: 'revoked', sort: 'email', order: 'asc' })).toEqual({
       q: 'lucia',
       status: 'revoked',
       sort: 'email',
@@ -15,8 +15,16 @@ describe('invitationsSearch', () => {
     });
   });
 
+  it('reads a search of digits, which the URL hands over as a number', () => {
+    expect(readInvitationsSearch({ q: 2026 }).q).toBe('2026');
+  });
+
+  it('drops a search longer than the list accepts', () => {
+    expect(readInvitationsSearch({ q: 'a'.repeat(201) }).q).toBe('');
+  });
+
   it('falls back to the default of whatever it does not understand, keeping the rest', () => {
-    expect(invitationsSearch({ q: 42, status: 'gone', sort: 'email', order: 'sideways' })).toEqual({
+    expect(readInvitationsSearch({ q: { name: 'x' }, status: 'gone', sort: 'email', order: 'sideways' })).toEqual({
       q: '',
       status: 'all',
       sort: 'email',

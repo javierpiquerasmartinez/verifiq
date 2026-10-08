@@ -42,6 +42,7 @@ const invitationNotFound = () =>
     message: INVITATION_PROBLEM_MESSAGES[AuthErrorCode.InvitationNotFound],
   });
 
+/** The query of the invitation list, with its cursor decoded for the sort it asks for. */
 const listQuerySchema = invitationListQuerySchema.transform(({ cursor, ...query }, context) => {
   const decoded = cursor === undefined ? null : decodeInvitationCursor(cursor, query.sort);
   if (cursor !== undefined && decoded === null) {

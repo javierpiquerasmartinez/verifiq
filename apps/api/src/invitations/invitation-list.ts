@@ -6,7 +6,6 @@ import {
   type InvitationStatus,
   type OperatorInvitation,
   type SortOrder,
-  type UserRole,
 } from '@verifiq/domain';
 import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
@@ -65,9 +64,10 @@ function selectInvitations(db: Database, now: Date) {
   return { query, status };
 }
 
-type Row = Awaited<ReturnType<ReturnType<typeof selectInvitations>['query']>>[number];
+/** An invitation as the query reads it, before it is shaped for the operator. */
+type Listed = Awaited<ReturnType<ReturnType<typeof selectInvitations>['query']>>[number];
 
-function toOperatorInvitation(row: Row): OperatorInvitation {
+function toOperatorInvitation(row: Listed): OperatorInvitation {
   return {
     id: row.id,
     email: row.email,
@@ -80,47 +80,57 @@ function toOperatorInvitation(row: Row): OperatorInvitation {
   };
 }
 
-/** The invitation for an account with `role` (a user's, unless told), or null when there is no such one. */
-export async function findOperatorInvitation(
-  db: Database,
-  id: string,
-  role: UserRole = 'user',
-): Promise<OperatorInvitation | null> {
-  const [row] = await selectInvitations(db, new Date()).query(and(eq(invitations.id, id), eq(invitations.role, role)));
+/** A user's invitation, or null when there is no such one. */
+export async function findOperatorInvitation(db: Database, id: string): Promise<OperatorInvitation | null> {
+  const [row] = await selectInvitations(db, new Date()).query(and(eq(invitations.id, id), eq(invitations.role, 'user')));
   return row ? toOperatorInvitation(row) : null;
-}
-
-/** Where a page starts: right after the invitation with `id`, whose sort key was `key`. */
-export type InvitationCursor = { key: number | string; id: string };
-
-const cursorSchema = z.object({ key: z.union([z.number().int().nonnegative(), z.string()]), id: z.uuid() });
-
-const encodeCursor = (cursor: InvitationCursor) => Buffer.from(JSON.stringify(cursor)).toString('base64url');
-
-/** The cursor the list gave under `sort`, or null if it is not one. */
-export function decodeInvitationCursor(text: string, sort: InvitationListSort): InvitationCursor | null {
-  try {
-    const parsed = cursorSchema.safeParse(JSON.parse(Buffer.from(text, 'base64url').toString()));
-    if (!parsed.success || typeof parsed.data.key !== (sort === 'email' ? 'string' : 'number')) return null;
-    return parsed.data;
-  } catch {
-    return null;
-  }
 }
 
 /** In epoch milliseconds, so a cursor holds it exactly. */
 const milliseconds = (column: AnyPgColumn) =>
   sql<number>`(extract(epoch from date_trunc('milliseconds', ${column})) * 1000)::bigint`.mapWith(Number);
 
+/**
+ * What each sort orders by: the key in SQL, the same key read from a listed invitation (a Date holds
+ * milliseconds, as the SQL key truncates to), and what that key looks like in a cursor.
+ */
 const SORT_KEYS = {
-  sent: () => milliseconds(invitations.createdAt),
-  expires: () => milliseconds(invitations.expiresAt),
-  email: () => sql<string>`${invitations.email}`,
-} satisfies Record<InvitationListSort, () => SQL>;
+  sent: {
+    sql: () => milliseconds(invitations.createdAt),
+    of: (row: Listed) => row.createdAt.getTime(),
+    schema: z.number().int().nonnegative(),
+  },
+  expires: {
+    sql: () => milliseconds(invitations.expiresAt),
+    of: (row: Listed) => row.expiresAt.getTime(),
+    schema: z.number().int().nonnegative(),
+  },
+  email: {
+    sql: () => sql<string>`${invitations.email}`,
+    of: (row: Listed) => row.email,
+    schema: z.string(),
+  },
+} satisfies Record<
+  InvitationListSort,
+  { sql: () => SQL; of: (row: Listed) => number | string; schema: z.ZodType<number | string> }
+>;
 
-/** The row's sort key, as SORT_KEYS reads it (a Date holds milliseconds, as the key truncates to). */
-const cursorKey = (row: Row, sort: InvitationListSort) =>
-  sort === 'email' ? row.email : (sort === 'sent' ? row.createdAt : row.expiresAt).getTime();
+/** Where a page starts: right after the invitation with `id`, whose sort key was `key`. */
+export type InvitationCursor = { key: number | string; id: string };
+
+const encodeCursor = (cursor: InvitationCursor) => Buffer.from(JSON.stringify(cursor)).toString('base64url');
+
+/** The cursor the list gave under `sort`, or null if it is not one. */
+export function decodeInvitationCursor(text: string, sort: InvitationListSort): InvitationCursor | null {
+  try {
+    const parsed = z
+      .object({ key: SORT_KEYS[sort].schema, id: z.uuid() })
+      .safeParse(JSON.parse(Buffer.from(text, 'base64url').toString()));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The users' invitations (the operator's own, from the script, are left out) matching `q` by email,
@@ -159,7 +169,7 @@ export async function listInvitations(
   for (const row of counted) counts[row.status] = row.count;
   counts.all = counted.reduce((sum, row) => sum + row.count, 0);
 
-  const key = SORT_KEYS[sort]();
+  const key = SORT_KEYS[sort].sql();
   const direction = order === 'asc' ? asc : desc;
   const after = cursor
     ? sql`(${key}, ${invitations.id}) ${sql.raw(order === 'asc' ? '>' : '<')} (${cursor.key}, ${cursor.id}::uuid)`
@@ -171,7 +181,7 @@ export async function listInvitations(
   const last = page.at(-1);
   return {
     items: page.map(toOperatorInvitation),
-    nextCursor: rows.length > limit && last ? encodeCursor({ key: cursorKey(last, sort), id: last.id }) : null,
+    nextCursor: rows.length > limit && last ? encodeCursor({ key: SORT_KEYS[sort].of(last), id: last.id }) : null,
     counts,
   };
 }

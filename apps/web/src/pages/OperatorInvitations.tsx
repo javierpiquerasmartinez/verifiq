@@ -6,8 +6,9 @@ import {
   type InvitationListSort,
   type InvitationStatus,
   type OperatorInvitation,
+  type SortOrder,
 } from '@verifiq/domain';
-import { useDeferredValue, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchOperatorInvitations, revokeOperatorInvitation } from '../api';
 import { formatDateTime } from '../format';
 import { nextSort, type InvitationsSearch } from '../operator-invitations';
@@ -15,6 +16,9 @@ import { useSessionExpiry } from '../session';
 import { Alert } from '../ui/components';
 import { Icon } from '../ui/icons';
 import { NoBusinessData, OperatorShell } from './Operator';
+
+/** How long typing must pause before the search reaches the URL and the list. */
+const SEARCH_DELAY_MS = 300;
 
 const FILTER_LABELS: Record<InvitationListFilter, string> = {
   all: 'Todas',
@@ -36,23 +40,34 @@ const STATUS_TAGS: Record<InvitationStatus, { label: string; tone: string }> = {
  * the invitation and who it let in: nothing of the issuers' business (story 93).
  */
 export function OperatorInvitationsPage() {
-  const view = useSearch({ from: '/operator/invitations' });
+  const search = useSearch({ from: '/operator/invitations' });
   const navigate = useNavigate({ from: '/operator/invitations' });
   const queryClient = useQueryClient();
-  // Typed here, then kept in the URL once the typing settles.
-  const [search, setSearch] = useState(view.q);
-  const q = useDeferredValue(search.trim());
-  const update = (change: Partial<InvitationsSearch>) =>
+  const changeSearch = (change: Partial<InvitationsSearch>) =>
     void navigate({ search: (previous) => ({ ...previous, ...change }), replace: true });
+
+  // What is typed in the box reaches the URL, and so the list, once typing pauses.
+  const [typed, setTyped] = useState(search.q);
+  const written = useRef(search.q);
   useEffect(() => {
-    if (q !== view.q) update({ q });
-    // Only when the search changes; the URL follows it.
-  }, [q]);
+    const q = typed.trim();
+    if (q === written.current) return;
+    const timer = setTimeout(() => {
+      written.current = q;
+      changeSearch({ q });
+    }, SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [typed]);
+  // Back and forward change the URL's search: the box follows it.
+  useEffect(() => {
+    if (search.q === written.current) return;
+    written.current = search.q;
+    setTyped(search.q);
+  }, [search.q]);
 
   const list = useInfiniteQuery({
-    queryKey: ['operator', 'invitations', 'list', q, view.status, view.sort, view.order],
-    queryFn: ({ pageParam }) =>
-      fetchOperatorInvitations({ q, status: view.status, sort: view.sort, order: view.order, cursor: pageParam }),
+    queryKey: ['operator', 'invitations', 'list', search],
+    queryFn: ({ pageParam }) => fetchOperatorInvitations({ ...search, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     placeholderData: keepPreviousData,
@@ -99,8 +114,8 @@ export function OperatorInvitationsPage() {
                 className="input"
                 type="search"
                 placeholder="Buscar por email"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                value={typed}
+                onChange={(event) => setTyped(event.target.value)}
               />
             </label>
             <div className="pills" role="group" aria-label="Filtrar por estado">
@@ -109,8 +124,8 @@ export function OperatorInvitationsPage() {
                   key={value}
                   type="button"
                   className="pill"
-                  aria-pressed={view.status === value}
-                  onClick={() => update({ status: value })}
+                  aria-pressed={search.status === value}
+                  onClick={() => changeSearch({ status: value })}
                 >
                   {FILTER_LABELS[value]}
                   <span className="c">{counts[value]}</span>
@@ -122,7 +137,7 @@ export function OperatorInvitationsPage() {
           {items.length === 0 ? (
             <div className="card" style={{ padding: 24 }}>
               <p className="muted">
-                {q ? 'Ninguna invitación coincide con la búsqueda.' : 'No hay invitaciones en este estado.'}
+                {search.q ? 'Ninguna invitación coincide con la búsqueda.' : 'No hay invitaciones en este estado.'}
               </p>
             </div>
           ) : (
@@ -131,14 +146,14 @@ export function OperatorInvitationsPage() {
                 <table className="tbl" style={{ minWidth: 960 }}>
                   <thead>
                     <tr>
-                      <SortHeader column="email" view={view} onSort={update}>
+                      <SortHeader column="email" search={search} onSort={changeSearch}>
                         Email
                       </SortHeader>
                       <th style={{ width: 110 }}>Estado</th>
-                      <SortHeader column="sent" view={view} onSort={update} width={150}>
+                      <SortHeader column="sent" search={search} onSort={changeSearch} width={150}>
                         Enviada
                       </SortHeader>
-                      <SortHeader column="expires" view={view} onSort={update} width={150}>
+                      <SortHeader column="expires" search={search} onSort={changeSearch} width={150}>
                         Caduca
                       </SortHeader>
                       <th style={{ width: 150 }}>Aceptada o revocada</th>
@@ -205,7 +220,7 @@ export function OperatorInvitationsPage() {
                 }}
               >
                 <span className="small muted">
-                  Mostrando {items.length} de {counts[view.status]}
+                  Mostrando {items.length} de {counts[search.status]}
                 </span>
                 {list.hasNextPage && (
                   <button
@@ -226,26 +241,29 @@ export function OperatorInvitationsPage() {
   );
 }
 
+const SORT_ARIA: Record<SortOrder, 'ascending' | 'descending'> = { asc: 'ascending', desc: 'descending' };
+const SORT_ARROWS: Record<SortOrder, string> = { asc: ' ↑', desc: ' ↓' };
+
 /** A column header that sorts the list by it, or the other way round when it already does. */
 function SortHeader({
   column,
-  view,
+  search,
   onSort,
   width,
   children,
 }: {
   column: InvitationListSort;
-  view: InvitationsSearch;
+  search: InvitationsSearch;
   onSort: (change: Partial<InvitationsSearch>) => void;
   width?: number;
   children: string;
 }) {
-  const sorted = view.sort === column;
+  const order = search.sort === column ? search.order : null;
   return (
-    <th style={width ? { width } : undefined} aria-sort={sorted ? (view.order === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button type="button" className="th-sort" onClick={() => onSort(nextSort(view, column))}>
+    <th style={width ? { width } : undefined} aria-sort={order ? SORT_ARIA[order] : 'none'}>
+      <button type="button" className="th-sort" onClick={() => onSort(nextSort(search, column))}>
         {children}
-        <span aria-hidden="true">{sorted ? (view.order === 'asc' ? ' ↑' : ' ↓') : ''}</span>
+        <span aria-hidden="true">{order ? SORT_ARROWS[order] : ''}</span>
       </button>
     </th>
   );

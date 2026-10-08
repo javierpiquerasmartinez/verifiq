@@ -2,6 +2,7 @@ import {
   INVITATION_LIST_FILTERS,
   INVITATION_LIST_SORTS,
   SORT_ORDERS,
+  invitationListQuerySchema,
   type InvitationListSort,
   type SortOrder,
 } from '@verifiq/domain';
@@ -12,7 +13,11 @@ import { z } from 'zod';
  * leaves out or does not understand falls back to its default, so a link needs none of it.
  */
 export const invitationsSearchSchema = z.object({
-  q: z.string().default('').catch(''),
+  // The router reads a URL's values as JSON: a search of digits arrives as a number.
+  q: z
+    .preprocess((value) => (typeof value === 'number' ? String(value) : value), invitationListQuerySchema.shape.q)
+    .default('')
+    .catch(''),
   status: z.enum(INVITATION_LIST_FILTERS).default('all').catch('all'),
   sort: z.enum(INVITATION_LIST_SORTS).default('sent').catch('sent'),
   order: z.enum(SORT_ORDERS).default('desc').catch('desc'),
@@ -21,7 +26,7 @@ export const invitationsSearchSchema = z.object({
 export type InvitationsSearch = z.infer<typeof invitationsSearchSchema>;
 
 /** The view the URL asks for. */
-export const invitationsSearch = (search: Record<string, unknown>): InvitationsSearch => invitationsSearchSchema.parse(search);
+export const readInvitationsSearch = (search: Record<string, unknown>): InvitationsSearch => invitationsSearchSchema.parse(search);
 
 /** Dates are read latest first, and emails from A. */
 const FIRST_ORDER: Record<InvitationListSort, SortOrder> = { sent: 'desc', expires: 'desc', email: 'asc' };

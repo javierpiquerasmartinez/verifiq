@@ -444,7 +444,7 @@ describe('Operator panel', () => {
   });
 
   it('no operator endpoint returns invoices, their lines or recipients', async () => {
-    const { agent } = await issuingUser();
+    const { agent, email } = await issuingUser();
     const concept = 'Endodoncia molar 36 paciente R. G.';
     const description = 'Tratamientos de la consulta de Russafa';
     const rejected = await submittedInvoice(agent, { concept, description });
@@ -461,8 +461,15 @@ describe('Operator panel', () => {
     });
 
     const responses = await Promise.all(
-      ['/operator/issuers', '/operator/alerts', '/operator/invitations'].map((path) => operator.get(path).expect(200)),
+      [
+        '/operator/issuers',
+        '/operator/alerts',
+        '/operator/invitations',
+        // The user's own invitation, which names its issuer.
+        `/operator/invitations?q=${encodeURIComponent(email)}`,
+      ].map((path) => operator.get(path).expect(200)),
     );
+    expect(responses.at(-1)!.body.items).toEqual([expect.objectContaining({ email, issuer: expect.any(Object) })]);
 
     for (const { text } of responses) {
       for (const secret of [
