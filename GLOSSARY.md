@@ -73,7 +73,7 @@ _En código_: `OperationDescription`
 _Avoid_: Concepto (reservado a las líneas)
 
 **Supuesto de exención**:
-Motivo legal por el que una línea está exenta de IVA (p. ej. servicios sanitarios, art. 20.Uno.5º LIVA). Determina la mención legal impresa en la factura.
+Motivo legal por el que una línea está exenta de IVA según el art. 20 LIVA (p. ej. asistencia sanitaria, art. 20.Uno.3º; odontología, art. 20.Uno.5º). Determina la mención legal impresa en la factura. Uno de los supuestos es genérico ("Otra exención del art. 20"): solo indica que la operación está exenta, sin citar apartado.
 _En código_: `ExemptionGround`
 _Avoid_: Tipo 0 %, sin IVA
 
