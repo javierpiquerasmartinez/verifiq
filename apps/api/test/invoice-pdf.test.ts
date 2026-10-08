@@ -73,7 +73,7 @@ describe('Invoice PDF', () => {
   async function issuingUser() {
     const user = await onboardedUser(app);
     await user.agent
-      .put('/onboarding/fiscal-data')
+      .put('/issuer/fiscal-data')
       .send({ ...fiscalData(user.taxId), iban: 'ES9121000418450200051332' })
       .expect(200);
     await user.agent.get('/issuer/representation').expect(200);
