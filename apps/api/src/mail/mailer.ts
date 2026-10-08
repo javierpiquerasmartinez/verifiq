@@ -9,6 +9,14 @@ export interface EmailMessage {
   text: string;
   /** Optional rich version; `text` stays as the plain-text alternative. */
   html?: string;
+  /** Images the HTML shows as `cid:<contentId>`. */
+  inlineImages?: InlineImage[];
+}
+
+export interface InlineImage {
+  contentId: string;
+  filename: string;
+  content: Buffer;
 }
 
 /** Port for transactional emails. Nothing outside the adapters knows the provider. */
@@ -27,8 +35,15 @@ export class ResendMailer implements Mailer {
     this.resend = new Resend(apiKey);
   }
 
-  async send({ to, subject, text, html }: EmailMessage): Promise<void> {
-    const { error } = await this.resend.emails.send({ from: this.from, to, subject, text, ...(html && { html }) });
+  async send({ to, subject, text, html, inlineImages }: EmailMessage): Promise<void> {
+    const { error } = await this.resend.emails.send({
+      from: this.from,
+      to,
+      subject,
+      text,
+      ...(html && { html }),
+      ...(inlineImages && { attachments: inlineImages }),
+    });
     if (error) throw new Error(`Resend rejected the email: ${error.name}: ${error.message}`);
   }
 }
