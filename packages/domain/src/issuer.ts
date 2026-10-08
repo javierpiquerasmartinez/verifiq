@@ -39,6 +39,15 @@ export const fiscalDataSchema = z.object({
 export type FiscalData = z.infer<typeof fiscalDataSchema>;
 export type FiscalDataInput = z.input<typeof fiscalDataSchema>;
 
+/**
+ * Body of PUT /issuer/fiscal-data: the fiscal data editable from the settings. The tax ID is not:
+ * the connector key and the Representation are bound to it.
+ */
+export const editableFiscalDataSchema = fiscalDataSchema.omit({ taxId: true });
+
+export type EditableFiscalData = z.infer<typeof editableFiscalDataSchema>;
+export type EditableFiscalDataInput = z.input<typeof editableFiscalDataSchema>;
+
 /** Onboarding step 2: what every new invoice line and invoice starts with. */
 export const issuerDefaultsSchema = z.object({
   withholding: z.literal(WITHHOLDING_RATES),

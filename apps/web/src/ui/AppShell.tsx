@@ -74,6 +74,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="page">{children}</main>
       <footer className="foot">
         <span>Verifiq {__APP_VERSION__}</span>
+        <Link to="/responsible-declaration">Declaración responsable</Link>
         <span>Sistema de facturación VERI*FACTU</span>
       </footer>
     </div>

@@ -39,7 +39,7 @@ describe('Issuer', () => {
       const pau = await onboardedUser(app);
 
       await pau.agent
-        .put('/onboarding/fiscal-data')
+        .put('/issuer/fiscal-data')
         .send({ ...fiscalData(pau.taxId), name: 'Pau Ribes' })
         .expect(200);
       await pau.agent.put('/issuer/logo').set('Content-Type', 'image/png').send(PNG).expect(200);

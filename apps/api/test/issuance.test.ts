@@ -259,12 +259,12 @@ describe('Issuance', () => {
     });
 
     it('keeps the issuer as it was when issued', async () => {
-      const { agent, taxId } = await issuingUser();
+      const { agent } = await issuingUser();
       const { invoice } = await issue(agent);
 
       await agent
-        .put('/onboarding/fiscal-data')
-        .send({ ...invoice.issuer, taxId, address: 'Avinguda del Port 3' })
+        .put('/issuer/fiscal-data')
+        .send({ ...invoice.issuer, address: 'Avinguda del Port 3' })
         .expect(200);
 
       const response = await agent.get(`/invoices/${invoice.id}`).expect(200);

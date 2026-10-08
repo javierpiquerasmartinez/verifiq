@@ -84,6 +84,9 @@ export function createAuth(db: Database, mailer: Mailer, options: AuthOptions) {
       expiresIn: INACTIVITY_TIMEOUT_SECONDS,
       // Activity pushes the expiry forward at most every 5 minutes.
       updateAge: 5 * 60,
+      // Listing the sessions (settings) must work however long ago the user signed in; what is
+      // sensitive (password, recovery codes) asks for the password instead.
+      freshAge: 0,
     },
     user: {
       changeEmail: { enabled: false },
@@ -115,6 +118,10 @@ export function createAuth(db: Database, mailer: Mailer, options: AuthOptions) {
         // A trusted device would skip the second factor on later sign-ins.
         if (ctx.path.startsWith('/two-factor/verify') && ctx.body?.trustDevice) {
           throw new APIError('BAD_REQUEST', { message: 'Trusted devices are not supported' });
+        }
+        // As on a password reset: whoever knew the old password must not stay signed in.
+        if (ctx.path === '/change-password' && ctx.body?.revokeOtherSessions !== true) {
+          throw new APIError('BAD_REQUEST', { message: 'Changing the password signs out every other session' });
         }
         if (ALLOWED_BEFORE_TWO_FACTOR.has(ctx.path)) return;
         const session = await getSessionFromCtx(ctx);

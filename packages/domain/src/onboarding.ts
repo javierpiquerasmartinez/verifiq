@@ -29,7 +29,10 @@ export const acceptTermsSchema = z.object({
 
 export type AcceptTerms = z.infer<typeof acceptTermsSchema>;
 
-/** Response of GET /onboarding: where the user left the onboarding and what is already saved. */
+/**
+ * Response of GET /onboarding: where the user left the onboarding and what is already saved. Also
+ * the issuer's settings once it is complete (PUT /issuer/fiscal-data, PUT /issuer/defaults).
+ */
 export const onboardingSchema = z.object({
   /** The first step not done yet; `completed` once the terms are accepted. */
   step: z.enum([...ONBOARDING_STEPS, 'completed']),
@@ -66,6 +69,8 @@ export const IssuerErrorCode = {
   OnboardingIncomplete: 'ONBOARDING_INCOMPLETE',
   /** A step was sent before the ones it depends on. */
   OnboardingStepPending: 'ONBOARDING_STEP_PENDING',
+  /** Onboarding is complete: the issuer's data is edited from the settings (PUT /issuer/*). */
+  OnboardingCompleted: 'ONBOARDING_COMPLETED',
   TaxIdTaken: 'TAX_ID_TAKEN',
   SeriesAlreadyConfirmed: 'SERIES_ALREADY_CONFIRMED',
   /** The accepted versions of the legal documents are not the current ones. */

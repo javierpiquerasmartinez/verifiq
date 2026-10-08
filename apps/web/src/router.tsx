@@ -23,6 +23,7 @@ import { NewRecipientPage, RecipientPage } from './pages/Recipient';
 import { RecipientsPage } from './pages/Recipients';
 import { RepresentationStepPage } from './pages/RepresentationStep';
 import { ResetPasswordPage } from './pages/ResetPassword';
+import { ResponsibleDeclarationPage } from './pages/ResponsibleDeclaration';
 import { SettingsPage } from './pages/Settings';
 import { SetUpTwoFactorPage } from './pages/SetUpTwoFactor';
 
@@ -207,6 +208,13 @@ const resetPasswordRoute = createRoute({
   component: ResetPasswordPage,
 });
 
+/** Public: the responsible declaration is shown to anyone, with or without a session. */
+const responsibleDeclarationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/responsible-declaration',
+  component: ResponsibleDeclarationPage,
+});
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   newDraftRoute,
@@ -228,6 +236,7 @@ const routeTree = rootRoute.addChildren([
   setUpTwoFactorRoute,
   forgotPasswordRoute,
   resetPasswordRoute,
+  responsibleDeclarationRoute,
 ]);
 
 export const router = createRouter({ routeTree });
