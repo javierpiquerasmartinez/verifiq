@@ -7,6 +7,8 @@ export interface EmailMessage {
   to: string;
   subject: string;
   text: string;
+  /** Optional rich version; `text` stays as the plain-text alternative. */
+  html?: string;
 }
 
 /** Port for transactional emails. Nothing outside the adapters knows the provider. */
@@ -25,8 +27,8 @@ export class ResendMailer implements Mailer {
     this.resend = new Resend(apiKey);
   }
 
-  async send({ to, subject, text }: EmailMessage): Promise<void> {
-    const { error } = await this.resend.emails.send({ from: this.from, to, subject, text });
+  async send({ to, subject, text, html }: EmailMessage): Promise<void> {
+    const { error } = await this.resend.emails.send({ from: this.from, to, subject, text, ...(html && { html }) });
     if (error) throw new Error(`Resend rejected the email: ${error.name}: ${error.message}`);
   }
 }
