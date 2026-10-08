@@ -13,8 +13,11 @@ const foldAccents = (text: string) =>
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase();
 
-/** "Añadir desde artículos": picks one of the issuer's CatalogItems, searched by name, for a new line. */
-export function CatalogItemPicker({ onPick }: { onPick: (item: CatalogItem) => void }) {
+/**
+ * "Añadir desde artículos": picks one of the issuer's CatalogItems, searched by name, for a new line.
+ * Disabled when the draft has no room for another line.
+ */
+export function CatalogItemPicker({ onPick, disabled = false }: { onPick: (item: CatalogItem) => void; disabled?: boolean }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -28,9 +31,9 @@ export function CatalogItemPicker({ onPick }: { onPick: (item: CatalogItem) => v
     setSearch('');
   }
 
-  if (!open) {
+  if (!open || disabled) {
     return (
-      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(true)} disabled={disabled}>
         <Icon name="list" />
         Añadir desde artículos
       </button>

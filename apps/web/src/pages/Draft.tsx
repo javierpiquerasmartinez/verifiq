@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import { Link, useBlocker, useNavigate, useParams, useRouterState } from '@tanstack/react-router';
 import {
   computeBreakdown,
   correctionReasonLabel,
@@ -8,20 +8,27 @@ import {
   DraftErrorCode,
   findDraftProblems,
   formatSpanishDate,
+  MAX_DRAFT_LINES,
   todayInSpain,
   WITHHOLDING_RATES,
   type BillingPeriod,
   type CatalogItem,
   type Draft,
   type DraftDataInput,
-  type DraftProblem,
   type DraftRecipient,
   type IssuerDefaults,
   type WithholdingRate,
 } from '@verifiq/domain';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ApiError, createDraft, deleteDraft, fetchDraft, fetchIssuer, fetchOnboarding, updateDraft } from '../api';
-import { emptyLine, lineStateOf, parseLine, type LineState } from '../draft-lines';
+import { draftSnapshot, emptyLine, lineStateOf, parseLine, type LineState } from '../draft-lines';
+import {
+  ADD_LINE_FIELD,
+  DESCRIPTION_FIELD,
+  missingToIssue,
+  PERIOD_END_FIELD,
+  RECIPIENT_FIELD,
+} from '../draft-problems';
 import { WITHHOLDING_LABELS } from '../format';
 import { useSessionExpiry } from '../session';
 import { AppShell } from '../ui/AppShell';
@@ -67,30 +74,17 @@ export function DraftPage() {
   );
 }
 
-function problemText(problem: DraftProblem): string {
-  switch (problem.code) {
-    case 'recipient-missing':
-      return 'falta el cliente';
-    case 'recipient-unchecked':
-      return 'el NIF del cliente está sin comprobar en el censo';
-    case 'recipient-archived':
-      return 'el cliente está archivado';
-    case 'operation-date-in-future':
-      return 'el periodo facturado aún no ha terminado';
-    case 'operation-description-missing':
-      return 'falta la descripción de la operación';
-    case 'lines-missing':
-      return 'añade al menos una línea';
-    case 'line-concept-missing':
-      return `línea ${problem.line + 1}, concepto vacío`;
-  }
-}
-
 const isBlank = (line: LineState) => !line.concept.trim() && !line.unitPrice.trim();
+
+/** History state of a draft just saved by trying to issue it: it opens with its problems marked. */
+interface MarkProblemsState {
+  markProblems?: boolean;
+}
 
 /**
  * The Draft editor. Amounts are computed live with the same domain the api uses; the api
- * recomputes them on save. A draft can be saved half done: what it lacks shows up as problems.
+ * recomputes them on save. A draft can be saved half done: what it lacks to be issued is listed,
+ * neutral, and only marked as errors on its fields once the user tries to issue it.
  * A corrective draft keeps the recipient, billing period and withholding of the invoice it corrects:
  * only its description and lines change, and its lines (the difference) may be negative.
  */
@@ -115,8 +109,11 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
     draft ? draft.lines.map(lineStateOf) : [emptyLine(defaults.vat)],
   );
   const [withholding, setWithholding] = useState<WithholdingRate>(draft?.withholding ?? defaults.withholding);
-  // Problems show once the draft has been saved: a blank new form is not a list of errors.
-  const [showProblems, setShowProblems] = useState(draft !== undefined);
+  const markOnOpen = useRouterState({
+    select: ({ location }) => (location.state as MarkProblemsState).markProblems === true,
+  });
+  // Whether what is missing to issue is marked on its fields: only after trying to issue.
+  const [markProblems, setMarkProblems] = useState(markOnOpen);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
@@ -145,6 +142,27 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
     issueDate,
   );
 
+  // Unsaved changes ask before leaving: the form as typed against the one last saved (or opened).
+  const snapshot = draftSnapshot({
+    recipientId: recipient?.id ?? null,
+    periodStart,
+    periodEnd,
+    operationDescription,
+    lines,
+    withholding,
+  });
+  const currentSnapshot = useRef(snapshot);
+  currentSnapshot.current = snapshot;
+  const savedSnapshot = useRef(snapshot);
+  const unsaved = () => currentSnapshot.current !== savedSnapshot.current;
+  // A new draft moving to its own address once saved is not leaving it.
+  const movingToSaved = useRef(false);
+  useBlocker({
+    shouldBlockFn: () =>
+      !movingToSaved.current && unsaved() && !window.confirm('Tienes cambios sin guardar en el borrador. ¿Salir y perderlos?'),
+    enableBeforeUnload: unsaved,
+  });
+
   function edited() {
     setNotice(undefined);
   }
@@ -162,7 +180,9 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
   /** A line with a copy of the item's values; it replaces the blank line a new draft starts with. */
   function addFromCatalog(item: CatalogItem) {
     const line = lineStateOf(draftLineFromCatalogItem(item));
-    setLines((current) => (current.length === 1 && isBlank(current[0]!) ? [line] : [...current, line]));
+    setLines((current) =>
+      current.length === 1 && isBlank(current[0]!) ? [line] : [...current, line],
+    );
     edited();
   }
 
@@ -171,9 +191,21 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
     edited();
   }
 
+  /**
+   * Runs a save and what follows it (a navigation, the issue dialog) with the buttons disabled
+   * throughout: a second click on a new draft would create it twice.
+   */
+  async function whilePending(action: () => Promise<void>) {
+    setPending(true);
+    try {
+      await action();
+    } finally {
+      setPending(false);
+    }
+  }
+
   /** Saves the draft as it is; returns it, or null when it could not be saved. */
   async function save(): Promise<Draft | null> {
-    setShowProblems(true);
     setError(undefined);
     setNotice(undefined);
     if (hasFieldErrors) {
@@ -187,9 +219,9 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
       lines: parsed.map(({ line }) => line!),
       withholding,
     };
-    setPending(true);
     try {
       const saved = draft ? await updateDraft(draft.id, body) : await createDraft(body);
+      savedSnapshot.current = snapshot;
       queryClient.setQueryData(['draft', saved.id], saved);
       await queryClient.invalidateQueries({ queryKey: ['invoices'] });
       setNotice('Borrador guardado.');
@@ -201,49 +233,67 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
           : 'No se ha podido guardar el borrador. Vuelve a intentarlo.',
       );
       return null;
-    } finally {
-      setPending(false);
     }
   }
 
-  async function saveDraft() {
-    const saved = await save();
-    if (saved) await showSaved(saved);
-  }
+  const saveDraft = () =>
+    whilePending(async () => {
+      const saved = await save();
+      if (saved) await showSaved(saved);
+    });
 
-  async function preview() {
-    const saved = await save();
-    if (saved) await navigate({ to: '/drafts/$draftId/preview', params: { draftId: saved.id } });
-  }
+  /** A new draft first takes its own address, so going back from the preview returns to it. */
+  const preview = () =>
+    whilePending(async () => {
+      const saved = await save();
+      if (!saved) return;
+      await showSaved(saved);
+      await navigate({ to: '/drafts/$draftId/preview', params: { draftId: saved.id } });
+    });
 
-  /** Saves the draft and, when nothing is missing, asks to confirm the Issuance. */
-  async function startIssuing() {
-    const saved = await save();
-    if (!saved) return;
-    if (saved.problems.length === 0) setIssuing(saved);
-    else await showSaved(saved);
-  }
+  /** Saves the draft and, when nothing is missing, asks to confirm the Issuance; otherwise marks what is missing. */
+  const startIssuing = () =>
+    whilePending(async () => {
+      const saved = await save();
+      if (!saved) return;
+      if (saved.problems.length === 0) {
+        setIssuing(saved);
+      } else {
+        setMarkProblems(true);
+        await showSaved(saved, { markProblems: true });
+      }
+    });
 
   /** A new draft, once saved, lives at its own address. */
-  async function showSaved(saved: Draft) {
-    if (!draft) await navigate({ to: '/drafts/$draftId', params: { draftId: saved.id }, replace: true });
+  async function showSaved(saved: Draft, state: MarkProblemsState = {}) {
+    if (!draft) {
+      movingToSaved.current = true;
+      await navigate({ to: '/drafts/$draftId', params: { draftId: saved.id }, replace: true, state: (prev) => ({ ...prev, ...state }) });
+    }
   }
 
   async function remove() {
-    if (!draft) return navigate({ to: '/' });
+    if (!draft) {
+      savedSnapshot.current = snapshot;
+      return navigate({ to: '/' });
+    }
     if (!window.confirm('¿Borrar este borrador? No se puede deshacer.')) return;
-    setPending(true);
-    try {
-      await deleteDraft(draft.id);
-      queryClient.removeQueries({ queryKey: ['draft', draft.id] });
+    const { id } = draft;
+    await whilePending(async () => {
+      try {
+        await deleteDraft(id);
+      } catch {
+        setError('No se ha podido borrar el borrador. Vuelve a intentarlo.');
+        return;
+      }
+      savedSnapshot.current = snapshot;
+      queryClient.removeQueries({ queryKey: ['draft', id] });
       await queryClient.invalidateQueries({ queryKey: ['invoices'] });
       await navigate({ to: '/' });
-    } catch {
-      setError('No se ha podido borrar el borrador. Vuelve a intentarlo.');
-      setPending(false);
-    }
+    });
   }
 
+  const linesFull = lines.length >= MAX_DRAFT_LINES;
   const lineProblems = new Set(problems.flatMap((problem) => (problem.code === 'line-concept-missing' ? [problem.line] : [])));
 
   return (
@@ -299,12 +349,13 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
             ) : (
               <>
                 <RecipientPicker
+                  id={RECIPIENT_FIELD}
                   value={recipient}
                   onChange={(next) => {
                     setRecipient(next);
                     edited();
                   }}
-                  error={showProblems && !recipient ? 'Elige el cliente al que facturas.' : undefined}
+                  error={markProblems && !recipient ? 'Elige el cliente al que facturas.' : undefined}
                 />
                 <div className="grid2">
                   <div className="field">
@@ -321,11 +372,11 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
                     />
                   </div>
                   <div className="field">
-                    <label className="label" htmlFor="period-end">
+                    <label className="label" htmlFor={PERIOD_END_FIELD}>
                       al
                     </label>
                     <input
-                      id="period-end"
+                      id={PERIOD_END_FIELD}
                       className="input"
                       type="date"
                       value={periodEnd}
@@ -342,7 +393,7 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
                   ) : (
                     billingPeriod &&
                     (billingPeriod.end > issueDate ? (
-                      <p className="err span-all" id="period-hint">
+                      <p className={`${markProblems ? 'err' : 'help'} span-all`} id="period-hint">
                         El periodo aún no ha terminado: Hacienda no admite una fecha de operación posterior a la de
                         expedición. Podrás emitir a partir del {formatSpanishDate(billingPeriod.end)}.
                       </p>
@@ -356,11 +407,11 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
               </>
             )}
             <div className="field">
-              <label className="label" htmlFor="description">
+              <label className="label" htmlFor={DESCRIPTION_FIELD}>
                 Descripción de la operación
               </label>
               <input
-                id="description"
+                id={DESCRIPTION_FIELD}
                 className="input"
                 value={operationDescription}
                 maxLength={500}
@@ -370,7 +421,7 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
                   setDescriptionPrefilled(false);
                   edited();
                 }}
-                aria-invalid={showProblems && !operationDescription.trim() ? true : undefined}
+                aria-invalid={markProblems && !operationDescription.trim() ? true : undefined}
                 aria-describedby="description-hint"
               />
               <p className="help row" id="description-hint" style={{ gap: 6, flexWrap: 'nowrap', alignItems: 'flex-start' }}>
@@ -414,7 +465,7 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
                   index={i}
                   line={line}
                   errors={parsed[i]!.errors}
-                  conceptMissing={showProblems && lineProblems.has(i)}
+                  conceptMissing={markProblems && lineProblems.has(i)}
                   base={breakdown.lines[i]!.base}
                   defaultVat={defaults.vat}
                   onChange={(change) => changeLine(line.key, change)}
@@ -426,17 +477,25 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
               ))}
               <div className="line" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 10 }}>
                 <button
+                  id={ADD_LINE_FIELD}
                   type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => {
                     setLines((current) => [...current, emptyLine(defaults.vat)]);
                     edited();
                   }}
+                  disabled={linesFull}
+                  aria-describedby={linesFull ? 'lines-full' : undefined}
                 >
                   <Icon name="plus" />
                   Añadir línea
                 </button>
-                <CatalogItemPicker onPick={addFromCatalog} />
+                <CatalogItemPicker onPick={addFromCatalog} disabled={linesFull} />
+                {linesFull && (
+                  <p className="help" id="lines-full" style={{ width: '100%' }}>
+                    Una factura admite como mucho {MAX_DRAFT_LINES} líneas.
+                  </p>
+                )}
               </div>
             </div>
           </section>
@@ -471,16 +530,28 @@ function DraftEditor({ draft, defaults }: { draft?: Draft; defaults: IssuerDefau
         <aside className="editor-side">
           <DraftSummary breakdown={breakdown} recipientName={recipient?.name} />
 
-          {showProblems && problems.length > 0 && (
-            <div className="alert alert-danger" role="status">
-              <Icon name="alert" />
+          {problems.length > 0 && (
+            <Alert tone={markProblems ? 'danger' : 'info'}>
               <p className="small">
-                <b>
-                  Revisa {problems.length === 1 ? '1 campo' : `${problems.length} campos`} antes de emitir:
-                </b>{' '}
-                {problems.map(problemText).join('; ')}.
+                <b>Para emitir falta:</b>{' '}
+                {problems.map((problem, i) => {
+                  const { text, field } = missingToIssue(problem, { corrective: correction !== null });
+                  return (
+                    <span key={i}>
+                      {i > 0 && '; '}
+                      {field ? (
+                        <button type="button" className="lnk" onClick={() => document.getElementById(field)?.focus()}>
+                          {text}
+                        </button>
+                      ) : (
+                        text
+                      )}
+                    </span>
+                  );
+                })}
+                .
               </p>
-            </div>
+            </Alert>
           )}
           {error && <Alert tone="danger">{error}</Alert>}
           {notice && <Alert tone="ok">{notice}</Alert>}

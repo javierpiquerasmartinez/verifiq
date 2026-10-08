@@ -14,15 +14,19 @@ const draftRecipientOf = (recipient: Recipient): DraftRecipient => draftRecipien
  * without leaving the invoice.
  */
 export function RecipientPicker({
+  id: givenId,
   value,
   onChange,
   error,
 }: {
+  /** The id of the field, to point to it; one is generated otherwise. */
+  id?: string;
   value: DraftRecipient | null;
   onChange: (recipient: DraftRecipient) => void;
   error?: string;
 }) {
-  const id = useId();
+  const generatedId = useId();
+  const id = givenId ?? generatedId;
   const queryClient = useQueryClient();
   const [searching, setSearching] = useState(false);
   const [creating, setCreating] = useState(false);

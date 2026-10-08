@@ -1,4 +1,4 @@
-import { EXEMPTION_GROUND_IDS, type DraftLine, type DraftLineInput, type ExemptionGroundId, type VAT_RATES, type VatTreatment } from '@verifiq/domain';
+import { EXEMPTION_GROUND_IDS, type DraftLine, type DraftLineInput, type ExemptionGroundId, type VAT_RATES, type VatTreatment, type WithholdingRate } from '@verifiq/domain';
 import { decimalInputOf, parseDecimalInput } from './format';
 
 // Draft lines in the editor: kept as typed (Spanish style), parsed on every render.
@@ -67,4 +67,23 @@ export function vatFor(choice: VatChoice, current: VatTreatment, defaultVat: Vat
   const ground: ExemptionGroundId =
     current.kind === 'exempt' ? current.ground : defaultVat.kind === 'exempt' ? defaultVat.ground : EXEMPTION_GROUND_IDS[0];
   return { kind: 'exempt', ground };
+}
+
+/** The editor's form as typed, to tell whether it has changes since it was last saved. */
+export function draftSnapshot(form: {
+  recipientId: string | null;
+  periodStart: string;
+  periodEnd: string;
+  operationDescription: string;
+  lines: LineState[];
+  withholding: WithholdingRate;
+}): string {
+  const lines = form.lines.map(({ concept, quantity, unitPrice, discountPercent, vat }) => ({
+    concept,
+    quantity,
+    unitPrice,
+    discountPercent,
+    vat,
+  }));
+  return JSON.stringify({ ...form, lines });
 }
