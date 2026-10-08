@@ -61,12 +61,17 @@ export type VatChoice = 'exempt' | `${(typeof VAT_RATES)[number]}`;
 
 export const vatChoiceOf = (vat: VatTreatment): VatChoice => (vat.kind === 'exempt' ? 'exempt' : `${vat.rate}`);
 
+const taxedVatOf = (choice: Exclude<VatChoice, 'exempt'>): VatTreatment => ({
+  kind: 'taxed',
+  rate: Number(choice) as (typeof VAT_RATES)[number],
+});
+
 /**
  * The treatment a line takes when its VAT choice changes. An exempt line keeps or inherits a ground,
  * or else takes the generic one, which never cites a precept that may not apply.
  */
 export function vatFor(choice: VatChoice, current: VatTreatment, defaultVat: VatTreatment): VatTreatment {
-  if (choice !== 'exempt') return { kind: 'taxed', rate: Number(choice) as (typeof VAT_RATES)[number] };
+  if (choice !== 'exempt') return taxedVatOf(choice);
   const ground: ExemptionGroundId =
     current.kind === 'exempt' ? current.ground : defaultVat.kind === 'exempt' ? defaultVat.ground : 'otherArticle20';
   return { kind: 'exempt', ground };
@@ -74,7 +79,7 @@ export function vatFor(choice: VatChoice, current: VatTreatment, defaultVat: Vat
 
 /** A default VAT picked in a form, where an exempt one needs its ground chosen on purpose: null until it is. */
 export function vatOfChoice(choice: VatChoice, ground: ExemptionGroundId | ''): VatTreatment | null {
-  if (choice !== 'exempt') return { kind: 'taxed', rate: Number(choice) as (typeof VAT_RATES)[number] };
+  if (choice !== 'exempt') return taxedVatOf(choice);
   return ground ? { kind: 'exempt', ground } : null;
 }
 
