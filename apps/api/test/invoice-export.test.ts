@@ -1,7 +1,9 @@
 import type { INestApplication } from '@nestjs/common';
 import { formatSpanishDate, todayInSpain } from '@verifiq/domain';
 import { unzipSync } from 'fflate';
+import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DATABASE, type Database } from '../src/database/database.module.js';
 import { SubmissionWorker } from '../src/invoices/submission-worker.js';
 import { FakeVerifactuConnector } from '../src/verifactu/fake-connector.js';
 import type { Agent } from './access.js';
@@ -31,11 +33,13 @@ const rowsOf = (csv: Uint8Array) =>
 
 describe('Invoice export', () => {
   let app: INestApplication;
+  let db: Database;
   let worker: SubmissionWorker;
   const connector = new FakeVerifactuConnector();
 
   beforeAll(async () => {
     app = await createTestApp({ verifactu: connector });
+    db = app.get<Database>(DATABASE);
     worker = app.get(SubmissionWorker);
   });
 
@@ -85,6 +89,18 @@ describe('Invoice export', () => {
     const { body: invoice } = await agent.post('/invoices').send({ draftId: created.id }).expect(201);
     await worker.runPending();
     return { invoice: invoice as { id: string; number: string }, recipient };
+  }
+
+  /** The AEAT accepts the invoice's latest record, through the webhook. */
+  async function accept(invoiceId: string) {
+    const { rows } = await db.$client.query<{ connector_record_id: string }>(
+      'SELECT connector_record_id FROM invoice_records WHERE invoice_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [invoiceId],
+    );
+    const connectorRecordId = rows[0]!.connector_record_id;
+    connector.settle(connectorRecordId, 'accepted', {});
+    const delivery = connector.resultsDelivery([connectorRecordId]);
+    await request(app.getHttpServer()).post('/webhooks/verifactu').set(delivery.headers).send(delivery.body).expect(204);
   }
 
   const exportOf = (agent: Agent) => bytesOf(agent.get('/invoices/export'));
@@ -160,6 +176,43 @@ describe('Invoice export', () => {
     const [, row] = rowsOf(files['facturas.csv']!);
     // 7 % of the 2440.00 tax base, off the 2461.00 total amount.
     expect(row?.slice(15, 18)).toEqual(['7', '170,80', '2290,20']);
+  });
+
+  it('marks the PDF of a voided invoice, which stays as it was issued', async () => {
+    const { agent } = await issuingUser();
+    const { invoice } = await issuedInvoice(agent);
+    await accept(invoice.id);
+    await agent.post(`/invoices/${invoice.id}/voiding`).send({}).expect(201);
+    await worker.runPending();
+    await accept(invoice.id);
+
+    const files = unzipSync(new Uint8Array((await exportOf(agent).expect(200)).body));
+
+    expect(Object.keys(files).sort()).toEqual(['facturas.csv', `${invoice.number}-anulada.pdf`].sort());
+    expect(Buffer.from(files[`${invoice.number}-anulada.pdf`]!).equals(await pdfOf(agent, invoice.id))).toBe(true);
+    const [, row] = rowsOf(files['facturas.csv']!);
+    expect(row?.slice(-3)).toEqual(['Anulada', 'Aceptada', '']);
+  });
+
+  it('has a corrective invoice, with its negative amounts and the invoice it rectifies', async () => {
+    const { agent } = await issuingUser();
+    const { invoice } = await issuedInvoice(agent);
+    await accept(invoice.id);
+    const { body: corrective } = await agent
+      .post(`/invoices/${invoice.id}/corrective-draft`)
+      .send({ reason: 'other', note: 'Factura duplicada', total: true })
+      .expect(201);
+    const { body: rectifying } = await agent.post('/invoices').send({ draftId: corrective.id }).expect(201);
+    await worker.runPending();
+
+    const files = unzipSync(new Uint8Array((await exportOf(agent).expect(200)).body));
+
+    expect(Object.keys(files).sort()).toEqual(['facturas.csv', `${invoice.number}.pdf`, `${rectifying.number}.pdf`].sort());
+    const [, original, correction] = rowsOf(files['facturas.csv']!);
+    expect(original?.[0]).toBe(invoice.number);
+    expect(original?.slice(-3)).toEqual(['Rectificada', 'Aceptada', '']);
+    expect(correction?.[0]).toBe(rectifying.number);
+    expect(correction?.slice(14)).toEqual(['-2461,00', '15', '-366,00', '-2095,00', 'Emitida', 'Enviada', invoice.number]);
   });
 
   it("has only the session issuer's invoices", async () => {

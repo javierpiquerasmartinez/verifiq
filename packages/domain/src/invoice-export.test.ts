@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeBreakdown, type BreakdownInput } from './amounts.js';
-import { invoiceExportCsv, type ExportedInvoice } from './invoice-export.js';
+import { exportedPdfName, invoiceExportCsv, type ExportedInvoice } from './invoice-export.js';
 
 const recipient = {
   name: 'Clínica Dental Ruzafa SL',
@@ -134,5 +134,22 @@ describe('invoiceExportCsv', () => {
 
   it('writes only the header when there are no invoices', () => {
     expect(rowsOf(invoiceExportCsv([]))).toHaveLength(1);
+  });
+});
+
+describe('exportedPdfName', () => {
+  it('names the PDF after the invoice number', () => {
+    expect(exportedPdfName(invoice())).toBe('F2026-0001.pdf');
+  });
+
+  it.each(['pending-submission', 'submitted', 'accepted', 'accepted-with-errors'] as const)(
+    'marks a voided invoice whose Voiding is %s',
+    (recordStatus) => {
+      expect(exportedPdfName(invoice({ status: 'voided', recordStatus }))).toBe('F2026-0001-anulada.pdf');
+    },
+  );
+
+  it.each(['blocked', 'rejected'] as const)('does not mark an invoice whose Voiding is %s: the AEAT still has it', (recordStatus) => {
+    expect(exportedPdfName(invoice({ status: 'voided', recordStatus }))).toBe('F2026-0001.pdf');
   });
 });

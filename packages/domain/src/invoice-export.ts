@@ -3,6 +3,7 @@ import { VAT_RATES, type Breakdown } from './amounts.js';
 import { formatSpanishDate } from './draft.js';
 import type { InvoiceRecordStatus, InvoiceStatus } from './invoice.js';
 import type { RecipientData } from './recipient.js';
+import { canResendVoiding } from './voiding.js';
 
 // The export (spec story 85): a ZIP with the current PDF of every issued invoice and a summary CSV,
 // for the user's accountant. The CSV opens as it is in a Spanish spreadsheet: UTF-8 with a BOM,
@@ -81,6 +82,16 @@ function row({ number, issueDate, status, recordStatus, recipient, breakdown, co
     RECORD_STATUS_LABELS[recordStatus],
     corrects ?? '',
   ];
+}
+
+/**
+ * The name of the invoice's PDF in the ZIP: its number and, once voided, a mark, so the accountant sees
+ * it without opening the CSV. The PDF is the one issued, never redrawn. A voided invoice's latest record
+ * is its Voiding: while blocked or rejected, the AEAT still has the invoice, so it is not marked.
+ */
+export function exportedPdfName({ number, status, recordStatus }: ExportedInvoice): string {
+  const voided = status === 'voided' && !canResendVoiding({ status, recordStatus, voiding: true });
+  return `${number}${voided ? '-anulada' : ''}.pdf`;
 }
 
 /** The summary CSV of the export: a header and a row per invoice, in the order given. */

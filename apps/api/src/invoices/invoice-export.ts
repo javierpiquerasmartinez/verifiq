@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  exportedPdfName,
   invoiceExportCsv,
   invoiceNumberIn,
   type Breakdown,
@@ -14,7 +15,7 @@ import { DATABASE, type Database } from '../database/database.module.js';
 import { invoicePdfs, invoiceRecords, invoices } from '../database/schema.js';
 import { OBJECT_STORAGE, type ObjectStorage } from '../storage/object-storage.js';
 
-/** The summary CSV's name inside the ZIP; each PDF is named after its invoice's number. */
+/** The summary CSV's name inside the ZIP; each PDF is named after its invoice (exportedPdfName). */
 export const EXPORT_CSV_NAME = 'facturas.csv';
 
 /** Resolves once `output` takes more, or is closed. */
@@ -64,9 +65,12 @@ export class InvoiceExportService {
       await drained(output);
       if (output.destroyed) return zip.terminate();
       const file = await this.storage.get(pdfKey);
-      if (!file) throw new Error(`The PDF ${pdfKey} is missing from the object storage`);
+      if (!file) {
+        zip.terminate();
+        throw new Error(`The PDF ${pdfKey} is missing from the object storage`);
+      }
       // A PDF is compressed already.
-      const pdf = new ZipPassThrough(`${exported.number}.pdf`);
+      const pdf = new ZipPassThrough(exportedPdfName(exported));
       zip.add(pdf);
       pdf.push(file.body, true);
     }
