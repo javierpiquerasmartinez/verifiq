@@ -1,4 +1,5 @@
 import { EXEMPTION_GROUND_IDS, exemptionGround, VAT_RATES, type ExemptionGroundId, type VatTreatment } from '@verifiq/domain';
+import { lineConceptField } from '../draft-problems';
 import { vatChoiceOf, vatFor, type LineErrors, type LineState, type VatChoice } from '../draft-lines';
 import { formatAmount } from '../format';
 import { Icon } from './icons';
@@ -30,6 +31,7 @@ export function DraftLineRow({
     <div className="line">
       <div className="line-grid">
         <input
+          id={lineConceptField(index)}
           className="input"
           aria-label={`Concepto de la línea ${n}`}
           placeholder="Concepto"

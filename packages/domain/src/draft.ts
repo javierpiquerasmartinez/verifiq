@@ -40,13 +40,16 @@ export const draftLineSchema = invoiceLineSchema.extend({
 export type DraftLine = z.infer<typeof invoiceLineSchema>;
 export type DraftLineInput = z.input<typeof invoiceLineSchema>;
 
+/** The most lines a draft (and so an invoice) can have. */
+export const MAX_DRAFT_LINES = 100;
+
 /** Body of POST /drafts and PUT /drafts/:id. Amounts are never sent: the api computes them. */
 export const draftDataSchema = z.object({
   recipientId: z.uuid().nullable(),
   billingPeriod: billingPeriodSchema.nullable(),
   /** Travels to the AEAT in the invoice record (up to 500 characters): never patient data. */
   operationDescription: z.string().trim().max(500),
-  lines: z.array(draftLineSchema).max(100),
+  lines: z.array(draftLineSchema).max(MAX_DRAFT_LINES),
   withholding: z.literal(WITHHOLDING_RATES),
 });
 
@@ -54,7 +57,7 @@ export const draftDataSchema = z.object({
  * Body of PUT /drafts/:id for a corrective draft: its lines are the difference, negative if it lowers
  * the amounts. Its recipient, billing period and withholding are the corrected invoice's: those sent are ignored.
  */
-export const correctiveDraftDataSchema = draftDataSchema.extend({ lines: z.array(invoiceLineSchema).max(100) });
+export const correctiveDraftDataSchema = draftDataSchema.extend({ lines: z.array(invoiceLineSchema).max(MAX_DRAFT_LINES) });
 
 export type DraftData = z.infer<typeof correctiveDraftDataSchema>;
 export type DraftDataInput = z.input<typeof correctiveDraftDataSchema>;
