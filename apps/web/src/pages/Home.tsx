@@ -8,7 +8,7 @@ import {
   type InvoiceListItem,
 } from '@verifiq/domain';
 import { useDeferredValue, useState, type KeyboardEvent } from 'react';
-import { fetchInvoiceIncidents, fetchInvoiceList } from '../api';
+import { fetchInvoiceIncidents, fetchInvoiceList, invoiceExportUrl } from '../api';
 import { formatAmount } from '../format';
 import { useSessionExpiry } from '../session';
 import { AppShell } from '../ui/AppShell';
@@ -51,6 +51,12 @@ export function HomePage() {
     <AppShell>
       <div className="page-head">
         <h1 className="h1">Facturas</h1>
+        {counts && !firstUse && (
+          <a className="btn btn-secondary" href={invoiceExportUrl} title="Un ZIP con el PDF de cada factura emitida y un CSV resumen">
+            <Icon name="download" />
+            Exportar todo
+          </a>
+        )}
       </div>
 
       {list.isError && <Alert tone="danger">No se han podido cargar tus facturas. Recarga la página.</Alert>}

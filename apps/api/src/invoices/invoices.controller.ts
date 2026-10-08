@@ -3,6 +3,7 @@ import {
   ConflictException,
   Controller,
   Get,
+  Logger,
   NotFoundException,
   Param,
   Post,
@@ -27,6 +28,7 @@ import {
   type InvoiceList,
   type NextInvoiceNumber,
   type VoidedInvoice,
+  todayInSpain,
   withholdingCorrectionSchema,
 } from '@verifiq/domain';
 import type { Response } from 'express';
@@ -35,6 +37,7 @@ import { CurrentSession, type AuthSession } from '../auth/session.guard.js';
 import { DraftNotFoundError } from '../drafts/drafts.js';
 import { parseBody, withHttpErrors } from '../issuers/http.js';
 import { CurrentIssuer } from '../issuers/issuer-context.js';
+import { InvoiceExportService } from './invoice-export.js';
 import { decodeCursor, InvoiceListService } from './invoice-list.js';
 import { InvoicePdfNotAvailableError, InvoicePdfsService } from './invoice-pdfs.js';
 import {
@@ -142,10 +145,13 @@ const pdfQuerySchema = z.object({
 /** Issued invoices, and the Issuance that makes them out of drafts. */
 @Controller('invoices')
 export class InvoicesController {
+  private readonly logger = new Logger(InvoicesController.name);
+
   constructor(
     private readonly invoices: InvoicesService,
     private readonly list: InvoiceListService,
     private readonly pdfs: InvoicePdfsService,
+    private readonly exports: InvoiceExportService,
   ) {}
 
   /** The main screen: drafts and invoices together, newest first, searched, filtered and paged. */
@@ -175,6 +181,29 @@ export class InvoicesController {
   async nextNumber(@CurrentIssuer() issuerId: string, @Query() query: unknown): Promise<NextInvoiceNumber> {
     const { series } = parseBody(nextInvoiceNumberQuerySchema, query);
     return { number: await this.invoices.nextNumber(issuerId, { corrective: series === 'corrective' }) };
+  }
+
+  /** Every issued invoice, for the accountant: a ZIP with their current PDFs and a summary CSV. */
+  @Get('export')
+  async export(@CurrentIssuer() issuerId: string, @Res() response: Response): Promise<void> {
+    const headers = {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="facturas-${todayInSpain()}.zip"`,
+      'Cache-Control': 'private, no-cache',
+      'X-Content-Type-Options': 'nosniff',
+    };
+    response.set(headers);
+    try {
+      await this.exports.writeTo(issuerId, response);
+    } catch (error) {
+      if (!response.headersSent) {
+        for (const header of Object.keys(headers)) response.removeHeader(header);
+        throw error;
+      }
+      // Halfway through the ZIP: cut it, so the download fails rather than saving a broken file.
+      this.logger.error('The export failed halfway', error instanceof Error ? error.stack : String(error));
+      response.destroy();
+    }
   }
 
   @Get(':id')
