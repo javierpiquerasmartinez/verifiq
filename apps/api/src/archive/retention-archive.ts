@@ -45,10 +45,12 @@ export class RetentionArchive implements OnApplicationBootstrap {
   }
 
   /**
-   * One round, as of `now`: exports what changed after the previous round, up to a few minutes before
-   * `now`. A round that fails records nothing, so the next one exports its changes again.
+   * One round, as of `now` (the database's clock, which stamps the rows, unless a test gives its own):
+   * exports what changed after the previous round, up to a few minutes before `now`. A round that fails
+   * records nothing, so the next one exports its changes again.
    */
-  async exportOnce(now = new Date()): Promise<void> {
+  async exportOnce(now?: Date): Promise<void> {
+    now ??= (await this.db.$client.query<{ now: Date }>('SELECT now() AS now')).rows[0]!.now;
     const [previous] = await this.db
       .select({ coveredUntil: archiveRuns.coveredUntil })
       .from(archiveRuns)
@@ -58,7 +60,7 @@ export class RetentionArchive implements OnApplicationBootstrap {
     const until = new Date(now.getTime() - SETTLE_MS);
     if (from && until <= from) return;
 
-    const window = new Window(from, until);
+    const window = new ArchiveWindow(from, until);
     await this.exportInvoices(window);
     await this.exportPdfs(window);
     await this.exportByIssuer(window, connectorExchanges, connectorExchanges.recordedAt, 'connector-exchanges');
@@ -70,7 +72,7 @@ export class RetentionArchive implements OnApplicationBootstrap {
   }
 
   /** A new version of every invoice that changed: itself, its records or its PDFs. */
-  private async exportInvoices(window: Window): Promise<void> {
+  private async exportInvoices(window: ArchiveWindow): Promise<void> {
     const changedRecords = this.db
       .select({ invoiceId: invoiceRecords.invoiceId })
       .from(invoiceRecords)
@@ -114,7 +116,7 @@ export class RetentionArchive implements OnApplicationBootstrap {
   }
 
   /** A copy of every PDF version drawn in the window. */
-  private async exportPdfs(window: Window): Promise<void> {
+  private async exportPdfs(window: ArchiveWindow): Promise<void> {
     const drawn = await this.db.select().from(invoicePdfs).where(window.covers(invoicePdfs.createdAt));
     for (const pdf of drawn) {
       const file = await this.storage.get(pdf.storageKey);
@@ -132,7 +134,7 @@ export class RetentionArchive implements OnApplicationBootstrap {
 
   /** The rows of an append-only table added in the window, one file per issuer. */
   private async exportByIssuer(
-    window: Window,
+    window: ArchiveWindow,
     table: typeof connectorExchanges | typeof auditEvents,
     at: AnyColumn,
     name: string,
@@ -144,12 +146,12 @@ export class RetentionArchive implements OnApplicationBootstrap {
       byIssuer.get(row.issuerId)!.push(row);
     }
     for (const [issuerId, issuerRows] of byIssuer) {
-      await this.storage.put(`${ARCHIVE_PREFIX}issuers/${issuerId}/${name}/${window.stamp}.ndjson`, ndjson(issuerRows));
+      await this.storage.put(`${issuerPrefix(issuerId)}${name}/${window.stamp}.ndjson`, ndjson(issuerRows));
     }
   }
 
   /** The deliveries of the results webhook received in the window: they name no issuer. */
-  private async exportWebhookDeliveries(window: Window): Promise<void> {
+  private async exportWebhookDeliveries(window: ArchiveWindow): Promise<void> {
     const rows = await this.db
       .select()
       .from(webhookDeliveries)
@@ -161,7 +163,7 @@ export class RetentionArchive implements OnApplicationBootstrap {
 }
 
 /** The time a round covers: after the previous round (from the start, the first time) up to `until`. */
-class Window {
+class ArchiveWindow {
   /** Names the objects of the round: every round writes new ones. */
   readonly stamp: string;
 
@@ -178,8 +180,8 @@ class Window {
   }
 }
 
-const invoicePrefix = (invoice: { issuerId: string; id: string }) =>
-  `${ARCHIVE_PREFIX}issuers/${invoice.issuerId}/invoices/${invoice.id}/`;
+const issuerPrefix = (issuerId: string) => `${ARCHIVE_PREFIX}issuers/${issuerId}/`;
+const invoicePrefix = (invoice: { issuerId: string; id: string }) => `${issuerPrefix(invoice.issuerId)}invoices/${invoice.id}/`;
 
 const ndjson = (rows: unknown[]) => ({
   body: Buffer.from(rows.map((row) => JSON.stringify(row)).join('\n') + '\n'),
