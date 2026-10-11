@@ -6,18 +6,18 @@ Spec: `../spec.md` (historias 1, 91–93) · issue 19 · PR #38
 
 **Blocked by:** —
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## Qué debe permitir
 
-- [ ] Listar todas las invitaciones de Usuarios: email, estado (Pendiente, Aceptada, Caducada, Revocada), enviada, caduca y, si aplica, cuándo se aceptó o se revocó
-- [ ] Buscar por email (sin distinguir mayúsculas ni acentos)
-- [ ] Filtrar por estado, con el recuento de cada uno
-- [ ] Ordenar por fecha de envío (por defecto, las más recientes primero), de caducidad y por email
-- [ ] Revocar una pendiente desde la propia página (la misma acción que en el panel)
-- [ ] Llegar a ella desde el panel: un enlace «Ver todas las invitaciones», por ejemplo junto a la tarjeta «Enviar invitación» o en la cabecera de la tabla de Emisores
-- [ ] Mantener la misma cabecera del operador (`OperatorShell`) y el aviso de que el panel no muestra facturas ni clientes
-- [ ] Ningún dato de facturas, líneas ni Destinatarios (historia 93): solo datos de la propia invitación
+- [x] Listar todas las invitaciones de Usuarios: email, estado (Pendiente, Aceptada, Caducada, Revocada), enviada, caduca y, si aplica, cuándo se aceptó o se revocó
+- [x] Buscar por email (sin distinguir mayúsculas ni acentos)
+- [x] Filtrar por estado, con el recuento de cada uno
+- [x] Ordenar por fecha de envío (por defecto, las más recientes primero), de caducidad y por email
+- [x] Revocar una pendiente desde la propia página (la misma acción que en el panel)
+- [x] Llegar a ella desde el panel: un enlace «Ver todas las invitaciones», por ejemplo junto a la tarjeta «Enviar invitación» o en la cabecera de la tabla de Emisores
+- [x] Mantener la misma cabecera del operador (`OperatorShell`) y el aviso de que el panel no muestra facturas ni clientes
+- [x] Ningún dato de facturas, líneas ni Destinatarios (historia 93): solo datos de la propia invitación
 
 ## A decidir en el triage (resuelto el 2026-10-08: ver el brief en Comments)
 
@@ -61,18 +61,18 @@ El operador solo ve invitaciones en su panel (`/operator`), mezcladas con los Em
 - El filtro `expired` y su recuento se calculan en SQL con la misma regla que `toOperatorInvitation`, sin duplicarla en otro sitio.
 
 **Acceptance criteria:**
-- [ ] Como operador, `/operator/invitations` lista las invitaciones de Usuarios de todos los estados, incluidas aceptadas y revocadas. Un Usuario que entra en esa ruta acaba redirigido como en `/operator`.
-- [ ] Una invitación aceptada muestra su fecha de aceptación y el nombre y NIF de su Emisor. Una revocada muestra su fecha de revocación.
-- [ ] Buscar «JOSE» encuentra `josé@example.com`.
-- [ ] Cada pastilla de estado muestra el recuento correcto para la búsqueda actual, y al pulsarla solo quedan las invitaciones de ese estado.
-- [ ] El orden por defecto es el envío, de la más reciente a la más antigua. Ordenar por caducidad y por email funciona en ambos sentidos.
-- [ ] Con más invitaciones que el tamaño de página, paginar en cualquier orden recorre todas sin repetir ni saltarse ninguna (test de API).
-- [ ] Recargar con `?q=…&status=…&sort=…` muestra la misma vista. Unos search params no válidos no rompen la página.
-- [ ] Revocar una pendiente desde la página la deja como Revocada y actualiza los recuentos. Las aceptadas, caducadas y revocadas no tienen el botón.
-- [ ] El panel tiene el enlace «Ver todas las invitaciones» y sigue mostrando solo pendientes y caducadas, aunque haya más de 200 invitaciones.
-- [ ] Las invitaciones de rol `operator` no aparecen ni cuentan en ningún recuento.
-- [ ] El test de que ningún endpoint del operador devuelve facturas, líneas ni Destinatarios sigue pasando y cubre la nueva respuesta (historia 93).
-- [ ] Textos de la interfaz en español; código, rutas y tests en inglés.
+- [x] Como operador, `/operator/invitations` lista las invitaciones de Usuarios de todos los estados, incluidas aceptadas y revocadas. Un Usuario que entra en esa ruta acaba redirigido como en `/operator`.
+- [x] Una invitación aceptada muestra su fecha de aceptación y el nombre y NIF de su Emisor. Una revocada muestra su fecha de revocación.
+- [x] Buscar «JOSE» encuentra `josé@example.com`.
+- [x] Cada pastilla de estado muestra el recuento correcto para la búsqueda actual, y al pulsarla solo quedan las invitaciones de ese estado.
+- [x] El orden por defecto es el envío, de la más reciente a la más antigua. Ordenar por caducidad y por email funciona en ambos sentidos.
+- [x] Con más invitaciones que el tamaño de página, paginar en cualquier orden recorre todas sin repetir ni saltarse ninguna (test de API).
+- [x] Recargar con `?q=…&status=…&sort=…` muestra la misma vista. Unos search params no válidos no rompen la página.
+- [x] Revocar una pendiente desde la página la deja como Revocada y actualiza los recuentos. Las aceptadas, caducadas y revocadas no tienen el botón.
+- [x] El panel tiene el enlace «Ver todas las invitaciones» y sigue mostrando solo pendientes y caducadas, aunque haya más de 200 invitaciones.
+- [x] Las invitaciones de rol `operator` no aparecen ni cuentan en ningún recuento.
+- [x] El test de que ningún endpoint del operador devuelve facturas, líneas ni Destinatarios sigue pasando y cubre la nueva respuesta (historia 93).
+- [x] Textos de la interfaz en español; código, rutas y tests en inglés.
 
 **Out of scope:**
 - Diseñar la pantalla en `Admin.dc.html`: se monta con los componentes existentes (`card`, `tbl`, `pills`, `affix`).
@@ -80,3 +80,6 @@ El operador solo ve invitaciones en su panel (`/operator`), mezcladas con los Em
 - Mostrar o gestionar invitaciones de operador, o crearlas desde la UI.
 - Cambiar cómo el panel muestra los Emisores o las alertas.
 - Exportar el listado.
+
+
+**2026-10-09:** Hecha en la PR #42 (6c9c7fc, b815153). Los tests de API (`apps/api/test/operator.test.ts`) y web (`operator-invitations.test.ts`, `operator-panel.test.ts`) cubren los criterios de aceptación y pasan.
