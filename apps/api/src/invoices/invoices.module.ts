@@ -1,4 +1,5 @@
 import { Module, type DynamicModule } from '@nestjs/common';
+import { RetentionArchive } from '../archive/retention-archive.js';
 import { DraftsModule } from '../drafts/drafts.module.js';
 import { InvoicesController } from './invoices.controller.js';
 import { InvoiceExportService } from './invoice-export.js';
@@ -13,7 +14,7 @@ import { SubmissionWorker } from './submission-worker.js';
 
 /**
  * The outbox of InvoiceRecords, the worker that sends them to the VeriFactu connector, the PDFs it
- * draws once they have their QR, and the AEAT's verdicts on them (webhook and poll).
+ * draws once they have their QR, the AEAT's verdicts on them (webhook and poll), and their retention archive.
  */
 @Module({})
 export class SubmissionModule {
@@ -28,6 +29,7 @@ export class SubmissionModule {
         InvoicePdfsService,
         RecordVerdicts,
         RecordStatusPoller,
+        RetentionArchive,
       ],
       exports: [SubmissionQueue, InvoicePdfsService, RecordVerdicts],
     };
