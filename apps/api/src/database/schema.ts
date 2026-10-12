@@ -277,6 +277,7 @@ export const connectorExchanges = pgTable(
   (table) => [
     index('connector_exchanges_issuer_id_idx').on(table.issuerId, table.recordedAt),
     index('connector_exchanges_invoice_record_id_idx').on(table.invoiceRecordId),
+    index('connector_exchanges_recorded_at_idx').on(table.recordedAt),
   ],
 );
 
@@ -410,9 +411,12 @@ export const invoices = pgTable(
       .notNull()
       .references(() => users.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // Set by a trigger on every change (migration 0015): the retention archive exports what changed.
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('invoices_issuer_id_idx').on(table.issuerId),
+    index('invoices_updated_at_idx').on(table.updatedAt),
     index('invoices_recipient_id_idx').on(table.recipientId),
     index('invoices_corrected_invoice_id_idx').on(table.correctedInvoiceId),
     unique('invoices_number_unique').on(table.issuerId, table.series, table.number),
@@ -467,6 +471,7 @@ export const invoiceRecords = pgTable(
     index('invoice_records_issuer_id_idx').on(table.issuerId),
     index('invoice_records_invoice_id_idx').on(table.invoiceId),
     index('invoice_records_status_idx').on(table.status, table.createdAt),
+    index('invoice_records_updated_at_idx').on(table.updatedAt),
   ],
 );
 
@@ -530,5 +535,15 @@ export const auditEvents = pgTable(
   (table) => [
     index('audit_events_issuer_id_idx').on(table.issuerId, table.occurredAt),
     index('audit_events_subject_id_idx').on(table.subjectId),
+    index('audit_events_occurred_at_idx').on(table.occurredAt),
   ],
 );
+
+// --- Retention archive: what has been copied to object storage (archive/), kept for 6 years.
+
+/** Each finished round of the retention archive: the next one exports what changed after `coveredUntil`. */
+export const archiveRuns = pgTable('archive_runs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  coveredUntil: timestamp('covered_until', { withTimezone: true }).notNull(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }).notNull().defaultNow(),
+});
