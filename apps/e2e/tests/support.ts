@@ -42,10 +42,17 @@ export { expect };
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
+/** The base32 key: given as it is, or inside the otpauth:// URI of the set-up QR. */
+function totpKey(secret: string): string {
+  const key = secret.trim().startsWith('otpauth://') ? new URL(secret.trim()).searchParams.get('secret') : secret;
+  if (!key) throw new Error('The TOTP secret is an otpauth:// URI without a secret');
+  return key.replace(/[\s=]/g, '').toUpperCase();
+}
+
 /** RFC 6238 code (SHA-1, 6 digits, 30 s), as an authenticator app would show it. */
 export function totpCode(secret: string, at = Date.now()): string {
   let bits = '';
-  for (const char of secret.replace(/[\s=]/g, '').toUpperCase()) bits += BASE32.indexOf(char).toString(2).padStart(5, '0');
+  for (const char of totpKey(secret)) bits += BASE32.indexOf(char).toString(2).padStart(5, '0');
   const key = Buffer.from((bits.match(/.{8}/g) ?? []).map((byte) => parseInt(byte, 2)));
   const counter = Buffer.alloc(8);
   counter.writeBigUInt64BE(BigInt(Math.floor(at / 1000 / 30)));
