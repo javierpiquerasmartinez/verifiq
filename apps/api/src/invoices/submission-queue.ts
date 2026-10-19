@@ -10,11 +10,14 @@ export interface SubmissionOptions {
   queueName: string;
   /** Whether this process sends the records and polls their status: the worker service does (and maintains the queue). */
   work: boolean;
-  /** Where to alert the operator of records the AEAT has not confirmed in 24 h. */
+  /** Where to alert the operator: records the AEAT has not confirmed in 24 h, and operational alerts. */
   operatorEmail?: string;
 }
 
 export const SUBMISSION_QUEUE_NAME = 'invoice-record-submission';
+
+/** Attempts of a submission job before it is given up: the first and 30 retries, for about a day. */
+export const SUBMISSION_ATTEMPTS = 31;
 
 export interface SubmissionJob {
   invoiceRecordId: string;
@@ -44,7 +47,7 @@ export class SubmissionQueue implements OnModuleInit, OnApplicationShutdown {
     await this.boss.start();
     await this.boss.createQueue(this.options.queueName, {
       // Seconds: 10 s, 20 s, 40 s… up to an hour between attempts, for about a day.
-      retryLimit: 30,
+      retryLimit: SUBMISSION_ATTEMPTS - 1,
       retryDelay: 10,
       retryBackoff: true,
       retryDelayMax: 3600,
@@ -62,10 +65,10 @@ export class SubmissionQueue implements OnModuleInit, OnApplicationShutdown {
     });
   }
 
-  /** Runs `handler` on every job as it comes; a job whose handler throws is retried later. */
-  async work(handler: (job: SubmissionJob) => Promise<void>): Promise<void> {
+  /** Runs `handler` on every job as it comes, with its attempt (from 1); a job whose handler throws is retried later. */
+  async work(handler: (job: SubmissionJob, attempt: number) => Promise<void>): Promise<void> {
     await this.boss.work<SubmissionJob>(this.options.queueName, async (jobs) => {
-      for (const job of jobs) await handler(job.data);
+      for (const job of jobs) await handler(job.data, job.retryCount + 1);
     });
   }
 

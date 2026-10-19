@@ -8,6 +8,7 @@ import {
   type RawBodyRequest,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { errorMessage, OperatorAlerts } from '../alerts/operator-alerts.js';
 import { Public } from '../auth/session.guard.js';
 import { RecordVerdicts } from './record-verdicts.js';
 
@@ -30,11 +31,15 @@ async function rawBodyOf(request: RawBodyRequest<Request>): Promise<Buffer> {
 
 /**
  * The connector's results webhook: public, trusted only through its HMAC-SHA256 signature. It must
- * answer within 10 s; a 4xx is final for the connector, so only a bad signature gets one.
+ * answer within 10 s; a 4xx is final for the connector, so only a bad signature gets one. The operator
+ * hears of bad signatures and of deliveries that failed.
  */
 @Controller('webhooks')
 export class WebhooksController {
-  constructor(private readonly verdicts: RecordVerdicts) {}
+  constructor(
+    private readonly verdicts: RecordVerdicts,
+    private readonly alerts: OperatorAlerts,
+  ) {}
 
   @Public()
   @Post('verifactu')
@@ -43,7 +48,18 @@ export class WebhooksController {
     const headers = Object.fromEntries(
       Object.entries(request.headers).map(([name, value]) => [name, Array.isArray(value) ? value[0] : value]),
     );
-    const received = await this.verdicts.receive({ headers, body: await rawBodyOf(request) });
-    if (!received) throw new UnauthorizedException({ message: 'Invalid webhook signature' });
+    const webhookId = headers['x-webhook-id'] ?? '(sin id)';
+    let received: boolean;
+    try {
+      received = await this.verdicts.receive({ headers, body: await rawBodyOf(request) });
+    } catch (error) {
+      // Not awaited: the email must not hold back the answer, due within 10 s.
+      void this.alerts.raise({ kind: 'webhook-failed', detail: [`Aviso ${webhookId}`, errorMessage(error)] });
+      throw error;
+    }
+    if (!received) {
+      void this.alerts.raise({ kind: 'webhook-signature-invalid', detail: [`Aviso ${webhookId}`, `Desde ${request.ip ?? 'una IP desconocida'}`] });
+      throw new UnauthorizedException({ message: 'Invalid webhook signature' });
+    }
   }
 }

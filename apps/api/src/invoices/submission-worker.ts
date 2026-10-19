@@ -10,6 +10,7 @@ import {
   type VerifactuExemptionCode,
 } from '@verifiq/domain';
 import { and, asc, eq, lt } from 'drizzle-orm';
+import { errorMessage, OperatorAlerts } from '../alerts/operator-alerts.js';
 import { recordAuditEvent } from '../audit/audit.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { invoiceRecords, invoices } from '../database/schema.js';
@@ -24,7 +25,10 @@ import {
   type VerifactuConnector,
 } from '../verifactu/connector.js';
 import { InvoicePdfsService } from './invoice-pdfs.js';
-import { SUBMISSION_OPTIONS, SubmissionQueue, type SubmissionOptions } from './submission-queue.js';
+import { SUBMISSION_ATTEMPTS, SUBMISSION_OPTIONS, SubmissionQueue, type SubmissionOptions } from './submission-queue.js';
+
+/** The failed attempt at which the operator hears of a record: a couple of minutes of retries. */
+const ALERT_AT_ATTEMPT = 5;
 
 /** The connector did not answer: the record is still to be sent, with the same idempotency key. */
 export class SubmissionPostponedError extends Error {}
@@ -89,11 +93,12 @@ export class SubmissionWorker implements OnApplicationBootstrap {
     @Inject(SUBMISSION_OPTIONS) private readonly options: SubmissionOptions,
     private readonly queue: SubmissionQueue,
     private readonly pdfs: InvoicePdfsService,
+    private readonly alerts: OperatorAlerts,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     if (!this.options.work) return;
-    await this.queue.work(({ invoiceRecordId }) => this.submit(invoiceRecordId));
+    await this.queue.work(({ invoiceRecordId }, attempt) => this.attempt(invoiceRecordId, attempt));
     this.logger.log('Sending invoice records');
   }
 
@@ -102,12 +107,32 @@ export class SubmissionWorker implements OnApplicationBootstrap {
     for (let jobs = await this.queue.fetch(); jobs.length > 0; jobs = await this.queue.fetch()) {
       for (const job of jobs) {
         try {
-          await this.submit(job.data.invoiceRecordId);
+          await this.attempt(job.data.invoiceRecordId, job.retryCount + 1);
           await this.queue.complete(job);
         } catch (error) {
           await this.queue.fail(job, error);
         }
       }
+    }
+  }
+
+  /**
+   * One attempt (from 1) of the record's job: `submit`, alerting the operator when the record keeps
+   * failing, at its fifth attempt and when it is given up. Throws when it has to be retried.
+   */
+  async attempt(invoiceRecordId: string, attemptNumber: number, now = new Date()): Promise<void> {
+    try {
+      await this.submit(invoiceRecordId);
+    } catch (error) {
+      const kind =
+        attemptNumber === SUBMISSION_ATTEMPTS ? 'record-submission-abandoned'
+        : attemptNumber === ALERT_AT_ATTEMPT ? 'record-submission-failing'
+        : null;
+      if (kind) {
+        const detail = [`Registro ${invoiceRecordId}`, `Intento ${attemptNumber} de ${SUBMISSION_ATTEMPTS}`, errorMessage(error)];
+        await this.alerts.raise({ kind, detail }, now);
+      }
+      throw error;
     }
   }
 
