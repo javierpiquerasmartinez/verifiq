@@ -45,7 +45,7 @@ Each invitation is a single-use link (`APP_URL/invitation/<token>`, valid for 7 
 
 ## Version
 
-`scripts/version.js` builds `<package.json version>+<commit>` at build time: the web receives it as `__APP_VERSION__`, and the API writes it to `dist/version.json` and serves it on `GET /health`.
+`scripts/version.js` resolves the version at build time from the root `package.json`. Users see the release alone (`0.2.0`): the web receives it as `__APP_VERSION__` and shows it in the footer, the settings and the responsible declaration, which must identify the version of the invoicing system, so it changes only when a release bumps it (see Branches and CI). The API adds the commit (`0.2.0+aabed9b`), which names each deploy, staging's included: it writes it to `dist/version.json`, serves it on `GET /health` and the worker logs it on start.
 
 ## Deployment
 
@@ -75,7 +75,7 @@ Every day at 03:00 (Madrid) the worker copies to the R2 bucket, under `archive/`
 
 - Feature PRs go to `stage` (deploys staging); releases are a PR from `stage` to `main` (production). Both branches are protected by a ruleset: PR required, no force push or deletion.
 - Releasing, in order:
-  1. Bump `version` in the root `package.json` ([semver](https://semver.org): a minor for new features, a patch for fixes only) in a PR to `stage`, e.g. `chore: Release 0.2.0`. The app, `/health` and the responsible declaration show it as `<version>+<commit>`.
+  1. Bump `version` in the root `package.json` ([semver](https://semver.org): a minor for new features, a patch for fixes only) in a PR to `stage`, e.g. `chore: Release 0.2.0`. The app and the responsible declaration show it as it is; `/health` adds the commit.
   2. Once staging has deployed it, run the end-to-end tests (Actions → E2E → Run workflow).
   3. Open the PR from `stage` to `main` and merge it with a merge commit, never squash, so the branches never diverge.
   4. Once production has deployed, check `https://api.verifiq.es/health` shows the new version, then tag that merge and publish the release:

@@ -1,4 +1,5 @@
-// Resolves the software version injected at build time: root package version + commit.
+// The software version injected at build time. Users see the release (the root package version), as
+// the responsible declaration identifies it; the API's /health adds the commit, which names the build.
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -20,9 +21,15 @@ function commitSha() {
   }
 }
 
+/** The release, e.g. 0.2.0: it changes only when a release bumps it. */
+export function releaseVersion() {
+  return rootPackage.version;
+}
+
+/** The release and the commit, e.g. 0.2.0+aabed9b: every deploy has its own. */
 export function resolveVersion() {
   const sha = commitSha();
-  return sha ? `${rootPackage.version}+${sha.slice(0, 7)}` : rootPackage.version;
+  return sha ? `${releaseVersion()}+${sha.slice(0, 7)}` : releaseVersion();
 }
 
 // `node scripts/version.js <file>` writes { "version": ... } to <file>.
