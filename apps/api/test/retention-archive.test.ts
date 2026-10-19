@@ -8,9 +8,10 @@ import { recordExchange } from '../src/verifactu/exchanges.js';
 import { FakeVerifactuConnector } from '../src/verifactu/fake-connector.js';
 import type { Agent } from './access.js';
 import { onboardedUser, uniqueTaxId } from './issuer.js';
-import { createTestApp, InMemoryObjectStorage } from './test-app.js';
+import { createTestApp, FakeMailer, InMemoryObjectStorage } from './test-app.js';
 
 const MINUTE = 60_000;
+const OPERATOR_EMAIL = 'operator@verifiq.test';
 
 const draftTo = (recipientId: string) => ({
   recipientId,
@@ -26,12 +27,13 @@ describe('Retention archive', () => {
   let archive: RetentionArchive;
   const connector = new FakeVerifactuConnector();
   const storage = new InMemoryObjectStorage();
+  const mailer = new FakeMailer();
   // A round covers up to 5 minutes before its clock: this one covers up to now. One more millisecond
   // for the rows of this millisecond: the database keeps microseconds.
   const nextRound = () => archive.exportOnce(new Date(Date.now() + 5 * MINUTE + 1));
 
   beforeAll(async () => {
-    app = await createTestApp({ verifactu: connector, storage });
+    app = await createTestApp({ verifactu: connector, storage, mailer, operatorEmail: OPERATOR_EMAIL });
     worker = app.get(SubmissionWorker);
     archive = app.get(RetentionArchive);
   });
@@ -142,7 +144,7 @@ describe('Retention archive', () => {
     expect(audit).toContainEqual(expect.objectContaining({ action: 'invoice-issued', subjectId: invoice.id }));
   });
 
-  it('exports again in the next round what a failed round did not', async () => {
+  it('alerts the operator of a failed round, and exports again in the next round what it did not', async () => {
     const { agent, issuerId } = await issuingUser();
     const invoice = await issuedInvoice(agent);
     const put = storage.put.bind(storage);
@@ -151,9 +153,27 @@ describe('Retention archive', () => {
     };
     await expect(nextRound()).rejects.toThrow('R2 is down');
     storage.put = put;
+    expect(mailer.to(OPERATOR_EMAIL).filter((email) => email.subject.includes('copia diaria'))).toEqual([
+      expect.objectContaining({ text: expect.stringContaining('R2 is down') }),
+    ]);
 
     await nextRound();
 
+    expect(keysUnder(`archive/issuers/${issuerId}/invoices/${invoice.id}/versions/`)).toHaveLength(1);
+  });
+
+  // Last: its clock runs an hour ahead, past the other rounds' alerts.
+  it('alerts the operator of a PDF whose file is missing, and archives the rest', async () => {
+    const { agent, issuerId } = await issuingUser();
+    const invoice = await issuedInvoice(agent);
+    const [pdfKey] = [...storage.objects.keys()].filter((key) => key.startsWith(`issuers/${issuerId}/invoices/${invoice.id}/`));
+    await storage.delete(pdfKey!);
+
+    await archive.exportOnce(new Date(Date.now() + 65 * MINUTE));
+
+    expect(mailer.to(OPERATOR_EMAIL).filter((email) => email.subject.includes('PDF'))).toContainEqual(
+      expect.objectContaining({ text: expect.stringContaining(pdfKey!) }),
+    );
     expect(keysUnder(`archive/issuers/${issuerId}/invoices/${invoice.id}/versions/`)).toHaveLength(1);
   });
 });

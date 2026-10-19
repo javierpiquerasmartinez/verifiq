@@ -1,4 +1,5 @@
 import { Module, type DynamicModule } from '@nestjs/common';
+import { OperatorAlerts } from '../alerts/operator-alerts.js';
 import { RetentionArchive } from '../archive/retention-archive.js';
 import { DraftsModule } from '../drafts/drafts.module.js';
 import { InvoicesController } from './invoices.controller.js';
@@ -30,8 +31,9 @@ export class SubmissionModule {
         RecordVerdicts,
         RecordStatusPoller,
         RetentionArchive,
+        OperatorAlerts,
       ],
-      exports: [SubmissionQueue, InvoicePdfsService, RecordVerdicts],
+      exports: [SubmissionQueue, InvoicePdfsService, RecordVerdicts, OperatorAlerts],
     };
   }
 }
