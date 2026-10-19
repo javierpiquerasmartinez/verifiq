@@ -21,6 +21,7 @@ const app = await NestFactory.create<NestExpressApplication>(
       appUrl: env.APP_URL,
       trustedOrigins: env.WEB_ORIGIN,
       trustedProxies: env.TRUSTED_PROXIES,
+      clientIpHeader: env.CLIENT_IP_HEADER,
     },
     mailer: mailerFromEnv(env),
     storage: objectStorageFromEnv(env),

@@ -25,6 +25,9 @@ services:
         sync: false
       - key: BETTER_AUTH_SECRET
         generateValue: true
+      # Render's edge (Cloudflare) names the client there; clients cannot forge it (issue 22).
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
       - key: RESEND_API_KEY
         sync: false
       - key: EMAIL_FROM
