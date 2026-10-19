@@ -27,7 +27,7 @@ import {
 import { InvoicePdfsService } from './invoice-pdfs.js';
 import { SUBMISSION_ATTEMPTS, SUBMISSION_OPTIONS, SubmissionQueue, type SubmissionOptions } from './submission-queue.js';
 
-/** Failed attempts after which the operator hears of a record: about five minutes of retries. */
+/** The failed attempt at which the operator hears of a record: a couple of minutes of retries. */
 const ALERT_AT_ATTEMPT = 5;
 
 /** The connector did not answer: the record is still to be sent, with the same idempotency key. */
@@ -118,18 +118,19 @@ export class SubmissionWorker implements OnApplicationBootstrap {
 
   /**
    * One attempt (from 1) of the record's job: `submit`, alerting the operator when the record keeps
-   * failing, at its fifth attempt and at its last one. Throws when it has to be retried.
+   * failing, at its fifth attempt and when it is given up. Throws when it has to be retried.
    */
-  async attempt(invoiceRecordId: string, attempt: number, now = new Date()): Promise<void> {
+  async attempt(invoiceRecordId: string, attemptNumber: number, now = new Date()): Promise<void> {
     try {
       await this.submit(invoiceRecordId);
     } catch (error) {
-      if (attempt === ALERT_AT_ATTEMPT || attempt === SUBMISSION_ATTEMPTS) {
-        const giveUp = attempt === SUBMISSION_ATTEMPTS ? ' No se volverá a intentar: el registro queda pendiente.' : '';
-        await this.alerts.raise(
-          { kind: 'record-submission-failing', detail: `Registro ${invoiceRecordId} · intento ${attempt} de ${SUBMISSION_ATTEMPTS}.${giveUp}\n${errorMessage(error)}` },
-          now,
-        );
+      const kind =
+        attemptNumber === SUBMISSION_ATTEMPTS ? 'record-submission-abandoned'
+        : attemptNumber === ALERT_AT_ATTEMPT ? 'record-submission-failing'
+        : null;
+      if (kind) {
+        const detail = [`Registro ${invoiceRecordId}`, `Intento ${attemptNumber} de ${SUBMISSION_ATTEMPTS}`, errorMessage(error)];
+        await this.alerts.raise({ kind, detail }, now);
       }
       throw error;
     }

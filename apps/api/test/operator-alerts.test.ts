@@ -11,7 +11,6 @@ import { onboardedUser, uniqueTaxId } from './issuer.js';
 import { createTestApp, FakeMailer } from './test-app.js';
 
 const OPERATOR_EMAIL = 'operator@verifiq.test';
-const MINUTE = 60_000;
 
 const draftTo = (recipientId: string) => ({
   recipientId,
@@ -68,7 +67,7 @@ describe('Operator alerts', () => {
   }
 
   describe('a record that keeps failing to be sent', () => {
-    it('alerts the operator at its fifth failed attempt, not before, and at its last one', async () => {
+    it('alerts the operator at its fifth failed attempt, not before, and when it is given up', async () => {
       const { agent } = await issuingUser();
       const recordId = await pendingRecord(agent);
       const sent = () => alerts().filter((email) => email.text.includes(recordId));
@@ -84,11 +83,10 @@ describe('Operator alerts', () => {
       expect(sent()).toEqual([expect.objectContaining({ subject: expect.stringContaining('no consigue enviarse') })]);
       expect(sent()[0]!.text).toContain('Error interno del servidor.');
 
-      // A minute later, with a new email allowed.
       connector.failNext({ kind: 'server-error' }, 'submitRecord');
-      await expect(worker.attempt(recordId, SUBMISSION_ATTEMPTS, new Date(Date.now() + 61 * MINUTE))).rejects.toThrow();
+      await expect(worker.attempt(recordId, SUBMISSION_ATTEMPTS)).rejects.toThrow();
       expect(sent()).toHaveLength(2);
-      expect(sent()[1]!.text).toContain('No se volverá a intentar');
+      expect(sent()[1]!.subject).toContain('dejado de reintentarse');
     });
   });
 

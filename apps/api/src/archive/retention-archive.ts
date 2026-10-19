@@ -56,7 +56,7 @@ export class RetentionArchive implements OnApplicationBootstrap {
     try {
       await this.exportUpTo(now);
     } catch (error) {
-      await this.alerts.raise({ kind: 'archive-round-failed', detail: errorMessage(error) }, now);
+      await this.alerts.raise({ kind: 'archive-round-failed', detail: [errorMessage(error)] }, now);
       throw error;
     }
   }
@@ -80,7 +80,7 @@ export class RetentionArchive implements OnApplicationBootstrap {
 
     await this.db.insert(archiveRuns).values({ coveredUntil: until });
     this.logger.log(`Archived the changes up to ${until.toISOString()}`);
-    if (missing.length > 0) await this.alerts.raise({ kind: 'archive-file-missing', detail: missing.join('\n') }, now);
+    if (missing.length > 0) await this.alerts.raise({ kind: 'archive-file-missing', detail: missing }, now);
   }
 
   /** A new version of every invoice that changed: itself, its records or its PDFs. */

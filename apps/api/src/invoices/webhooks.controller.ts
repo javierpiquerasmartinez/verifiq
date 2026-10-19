@@ -53,11 +53,12 @@ export class WebhooksController {
     try {
       received = await this.verdicts.receive({ headers, body: await rawBodyOf(request) });
     } catch (error) {
-      await this.alerts.raise({ kind: 'webhook-failed', detail: `Aviso ${webhookId}\n${errorMessage(error)}` });
+      // Not awaited: the email must not hold back the answer, due within 10 s.
+      void this.alerts.raise({ kind: 'webhook-failed', detail: [`Aviso ${webhookId}`, errorMessage(error)] });
       throw error;
     }
     if (!received) {
-      await this.alerts.raise({ kind: 'webhook-signature-invalid', detail: `Aviso ${webhookId} desde ${request.ip ?? 'IP desconocida'}` });
+      void this.alerts.raise({ kind: 'webhook-signature-invalid', detail: [`Aviso ${webhookId}`, `Desde ${request.ip ?? 'una IP desconocida'}`] });
       throw new UnauthorizedException({ message: 'Invalid webhook signature' });
     }
   }

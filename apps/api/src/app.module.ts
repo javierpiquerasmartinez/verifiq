@@ -29,7 +29,7 @@ export interface AppOptions {
   representationRequired: boolean;
   /**
    * The outbox of InvoiceRecords; the worker service sends them and polls their status, unless
-   * `work` has this process do it. `operatorEmail` gets the alerts of records left unconfirmed.
+   * `work` has this process do it. `operatorEmail` gets the alerts of records left unconfirmed and the operational ones.
    */
   submission: { queueName: string; work: boolean; operatorEmail?: string };
 }

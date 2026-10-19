@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { AWAITING_VERDICT_STATUSES, invoiceNumberIn, UNCONFIRMED_RECORD_HOURS, unconfirmedBefore } from '@verifiq/domain';
 import { and, eq, inArray, isNull, lte } from 'drizzle-orm';
+import { errorMessage, OperatorAlerts } from '../alerts/operator-alerts.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { invoiceRecords, invoices, issuers } from '../database/schema.js';
 import { MAILER, type Mailer } from '../mail/mailer.js';
@@ -29,6 +30,7 @@ export class RecordStatusPoller implements OnApplicationBootstrap {
     @Inject(SUBMISSION_OPTIONS) private readonly options: SubmissionOptions,
     private readonly queue: SubmissionQueue,
     private readonly verdicts: RecordVerdicts,
+    private readonly alerts: OperatorAlerts,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -37,10 +39,15 @@ export class RecordStatusPoller implements OnApplicationBootstrap {
     this.logger.log('Polling the status of submitted records every 15 minutes');
   }
 
-  /** One round of the poll, as of `now`. Tests drive it with a clock of their own. */
+  /** One round of the poll, as of `now`; the operator hears of one that fails. Tests drive it with a clock of their own. */
   async pollOnce(now = new Date()): Promise<void> {
-    await this.pollSubmitted(now);
-    await this.alertUnconfirmed(now);
+    try {
+      await this.pollSubmitted(now);
+      await this.alertUnconfirmed(now);
+    } catch (error) {
+      await this.alerts.raise({ kind: 'status-poll-failed', detail: [errorMessage(error)] }, now);
+      throw error;
+    }
   }
 
   private async pollSubmitted(now: Date): Promise<void> {

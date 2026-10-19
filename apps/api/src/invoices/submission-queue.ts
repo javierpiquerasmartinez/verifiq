@@ -10,7 +10,7 @@ export interface SubmissionOptions {
   queueName: string;
   /** Whether this process sends the records and polls their status: the worker service does (and maintains the queue). */
   work: boolean;
-  /** Where to alert the operator of records the AEAT has not confirmed in 24 h. */
+  /** Where to alert the operator: records the AEAT has not confirmed in 24 h, and operational alerts. */
   operatorEmail?: string;
 }
 
