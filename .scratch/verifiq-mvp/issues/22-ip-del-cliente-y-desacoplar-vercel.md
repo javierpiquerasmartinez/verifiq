@@ -6,7 +6,7 @@ Spec: `../spec.md` (historia 11) · ADR 0003 · issue 02 · issue 21
 
 **Blocked by:** 02; dominio y DNS (operador)
 
-**Status:** ready-for-human
+**Status:** done
 
 Propuesta (pendiente de decidir):
 - Web y API bajo un dominio propio del mismo sitio, p. ej. web en `staging.verifiq.jpdev.app` y API en `api.staging.verifiq.jpdev.app` (nombres por decidir). Las cookies son del mismo sitio sin proxy, así que se elimina el rewrite `/api` y la web es estática pura, alojable en cualquier sitio.
@@ -16,7 +16,7 @@ Propuesta (pendiente de decidir):
 
 Checklist:
 - [x] Diagnóstico: registrar temporalmente las cabeceras de IP que recibe la API (`x-forwarded-for`, `x-real-ip`, `cf-connecting-ip`, `true-client-ip`) y retirarlo después
-- [ ] Dominios propios para la web (Vercel) y la API (Render) en staging, con HTTPS
+- [x] Dominios propios para la web (Vercel) y la API (Render) en staging, con HTTPS
 - [x] `VITE_API_URL` apunta a la API en su dominio; se elimina el rewrite `/api` de `vercel.json` y el proxy de Vite pasa a ser opcional
 - [x] CORS y `trustedOrigins` con el origen exacto de la web; cookies `SameSite=Lax`, `Secure`
 - [x] Configuración de IP en Better Auth según el diagnóstico; el email de nuevo inicio de sesión muestra la IP real
@@ -30,3 +30,5 @@ Checklist:
 - Diagnóstico con un endpoint temporal en staging (PR #48, ya retirado): Render tiene delante su propio Cloudflare. `X-Forwarded-For` llega como `<lo que mande el cliente>, <IP real>, <Cloudflare>, <interna de Render>`, así que es falsificable. `CF-Connecting-IP` y `True-Client-IP` traen la IP real: Cloudflare sobrescribe `True-Client-IP` y rechaza (error 1000) un `CF-Connecting-IP` enviado por el cliente. Por el proxy de Vercel, `CF-Connecting-IP` era la IP de Vercel.
 - La API lee la IP de `CLIENT_IP_HEADER=cf-connecting-ip` (en `render.yaml`).
 - Pendiente (operador): dominios en Render y Vercel con HTTPS, `VITE_API_URL`, `WEB_ORIGIN`, `APP_URL` y `API_URL` de staging; luego comprobar el email de nuevo inicio de sesión.
+
+**2026-10-19 (agente):** cerrada. `app.staging.verifiq.es` y `api.staging.verifiq.es` con HTTPS (PR #49). El email de nuevo inicio de sesión muestra la IP real (62.97.77.170). Producción igual con `app.verifiq.es` y `api.verifiq.es`.
