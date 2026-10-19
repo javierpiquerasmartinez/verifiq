@@ -96,19 +96,15 @@ export function Icon({ name, size, spin }: { name: IconName; size?: 'xs' | 'lg';
   );
 }
 
-/** `inverted`: white, for a dark background. */
-export function BrandMark({ inverted = false }: { inverted?: boolean }) {
+/** Verifiq's symbol (scripts/brand/symbol.svg), in the text colour: `.brand` makes it teal, or white on a dark bar. */
+export function BrandMark() {
   return (
-    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
-      <rect width="28" height="28" rx="7" fill={inverted ? '#fff' : '#0D4A57'} />
-      <path
-        d="M8 14.5l4 4 8-9"
-        fill="none"
-        stroke={inverted ? '#141E26' : '#fff'}
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg width="32" height="32" viewBox="0 0 48 48" aria-hidden="true">
+      <g transform="translate(2.5 -1)" fill="currentColor">
+        <circle cx="21.5" cy="20" r="13" fill="none" stroke="currentColor" strokeWidth="5.5" />
+        <path d="M31.75 20H37.25V46L31.75 40.5Z" />
+        <rect x="18.25" y="16.75" width="6.5" height="6.5" rx="1" />
+      </g>
     </svg>
   );
 }

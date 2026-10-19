@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="topbar-in">
           <Link to="/" className="brand">
             <BrandMark />
-            Verifiq
+            verifiq
           </Link>
           <nav className="nav" aria-label="Principal">
             <Link to="/" activeProps={{ className: 'on' }} activeOptions={{ exact: true }}>
