@@ -24,6 +24,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
+      # TEMPORARY: the shape of the TOTP secrets (never their value), to check they were copied whole.
+      - name: Check the TOTP secrets' shape
+        run: |
+          for name in E2E_OPERATOR_TOTP_SECRET E2E_USER_TOTP_SECRET; do
+            value="${!name}"; compact=$(printf '%s' "$value" | tr -d ' =' | tr 'a-z' 'A-Z')
+            if printf '%s' "$compact" | grep -Eq '^[A-Z2-7]+$'; then shape=base32; else shape='NOT base32'; fi
+            echo "$name: ${#value} characters, ${#compact} without spaces, $shape"
+          done
       - run: pnpm --filter @verifiq/e2e exec playwright install --with-deps chromium
       - run: pnpm --filter @verifiq/e2e e2e
       - uses: actions/upload-artifact@v4
