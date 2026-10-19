@@ -61,10 +61,20 @@ export function totpCode(secret: string, at = Date.now()): string {
   return ((hmac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).toString().padStart(6, '0');
 }
 
-/** A code with time left: one about to expire could be stale by the time it is checked. */
+/** The last 30-second window whose code each secret used: a code is accepted once. */
+const usedWindows = new Map<string, number>();
+
+/**
+ * A code never used before, with time left: one about to expire could be stale by the time it is
+ * checked, and the API refuses a code it already accepted.
+ */
 async function freshTotpCode(secret: string): Promise<string> {
-  const left = 30_000 - (Date.now() % 30_000);
-  if (left < 5_000) await new Promise((resolve) => setTimeout(resolve, left + 500));
+  const window = () => Math.floor(Date.now() / 30_000);
+  const left = () => 30_000 - (Date.now() % 30_000);
+  if (left() < 5_000 || usedWindows.get(secret) === window()) {
+    await new Promise((resolve) => setTimeout(resolve, left() + 500));
+  }
+  usedWindows.set(secret, window());
   return totpCode(secret);
 }
 
@@ -78,16 +88,16 @@ export async function signIn(page: Page, { email, password, totpSecret }: { emai
   await page.getByRole('button', { name: 'Entrar' }).click();
 }
 
-/** Sets up 2FA on the screen a new account lands on, and returns its secret. */
-export async function setUpTwoFactor(page: Page, password: string): Promise<string> {
+/** Sets up 2FA on the screen a new account lands on, with the key shown under the QR. */
+export async function setUpTwoFactor(page: Page, password: string): Promise<void> {
   await page.getByLabel('Tu contraseña', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Continuar' }).click();
-  const secret = (await page.locator('p.secret').textContent())!.trim();
-  await page.getByLabel('Código de 6 cifras que muestra la aplicación').fill(await freshTotpCode(secret));
+  const secret = await page.locator('p.secret').textContent();
+  if (!secret) throw new Error('The 2FA set-up screen shows no key');
+  await page.getByLabel('Código de 6 cifras que muestra la aplicación').fill(await freshTotpCode(secret.trim()));
   await page.getByRole('button', { name: 'Activar la verificación' }).click();
   await page.getByRole('checkbox', { name: 'He guardado mis códigos de recuperación en un lugar seguro.' }).check();
   await page.getByRole('button', { name: 'Ir a Verifiq' }).click();
-  return secret;
 }
 
 /** A valid Spanish tax ID (DNI), different on every run. */

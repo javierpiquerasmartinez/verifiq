@@ -15,7 +15,8 @@ export default defineConfig({
     baseURL: process.env.E2E_BASE_URL ?? 'https://app.staging.verifiq.es',
     locale: 'es-ES',
     timezoneId: 'Europe/Madrid',
-    trace: 'retain-on-failure',
+    // No traces: they record what is typed, staging's passwords included, and failed runs upload them.
+    trace: 'off',
     screenshot: 'only-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

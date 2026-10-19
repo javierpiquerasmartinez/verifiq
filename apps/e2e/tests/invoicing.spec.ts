@@ -15,13 +15,22 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Facturas', exact: true })).toBeVisible();
 });
 
-/** Issues an invoice to the issuer's first recipient and opens it; returns its number. */
+/** Last month, as the period invoiced: always in the past, never too far. */
+function lastMonth(): { start: string; end: string } {
+  const today = new Date();
+  const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+  const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0));
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}
+
+/** Issues an invoice to the issuer's first recipient (staging's has some in the census) and opens it; returns its number. */
 async function issueInvoice(page: Page, concept: string): Promise<string> {
+  const period = lastMonth();
   await page.getByRole('link', { name: 'Nueva factura' }).first().click();
   await page.getByPlaceholder('Buscar cliente por nombre, NIF o municipio').click();
   await page.getByRole('list', { name: 'Clientes' }).getByRole('button').first().click();
-  await page.getByLabel('Periodo facturado: del').fill('2026-09-01');
-  await page.getByLabel('al', { exact: true }).fill('2026-09-30');
+  await page.getByLabel('Periodo facturado: del').fill(period.start);
+  await page.getByLabel('al', { exact: true }).fill(period.end);
   await page.getByLabel('Concepto de la línea 1').fill(concept);
   await page.getByLabel('Precio unitario de la línea 1').fill('100');
   await page.getByRole('button', { name: 'Emitir factura' }).click();
@@ -34,7 +43,7 @@ async function openIssued(page: Page): Promise<string> {
   const dialog = page.getByRole('dialog');
   const heading = dialog.getByRole('heading', { name: /emitida$/ });
   await expect(heading).toBeVisible({ timeout: 60_000 });
-  const number = (await heading.textContent())!.replace(/^Factura\s+|\s+emitida$/g, '').trim();
+  const number = (await heading.textContent() ?? '').replace(/^Factura\s+|\s+emitida$/g, '').trim();
   const qr = dialog.locator('svg').filter({ has: page.locator('title', { hasText: /^Código QR tributario de la factura/ }) });
   await expect(qr).toBeVisible();
   await dialog.getByRole('link', { name: 'Ver factura' }).click();
@@ -42,9 +51,11 @@ async function openIssued(page: Page): Promise<string> {
   return number;
 }
 
-/** The invoice page refreshes itself until the AEAT answers. */
+/** The invoice page refreshes itself until the AEAT answers; a refusal fails at once. */
 async function expectAccepted(page: Page) {
-  await expect(page.getByText(/^Aceptada( con errores)?$/).first()).toBeVisible({ timeout: VERDICT_TIMEOUT });
+  const verdict = page.getByText(/^(Aceptada|Aceptada con errores|Rechazada|Bloqueada)$/).first();
+  await expect(verdict).toBeVisible({ timeout: VERDICT_TIMEOUT });
+  await expect(verdict).toHaveText(/^Aceptada/);
 }
 
 test('issues an invoice with its QR and, once the AEAT accepts it, rectifies it', async ({ page }) => {
@@ -61,7 +72,7 @@ test('issues an invoice with its QR and, once the AEAT accepts it, rectifies it'
   await page.getByRole('button', { name: 'Emitir rectificativa' }).click();
   await page.getByRole('dialog').getByRole('button', { name: /^Emitir rectificativa/ }).click();
   await openIssued(page);
-  await expect(page.getByText('Rectificativa').first()).toBeVisible();
+  await expect(page.getByText('Rectificativa', { exact: true }).first()).toBeVisible();
 });
 
 test('issues an invoice and, once the AEAT answers, voids it', async ({ page }) => {

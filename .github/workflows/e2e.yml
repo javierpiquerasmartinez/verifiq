@@ -5,24 +5,28 @@ name: E2E
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      E2E_BASE_URL: https://app.staging.verifiq.es
-      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-      E2E_OPERATOR_EMAIL: ${{ secrets.E2E_OPERATOR_EMAIL }}
-      E2E_OPERATOR_PASSWORD: ${{ secrets.E2E_OPERATOR_PASSWORD }}
-      E2E_OPERATOR_TOTP_SECRET: ${{ secrets.E2E_OPERATOR_TOTP_SECRET }}
-      E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
-      E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
-      E2E_USER_TOTP_SECRET: ${{ secrets.E2E_USER_TOTP_SECRET }}
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - run: pnpm --filter @verifiq/e2e exec playwright install --with-deps chromium
+      # The secrets reach this step only.
       - run: pnpm --filter @verifiq/e2e e2e
+        env:
+          E2E_BASE_URL: https://app.staging.verifiq.es
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          E2E_OPERATOR_EMAIL: ${{ secrets.E2E_OPERATOR_EMAIL }}
+          E2E_OPERATOR_PASSWORD: ${{ secrets.E2E_OPERATOR_PASSWORD }}
+          E2E_OPERATOR_TOTP_SECRET: ${{ secrets.E2E_OPERATOR_TOTP_SECRET }}
+          E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
+          E2E_USER_TOTP_SECRET: ${{ secrets.E2E_USER_TOTP_SECRET }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

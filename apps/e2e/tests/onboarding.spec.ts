@@ -52,7 +52,7 @@ test('the operator invites a freelancer, who sets up 2FA and goes through onboar
     await freelancer.getByRole('button', { name: 'Confirmar numeración' }).click();
 
     await expect(freelancer.getByRole('heading', { name: 'Condiciones del servicio' })).toBeVisible();
-    for (const terms of await freelancer.getByRole('checkbox').all()) await terms.check();
+    for (const terms of await freelancer.getByRole('checkbox', { name: /^He leído y acepto/ }).all()) await terms.check();
     await expect(freelancer.getByRole('button', { name: 'Aceptar y continuar' })).toBeEnabled();
   });
 });
