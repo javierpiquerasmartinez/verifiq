@@ -1,7 +1,7 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv } from 'vite';
 // @ts-expect-error -- plain JS build script shared with the api
-import { resolveVersion } from '../../scripts/version.js';
+import { releaseVersion } from '../../scripts/version.js';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd());
@@ -11,7 +11,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      __APP_VERSION__: JSON.stringify(resolveVersion()),
+      // The release only: what the responsible declaration identifies (README, Version).
+      __APP_VERSION__: JSON.stringify(releaseVersion()),
     },
     server: {
       // Same-origin API in development too, so session cookies behave as in staging.
