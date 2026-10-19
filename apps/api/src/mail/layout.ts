@@ -146,8 +146,8 @@ function html({ subject, preview, heading, blocks, aside }: EmailContent): strin
 @media (max-width: 600px) {
   .outer { padding: 24px 16px 32px !important; }
   .header { padding-bottom: 16px !important; }
-  .logo img { width: 26px !important; height: 26px !important; }
-  .wordmark { font-size: 17px !important; }
+  .logo img { width: 28px !important; height: 28px !important; }
+  .wordmark { font-size: 18px !important; }
   .card { padding: 28px 22px !important; }
   .card h1 { margin-bottom: 18px !important; font-size: 22px !important; }
   .card .gap-normal { margin-bottom: 14px !important; }
@@ -168,8 +168,8 @@ function html({ subject, preview, heading, blocks, aside }: EmailContent): strin
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; border-collapse: collapse">
 <tr><td class="header" style="padding: 0 0 20px">
 <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse: collapse"><tr>
-<td class="logo" width="28" style="width: 28px"><img src="cid:${LOGO.contentId}" width="28" height="28" alt="" style="display: block; width: 28px; height: 28px; border: 0"></td>
-<td class="wordmark" style="padding-left: 10px; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: ${INK}">Verifiq</td>
+<td class="logo" width="32" style="width: 32px"><img src="cid:${LOGO.contentId}" width="32" height="32" alt="" style="display: block; width: 32px; height: 32px; border: 0"></td>
+<td class="wordmark" style="padding-left: 8px; font-size: 20px; line-height: 1; font-weight: 600; letter-spacing: -.03em; color: ${INK}">verifiq</td>
 </tr></table>
 </td></tr>
 <tr><td class="card" style="background: #FFFFFF; border: 1px solid ${LINE}; border-radius: 10px; padding: 40px">

@@ -59,6 +59,14 @@ describe('invitationEmail', () => {
     );
   });
 
+  it('shows the logo as design.html draws it: the symbol at 32 px, from a 96 px PNG, and the lowercase wordmark', () => {
+    expect(email.html).toContain('width="32" height="32"');
+    // The PNG header (IHDR) holds the width and the height.
+    const png = email.inlineImages![0]!.content;
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([96, 96]);
+    expect(email.html).toMatch(/class="wordmark"[^>]*>verifiq<\/td>/);
+  });
+
   it('escapes the link in the HTML version', () => {
     const html = invitationEmail('lucia@example.com', 'https://app.example.com/invitation/a"b<c&d', EXPIRES_AT).html!;
     expect(html).toContain('https://app.example.com/invitation/a&quot;b&lt;c&amp;d');
