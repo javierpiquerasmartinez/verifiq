@@ -6,7 +6,7 @@ Spec: `../spec.md` (Testing Decisions: «E2E») · issue 21
 
 **Blocked by:** 21
 
-**Status:** needs-triage
+**Status:** done
 
 Antes de empezar hay que decidir el alcance. Coste: unas horas de montaje, pasos manuales de una sola vez y mantenimiento cuando cambie la interfaz; la AEAT de pruebas puede tardar o fallar sin que haya un bug.
 1. **Completo** (spec): alta, emitir con QR, rectificar y anular. Rectificar y anular exigen el veredicto de la AEAT: el test espera minutos.
@@ -21,8 +21,15 @@ Diseño propuesto para la opción 1 (2026-10-19):
 - Staging está tras la protección de Vercel: usar *Protection Bypass for Automation* (cabecera `x-vercel-protection-bypass`).
 
 Pasos manuales (una vez):
-- [ ] Cuentas e2e en staging: operador `javi+e2e-operador@verifiq.es` y usuario `javi+e2e@verifiq.es` (subaddressing de Email Routing), guardando contraseña y secreto TOTP
-- [ ] `INSERT INTO issuer_memberships` del usuario e2e en el Emisor de staging (editor SQL de Neon)
-- [ ] Secreto de *Protection Bypass for Automation* en Vercel
-- [ ] Secretos de GitHub: credenciales e2e, bypass y la clave de cuenta de Verifacti
-- [ ] Confirmar con Verifacti que los NIFs de `entorno: test` creados por API no se facturan
+- [x] Cuentas e2e en staging: operador `javi+e2e-operador@verifiq.es` y usuario `javi+e2e@verifiq.es` (subaddressing de Email Routing), guardando contraseña y secreto TOTP
+- [x] `INSERT INTO issuer_memberships` del usuario e2e en el Emisor de staging (editor SQL de Neon)
+- [x] Secreto de *Protection Bypass for Automation* en Vercel
+- [x] Secretos de GitHub: credenciales e2e, bypass y la clave de cuenta de Verifacti
+- [ ] Confirmar con Verifacti (issue 30) que los NIFs de `entorno: test` creados por API no se facturan
+
+## Comments
+
+**2026-10-19 (agente):** hecha la opción 1, con un ajuste en el alta. Al aceptar las condiciones (`POST /onboarding/terms`), la API registra el Emisor en Verifacti, así que el test llega hasta las condiciones (las marca y comprueba que se pueden aceptar) y no las envía: no crea NIFs de test. Si Verifacti confirma que los NIFs de `test` no se facturan, basta con pulsar «Aceptar y continuar» y comprobar el paso de la Representación.
+- `apps/e2e`: `onboarding.spec.ts` y `invoicing.spec.ts`. Primera ejecución verde en 2,6 min: rectificar 28 s; anular 1,9 min (la AEAT tardó en contestar); alta 14 s.
+- Workflow `E2E` (manual). La protección de Vercel se salta con `x-vercel-protection-bypass`, solo en las peticiones a la web: en las de la API rompería el preflight de CORS.
+- Al montarlo: los secretos TOTP guardados eran los códigos de recuperación (botón «Copiar códigos»); la clave es el texto bajo el QR. En local, las verificaciones seguidas desde una misma IP chocan con el rate limiting (5 por minuto).
