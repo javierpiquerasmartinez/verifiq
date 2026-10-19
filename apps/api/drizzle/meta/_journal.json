@@ -8,6 +8,111 @@
       "when": 1790937060582,
       "tag": "0000_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790941978161,
+      "tag": "0001_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790964840627,
+      "tag": "0002_issuers",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790979157704,
+      "tag": "0003_connector",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791019638494,
+      "tag": "0004_representation",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791100300559,
+      "tag": "0005_recipients",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791102273402,
+      "tag": "0006_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791115178634,
+      "tag": "0007_catalog_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791124371149,
+      "tag": "0008_issuance",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791126004560,
+      "tag": "0009_invoice_pdfs",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791146018382,
+      "tag": "0010_aeat_confirmation",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791364328848,
+      "tag": "0011_record_incidents",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791372277136,
+      "tag": "0012_corrective_invoices",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791402057015,
+      "tag": "0013_withholding_correction",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791438271188,
+      "tag": "0014_operator_panel",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1791701957435,
+      "tag": "0015_retention_archive",
+      "breakpoints": true
     }
   ]
 }

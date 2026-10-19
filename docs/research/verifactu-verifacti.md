@@ -81,16 +81,21 @@ All endpoints live under `https://api.verifacti.com/verifactu/`. Source: https:/
 - **[CONFIRMED]** `validar_destinatario: false` (skip the census check on the recipient) and `validar_nif: false` (allow unregistered NIFs) are allowed **in test only**. AEAT still rejects unregistered NIFs, even in its test environment (nifs-docs).
 - Verifacti also publishes a Postman collection: https://storage.googleapis.com/verifacti_non_sensitive/postman_verifactu.json
 
-### 5. Pricing (as published on 2026-10-02)
+### 5. Pricing (as published on 2026-10-02; corrected 2026-10-03)
 
-- **[CONFIRMED]** From **€2.90 per production NIF per month**, with 10% off annual billing. Each NIF includes **3,000 invoices per month**. Beyond that, **€2 per extra 1,000 invoices**. The NIF API, webhooks and TicketBai are included. Large NIF volumes get a custom quote ("para un número elevado de NIFs podemos hacerte una propuesta"). Source: https://www.verifacti.com/precios
+- **[CONFIRMED] The price per NIF falls with the number of NIFs.** One production NIF costs **€14.99 per month** (the page's structured data: "Suscripción mensual", `price: 14.99`). The headline "desde 2,9 € por NIF al mes" is the unit price at **100 NIFs**. There is 10% off with annual billing. Each NIF includes **3,000 invoices per month**, and each extra 1,000 costs **€2**. Above 100 NIFs the price is a custom quote. Source: https://www.verifacti.com/precios
+  - Correction: the first version of this note read "from €2.90 per NIF" as the price of every NIF. It is not: with the first Issuers, Verifacti costs about €15 per Issuer per month.
+- **[CONFIRMED] What the free plan covers.** The free plan ("1 NIF de Prueba", €0, no card) is **a test company with its own API key** (`vf_test_…`). That key works with the `/verifactu/*` record endpoints only.
+  - The **NIF management API** (account key `vfn_…`: `/nifs`, `/representacion`, `/nifs/validar`) and **unlimited test NIFs** belong to the paid plan, which asks for a card.
+  - Verifiq's onboarding (issues 06 and 07: issuer key, Representation, census) therefore needs the paid plan, even against the AEAT test environment.
 - **[CONFIRMED]** Online representation signature costs €2.90 + IVA per process (nifs-docs).
+  - **[UNCERTAIN]** Whether this is also charged in the test environment. Test NIFs need no Representation, so do not start a signature in test.
 - **[CONFIRMED]** Billing by plan:
   - Monthly: new NIFs are added to the next invoice.
   - Annual: new NIFs are charged immediately and prorated.
   - Deactivated NIFs are not billed.
   - Test NIFs are never billed.
-- **[UNCERTAIN]** The published pages give no integrator or partner volume tiers. Contact Verifacti for those.
+- **[UNCERTAIN]** The published pages give no integrator or partner tiers. Ask Verifacti (soporte@verifacti.com) about pricing by total volume, and about a test account with the NIF API while integrating.
 
 ### 6. Error model
 

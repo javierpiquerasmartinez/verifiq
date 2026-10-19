@@ -1,6 +1,7 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import type { HealthResponse } from '@verifiq/domain';
 import { sql } from 'drizzle-orm';
+import { Public } from '../auth/session.guard.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { APP_VERSION } from '../version.js';
 
@@ -12,6 +13,7 @@ export class HealthController {
   ) {}
 
   /** Fails with 500 when the database is unreachable, so it doubles as Render's health check. */
+  @Public()
   @Get()
   async check(): Promise<HealthResponse> {
     await this.db.execute(sql`select 1`);

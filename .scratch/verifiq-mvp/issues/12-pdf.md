@@ -6,11 +6,11 @@ Spec: `../spec.md` (historias 57, 66–69) · brief de diseño (sección PDF)
 
 **Blocked by:** 10; `design.html`
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Generación en servidor con @react-pdf/renderer desde la copia congelada
-- [ ] QR arriba en la primera página, 30–40 mm, margen ≥2 mm, "QR tributario:" encima y "VERI*FACTU" debajo
-- [ ] Contenido obligatorio: Emisor, Destinatario, número, fecha de expedición, fecha de operación/Periodo facturado si difiere, líneas, desglose, menciones de exención, Importe total, Retención de IRPF, Total a pagar; IBAN y logo si existen
-- [ ] Almacenado en R2 (jurisdicción UE) con número de versión; la descarga sirve el fichero almacenado
-- [ ] Sin QR no hay PDF ni descarga (test)
-- [ ] Test que comprueba la presencia de los campos obligatorios en el PDF generado
+- [x] Generación en servidor con @react-pdf/renderer desde la copia congelada
+- [x] QR arriba en la primera página, 30–40 mm, margen ≥2 mm, "QR tributario:" encima y "VERI*FACTU" debajo
+- [x] Contenido obligatorio: Emisor, Destinatario, número, fecha de expedición, fecha de operación/Periodo facturado si difiere, líneas, desglose, menciones de exención, Importe total, Retención de IRPF, Total a pagar; IBAN y logo si existen
+- [x] Almacenado en R2 (jurisdicción UE) con número de versión; la descarga sirve el fichero almacenado
+- [x] Sin QR no hay PDF ni descarga (test)
+- [x] Test que comprueba la presencia de los campos obligatorios en el PDF generado

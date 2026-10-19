@@ -1,0 +1,47 @@
+import { Module, type DynamicModule } from '@nestjs/common';
+import { OperatorAlerts } from '../alerts/operator-alerts.js';
+import { RetentionArchive } from '../archive/retention-archive.js';
+import { DraftsModule } from '../drafts/drafts.module.js';
+import { InvoicesController } from './invoices.controller.js';
+import { InvoiceExportService } from './invoice-export.js';
+import { InvoiceListService } from './invoice-list.js';
+import { InvoicePdfsService } from './invoice-pdfs.js';
+import { InvoicesService } from './invoices.js';
+import { RecordStatusPoller } from './record-status-poller.js';
+import { RecordVerdicts } from './record-verdicts.js';
+import { WebhooksController } from './webhooks.controller.js';
+import { SUBMISSION_OPTIONS, SubmissionQueue, type SubmissionOptions } from './submission-queue.js';
+import { SubmissionWorker } from './submission-worker.js';
+
+/**
+ * The outbox of InvoiceRecords, the worker that sends them to the VeriFactu connector, the PDFs it
+ * draws once they have their QR, the AEAT's verdicts on them (webhook and poll), and their retention archive.
+ */
+@Module({})
+export class SubmissionModule {
+  static forRoot(options: SubmissionOptions): DynamicModule {
+    return {
+      module: SubmissionModule,
+      global: true,
+      providers: [
+        { provide: SUBMISSION_OPTIONS, useValue: options },
+        SubmissionQueue,
+        SubmissionWorker,
+        InvoicePdfsService,
+        RecordVerdicts,
+        RecordStatusPoller,
+        RetentionArchive,
+        OperatorAlerts,
+      ],
+      exports: [SubmissionQueue, InvoicePdfsService, RecordVerdicts, OperatorAlerts],
+    };
+  }
+}
+
+/** Issuance, issued invoices, their list and export, and the connector's results webhook. */
+@Module({
+  imports: [DraftsModule],
+  controllers: [InvoicesController, WebhooksController],
+  providers: [InvoicesService, InvoiceListService, InvoiceExportService],
+})
+export class InvoicesModule {}

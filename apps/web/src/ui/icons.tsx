@@ -1,0 +1,114 @@
+// Icons from the design system (24×24, stroke).
+const paths = {
+  alert: (
+    <>
+      <path d="M12 3.5L2.5 20h19L12 3.5z" />
+      <path d="M12 10v4.5M12 17.5v.5" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 8v.5" />
+    </>
+  ),
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  chevron: <path d="M6 9l6 6 6-6" />,
+  chevronRight: <path d="M9 6l6 6-6 6" />,
+  arrowRight: <path d="M5 12h14M13 6l6 6-6 6" />,
+  file: <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />,
+  close: <path d="M6 6l12 12M18 6L6 18" />,
+  closeSmall: <path d="M7 7l10 10M17 7L7 17" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  mark: <path d="M12 7v6M12 16.5v.5" />,
+  spinner: <path d="M12 3a9 9 0 1 0 9 9" />,
+  hash: <path d="M5 9h14M9 4v16M15 4v16M5 15h14" />,
+  eye: (
+    <>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
+  print: (
+    <>
+      <path d="M7 9V4h10v5" />
+      <rect x="4" y="9" width="16" height="8" rx="2" />
+      <path d="M7 14h10v6H7z" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </>
+  ),
+  plus: <path d="M12 5v14M5 12h14" />,
+  download: <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />,
+  list: <path d="M4 6h16M4 12h16M4 18h10" />,
+  shield: <path d="M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z" />,
+  lock: (
+    <>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </>
+  ),
+  rectify: (
+    <>
+      <path d="M9 14L4 9l5-5" />
+      <path d="M4 9h11a5 5 0 0 1 0 10h-3" />
+    </>
+  ),
+  ban: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M5.6 5.6l12.8 12.8" />
+    </>
+  ),
+  mail: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3 7l9 6 9-6" />
+    </>
+  ),
+  swap: <path d="M16 3l4 4-4 4M20 7H8M8 21l-4-4 4-4M4 17h12" />,
+  link: (
+    <>
+      <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" />
+    </>
+  ),
+};
+
+export type IconName = keyof typeof paths;
+
+export function Icon({ name, size, spin }: { name: IconName; size?: 'xs' | 'lg'; spin?: boolean }) {
+  const className = ['ic', size && `ic-${size}`, spin && 'spin'].filter(Boolean).join(' ');
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      {paths[name]}
+    </svg>
+  );
+}
+
+/** `inverted`: white, for a dark background. */
+export function BrandMark({ inverted = false }: { inverted?: boolean }) {
+  return (
+    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
+      <rect width="28" height="28" rx="7" fill={inverted ? '#fff' : '#0D4A57'} />
+      <path
+        d="M8 14.5l4 4 8-9"
+        fill="none"
+        stroke={inverted ? '#141E26' : '#fff'}
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

@@ -6,8 +6,23 @@ on:
   push:
     branches: [stage, main]
 
+# Each job is a separate required check in the branch ruleset.
 jobs:
-  ci:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  test:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -22,15 +37,14 @@ jobs:
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm typecheck
+      - uses: ./.github/actions/setup
       - run: pnpm test
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_URL: https://api.example.invalid
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
       - run: pnpm build
-        env:
-          VITE_API_URL: https://api.example.invalid

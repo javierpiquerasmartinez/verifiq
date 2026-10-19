@@ -13,9 +13,13 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.1",
+    "@tanstack/react-router": "^1.170.41",
     "@verifiq/domain": "workspace:*",
+    "better-auth": "^1.7.7",
+    "qrcode.react": "^4.2.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

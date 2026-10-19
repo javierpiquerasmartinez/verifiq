@@ -6,9 +6,9 @@ Spec: `../spec.md` (historia 77) · ADR 0005
 
 **Blocked by:** 12; `design.html`
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Solo modifica el % de IRPF; recalcula Total a pagar; no toca el Registro de facturación
-- [ ] Nueva versión de PDF almacenada; las anteriores siguen accesibles en el historial
-- [ ] Evento en la línea de tiempo y auditoría
-- [ ] Tests de API: ningún envío al conector, versionado correcto
+- [x] Solo modifica el % de IRPF; recalcula Total a pagar; no toca el Registro de facturación
+- [x] Nueva versión de PDF almacenada; las anteriores siguen accesibles en el historial
+- [x] Evento en la línea de tiempo y auditoría
+- [x] Tests de API: ningún envío al conector, versionado correcto
