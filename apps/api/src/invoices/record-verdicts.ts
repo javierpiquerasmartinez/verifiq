@@ -90,7 +90,6 @@ export class RecordVerdicts {
         aeatErrorCode: aeatError?.code ?? null,
         aeatErrorMessage: aeatError?.message ?? null,
         registrationCode,
-        updatedAt: new Date(),
       })
       .where(and(eq(invoiceRecords.id, recordId), eq(invoiceRecords.status, 'submitted')))
       .returning({ issuerId: invoiceRecords.issuerId, invoiceId: invoiceRecords.invoiceId });

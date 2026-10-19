@@ -174,7 +174,6 @@ export class SubmissionWorker implements OnApplicationBootstrap {
             verificationUrl,
             qrPng,
             submittedAt: new Date(),
-            updatedAt: new Date(),
           })
           .where(pending)
           .returning({ id: invoiceRecords.id });
@@ -187,7 +186,7 @@ export class SubmissionWorker implements OnApplicationBootstrap {
       } else {
         const updated = await tx
           .update(invoiceRecords)
-          .set({ status: 'blocked', rejectionCode: result.code, rejectionMessage: result.message, updatedAt: new Date() })
+          .set({ status: 'blocked', rejectionCode: result.code, rejectionMessage: result.message })
           .where(pending)
           .returning({ id: invoiceRecords.id });
         if (updated.length === 0) return;

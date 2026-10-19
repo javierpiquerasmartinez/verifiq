@@ -71,9 +71,18 @@ export class SubmissionQueue implements OnModuleInit, OnApplicationShutdown {
 
   /** Runs the status poll every 15 minutes, one round at a time; a round that throws is not retried. */
   async scheduleStatusPoll(handler: () => Promise<void>): Promise<void> {
-    const name = `${this.options.queueName}-status-poll`;
+    await this.schedule('status-poll', '*/15 * * * *', handler);
+  }
+
+  /** Runs the retention archive every day at 03:00 (Madrid), one round at a time; a failed round waits for the next day. */
+  async scheduleRetentionArchive(handler: () => Promise<void>): Promise<void> {
+    await this.schedule('retention-archive', '0 3 * * *', handler, 'Europe/Madrid');
+  }
+
+  private async schedule(task: string, cron: string, handler: () => Promise<void>, tz?: string): Promise<void> {
+    const name = `${this.options.queueName}-${task}`;
     await this.boss.createQueue(name, { policy: 'exclusive', retryLimit: 0 });
-    await this.boss.schedule(name, '*/15 * * * *');
+    await this.boss.schedule(name, cron, null, tz ? { tz } : {});
     await this.boss.work(name, () => handler());
   }
 
