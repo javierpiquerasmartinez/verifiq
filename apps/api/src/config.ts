@@ -19,7 +19,7 @@ const sharedEnv = z.object({
   API_URL: z.url().default('http://localhost:3000'),
   // Without a key, emails are written to the log (local development only).
   RESEND_API_KEY: z.string().min(1).optional(),
-  EMAIL_FROM: z.string().default('Verifiq <no-reply@verifiq.app>'),
+  EMAIL_FROM: z.string().default('Verifiq <no-reply@verifiq.es>'),
   // Gets the alerts of invoice records the AEAT has not confirmed 24 h after their Issuance.
   // Without it they are only logged.
   OPERATOR_EMAIL: z.email().optional(),
