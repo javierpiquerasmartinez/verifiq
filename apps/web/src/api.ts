@@ -56,7 +56,7 @@ import {
   type VoidedInvoice,
 } from '@verifiq/domain';
 
-/** Base URL of the API: `/api` behind the same-origin proxy (Vercel rewrite, Vite dev server). */
+/** Base URL of the API: its own domain on the web's site once deployed; `/api` behind the Vite dev server's proxy. */
 export const apiUrl = import.meta.env.VITE_API_URL;
 
 /** An API error with the stable code from the response body, when there is one. */

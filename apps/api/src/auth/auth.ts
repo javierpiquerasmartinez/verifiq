@@ -24,8 +24,13 @@ export interface AuthOptions {
   appUrl: string;
   /** Origins allowed to call the auth endpoints from a browser. */
   trustedOrigins: string[];
-  /** CIDRs of the proxies in front of the API, to resolve the client IP. */
+  /** CIDRs of the proxies in front of the API, to resolve the client IP from X-Forwarded-For. */
   trustedProxies: string[];
+  /**
+   * The header in which the host in front of the API names the client, which clients cannot forge
+   * (Render: CF-Connecting-IP). It takes the place of X-Forwarded-For.
+   */
+  clientIpHeader?: string;
 }
 
 /** Paths a signed-in user can use before setting up 2FA: everything else is refused. */
@@ -108,7 +113,10 @@ export function createAuth(db: Database, mailer: Mailer, options: AuthOptions) {
       },
     },
     advanced: {
-      ipAddress: { trustedProxies: options.trustedProxies },
+      ipAddress: {
+        trustedProxies: options.trustedProxies,
+        ...(options.clientIpHeader && { ipAddressHeaders: [options.clientIpHeader] }),
+      },
     },
     // 2FA is mandatory: it cannot be switched off.
     disabledPaths: ['/two-factor/disable', '/sign-up/email'],

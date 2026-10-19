@@ -51,6 +51,7 @@ export async function createTestApp({
   verifactu = new FakeVerifactuConnector(),
   representationRequired = true,
   operatorEmail,
+  clientIpHeader,
 }: {
   webOrigins?: string[];
   mailer?: Mailer;
@@ -58,6 +59,7 @@ export async function createTestApp({
   verifactu?: VerifactuConnector;
   representationRequired?: boolean;
   operatorEmail?: string;
+  clientIpHeader?: string;
 } = {}): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({
     imports: [
@@ -70,6 +72,7 @@ export async function createTestApp({
           appUrl: WEB_ORIGIN,
           trustedOrigins: webOrigins,
           trustedProxies: [],
+          clientIpHeader,
         },
         mailer,
         storage,

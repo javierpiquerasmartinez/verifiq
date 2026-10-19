@@ -25,6 +25,9 @@ const sharedEnv = z.object({
   OPERATOR_EMAIL: z.email().optional(),
   // Comma-separated CIDRs of the proxies in front of the API, to read the client IP for rate limiting.
   TRUSTED_PROXIES: z.string().default('').transform(commaSeparated),
+  // The header in which the host names the client, which clients cannot forge (Render: cf-connecting-ip).
+  // X-Forwarded-For is then never read.
+  CLIENT_IP_HEADER: z.string().min(1).toLowerCase().optional(),
   // Cloudflare R2 (EU jurisdiction) for logos and PDFs. Without them, files go to apps/api/.storage
   // (local development only).
   R2_ACCOUNT_ID: z.string().min(1).optional(),

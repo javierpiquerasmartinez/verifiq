@@ -58,7 +58,7 @@ export class WebhooksController {
       throw error;
     }
     if (!received) {
-      void this.alerts.raise({ kind: 'webhook-signature-invalid', detail: [`Aviso ${webhookId}`, `Desde ${request.ip ?? 'una IP desconocida'}`] });
+      void this.alerts.raise({ kind: 'webhook-signature-invalid', detail: [`Aviso ${webhookId}`, `X-Forwarded-For: ${headers['x-forwarded-for'] ?? '(ninguna)'}`] });
       throw new UnauthorizedException({ message: 'Invalid webhook signature' });
     }
   }

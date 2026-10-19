@@ -5,7 +5,6 @@
   "buildCommand": "cd ../.. && pnpm build:web",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://verifiq-api-staging.onrender.com/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
