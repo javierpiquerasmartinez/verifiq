@@ -81,8 +81,8 @@ export function OperatorShell({ children }: { children: ReactNode }) {
       <header className="topbar topbar-operator">
         <div className="topbar-in">
           <span className="brand">
-            <BrandMark inverted />
-            Verifiq
+            <BrandMark />
+            verifiq
             <span className="tag" style={{ marginLeft: 6 }}>
               Administración
             </span>

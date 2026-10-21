@@ -138,7 +138,7 @@ export function AccessLayout({
     <div className="access">
       <span className="brand">
         <BrandMark />
-        Verifiq
+        verifiq
       </span>
       <main className={`card access-card${wide === 'wider' ? ' wider' : wide ? ' wide' : ''}`}>
         <div className="access-head">

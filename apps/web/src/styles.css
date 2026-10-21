@@ -170,15 +170,21 @@ ul {
   align-items: center;
   gap: 8px 32px;
 }
+/* the lockup of design.html's logo board: symbol 32, wordmark 20, gap 8 */
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-weight: 600;
-  font-size: 18px;
+  font-size: 20px;
+  line-height: 1;
   color: var(--ink);
   text-decoration: none;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.03em;
+}
+.brand svg {
+  flex: none;
+  color: var(--primary);
 }
 /* the operator's header: dark, so it is never mistaken for an issuer's app */
 .topbar-operator {
@@ -186,10 +192,12 @@ ul {
   border-bottom-color: var(--ink);
   color: #fff;
 }
-.topbar-operator .brand {
+.topbar-operator .brand,
+.topbar-operator .brand svg {
   color: #fff;
 }
 .topbar-operator .tag {
+  letter-spacing: normal;
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
 }

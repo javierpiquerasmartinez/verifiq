@@ -8,11 +8,11 @@ Spec: `../spec.md` (historias 97, 100; Further Notes)
 
 **Status:** done
 
-- [ ] ~~Tests e2e con Playwright contra staging: alta completa, crear y emitir con QR, rectificar, anular~~ → issue 29
+- [x] ~~Tests e2e con Playwright contra staging: alta completa, crear y emitir con QR, rectificar, anular~~ → issue 29
 - [x] Producción: Neon, Render y Vercel de producción, base de datos separada, release por PR `stage` → `main`
 - [x] Exportación periódica a R2 de copias congeladas, PDFs y respuestas del conector; conservación 6 años documentada
 - [x] Alertas operativas (errores del worker, webhooks fallidos) llegan al operador
-- [ ] ~~Checklist (humano): textos legales y declaración responsable, contratos de subencargo, validación del asesor (tabla R1/R4, Anulación por no entrega, fecha de operación mensual), dudas abiertas con Verifacti, revisión de aplazamientos de VeriFactu~~ → issue 30
+- [x] ~~Checklist (humano): textos legales y declaración responsable, contratos de subencargo, validación del asesor (tabla R1/R4, Anulación por no entrega, fecha de operación mensual), dudas abiertas con Verifacti, revisión de aplazamientos de VeriFactu~~ → issue 30
 
 ## Comments
 
