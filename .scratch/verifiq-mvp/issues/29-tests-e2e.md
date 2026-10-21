@@ -25,7 +25,7 @@ Pasos manuales (una vez):
 - [x] `INSERT INTO issuer_memberships` del usuario e2e en el Emisor de staging (editor SQL de Neon)
 - [x] Secreto de *Protection Bypass for Automation* en Vercel
 - [x] Secretos de GitHub: credenciales e2e, bypass y la clave de cuenta de Verifacti
-- [ ] Confirmar con Verifacti (issue 30) que los NIFs de `entorno: test` creados por API no se facturan
+- [x] Confirmar con Verifacti (issue 30) que los NIFs de `entorno: test` creados por API no se facturan
 
 ## Comments
 
